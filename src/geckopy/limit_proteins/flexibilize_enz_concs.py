@@ -157,14 +157,13 @@ def flexibilize_enz_concs(
         Whether per-iteration progress is logged at INFO.
     per_complex
         Treat every complex (see ``complex_families``) as one enzyme:
-        rank complexes by the summed control coefficients of their
-        subunits (the gain from raising them all together cannot exceed
-        that sum, and a levelled complex binds on all subunits at once,
-        so no single subunit shows a gain), raise every measured subunit
-        of the picked complex by the same factor, count iterations per
-        complex, and keep one factor per complex in the refinement pass,
-        so that concentrations levelled by ``level_complex_concs`` stay
-        levelled. Off by default.
+        rank enzymes and complexes by the growth gained per fold of
+        raising all their caps together (a levelled complex binds on all
+        subunits at once, so no single subunit shows a gain), raise every
+        measured subunit of the picked complex by the same factor, count
+        iterations per complex, and keep one factor per complex in the
+        refinement pass, so that concentrations levelled by
+        ``level_complex_concs`` stay levelled. Off by default.
 
     Returns
     -------
@@ -267,14 +266,17 @@ def flexibilize_enz_concs(
             )
             flex_break = True
             break
-        _, control_coeffs = get_conc_control_coeffs(
-            model,
-            proteins=proteins,
-            fold_change=fold_change,
-            limit=_CONTROL_COEFF_LIMIT,
-        )
+        if families is not None:
+            scores = _unit_scores(model, proteins, units, fold_change, _CONTROL_COEFF_LIMIT)
+        else:
+            _, scores = get_conc_control_coeffs(
+                model,
+                proteins=proteins,
+                fold_change=fold_change,
+                limit=_CONTROL_COEFF_LIMIT,
+            )
 
-        if not (control_coeffs > 0).any():
+        if not (scores > 0).any():
             pool_old, pool_new, pool_pred_growth = _try_relax_pool(
                 model, bio_rxn, exp_growth, pred_growth, verbose,
             )
@@ -282,18 +284,20 @@ def flexibilize_enz_concs(
                 pred_growth = pool_pred_growth
             break
 
-        unit_coeffs = np.zeros(len(units))
-        np.add.at(unit_coeffs, unit_of, control_coeffs)
-        unit = int(np.argmax(unit_coeffs))
+        if families is not None:
+            unit = int(np.argmax(scores))
+        else:
+            unit = int(unit_of[int(np.argmax(scores))])
         members = units[unit]
-        max_idx = max(members, key=lambda j: control_coeffs[j])
+        max_idx = members[0]
         frequence[max_idx] += 1
         unit_frequence[unit] += 1
         if unit_frequence[unit] > iter_per_enzyme:
             logger.warning(
-                "flexibilize_enz_concs: iter limit reached for protein %r; "
+                "flexibilize_enz_concs: iter limit reached for %s %r; "
                 "consider revising its kcat.",
-                proteins[max_idx],
+                "complex" if len(members) > 1 else "protein",
+                [proteins[j] for j in members] if len(members) > 1 else proteins[max_idx],
             )
             flex_break = True
             break
@@ -455,6 +459,65 @@ def _build_result(
     return _finalize_and_sort(_maybe_add_pool(result, pool_old, pool_new))
 
 
+def _unit_scores(
+    model: "EcModel",
+    proteins: list[str],
+    units: list[list[int]],
+    fold_change: float,
+    limit: float,
+) -> np.ndarray:
+    """Growth gained per fold of raising each unit's caps together.
+
+    With duals, ``sum(reduced cost of usage_prot_i * its cap)`` over the
+    unit's subunits that run at more than ``limit`` of their cap. Unlike
+    the ``prot_<id>`` shadow price, the usage reaction's reduced cost
+    leaves out the protein pool's price, which would otherwise be counted
+    once per subunit; and the weighted sum is the same for every optimal
+    dual when a levelled complex binds on all subunits at once. When no
+    dual is positive (no duals exposed, or the protein pool binds and the
+    solver puts the whole price on it), one solve per candidate unit with
+    all its caps raised by ``fold_change`` and the pool lifted.
+    """
+    from .get_conc_control_coeffs import _solution_is_optimal, _solver_supports_duals
+
+    scores = np.zeros(len(units))
+    sol = model.optimize()
+    if not _solution_is_optimal(sol):
+        return scores
+    candidates = []
+    for k, members in enumerate(units):
+        reactions = [model.reactions.get_by_id(f"{USAGE_PREFIX}{proteins[j]}") for j in members]
+        active = [r for r in reactions if r.upper_bound > 0 and float(sol.fluxes[r.id]) / r.upper_bound > limit]
+        if active:
+            candidates.append((k, reactions, active))
+    if _solver_supports_duals(model):
+        reduced = sol.reduced_costs
+        for k, _, active in candidates:
+            scores[k] = sum(abs(float(reduced[r.id])) * r.upper_bound for r in active)
+        scores[scores < 1e-12] = 0.0
+        if (scores > 0).any():
+            return scores
+    # No dual singles a unit out (none exposed, or the protein pool binds as
+    # well and carries the whole price): probe each candidate with the pool
+    # lifted, so the probe finds the caps that limit once the pool is relaxed.
+    pool_rxn = model.reactions.get_by_id(POOL_EXCHANGE_ID)
+    with model:
+        pool_rxn.upper_bound = max(pool_rxn.upper_bound, 1000.0)
+        base = model.optimize()
+        if not _solution_is_optimal(base):
+            return scores
+        baseline = float(base.objective_value)
+        for k, reactions, _ in candidates:
+            with model:
+                for r in reactions:
+                    r.upper_bound = r.upper_bound * fold_change
+                probe = model.optimize()
+            if _solution_is_optimal(probe):
+                gain = float(probe.objective_value) - baseline
+                scores[k] = gain / (fold_change - 1.0) if gain > _GROWTH_DELTA_THRESHOLD else 0.0
+    return scores
+
+
 def _per_complex(
     proteins: list[str],
     old: np.ndarray,
@@ -475,7 +538,8 @@ def _per_complex(
         ratios = [new[index[m]] / old[index[m]] for m in group if old[index[m]] > 0]
         factor = max(ratios) if ratios else 1.0
         for m in group:
-            out[index[m]] = old[index[m]] * factor
+            if old[index[m]] > 0:
+                out[index[m]] = old[index[m]] * factor
     return out
 
 

@@ -220,3 +220,43 @@ def test_a_subunit_in_two_equally_weighted_complexes_is_shared():
     rows = {"R1": {"A": 1, "B": 1, "C": 1, "D": 1}, "R2": {"A": 1, "B": 1, "E": 1, "F": 1, "G": 1, "H": 1}}
     families = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), rows))
     assert {"A", "B"} <= families.shared
+
+
+def _series_toy(adapter):
+    """A -> B by complex (X1, X2, X3), B -> P by single enzyme E; the pool binds.
+
+    At flux 1 every subunit uses 1 mg of a 1.25 mg cap (80%) and E uses
+    1 mg of a 1 mg cap; the pool holds exactly 4 mg. Only E limits.
+    """
+    model = EcModel("series", adapter=adapter)
+    mets = {n: cobra.Metabolite(n, compartment="c") for n in ("A", "B", "P", "pool", "prot_X1", "prot_X2", "prot_X3", "prot_E")}
+    model.add_metabolites(list(mets.values()))
+    spec = {
+        "EX_A": ({"A": 1}, (0, 1000)),
+        "R1": ({"A": -1, "B": 1, "prot_X1": -1, "prot_X2": -1, "prot_X3": -1}, (0, 1000)),
+        "R2": ({"B": -1, "P": 1, "prot_E": -1}, (0, 1000)),
+        "biomass": ({"P": -1}, (0, 1000)),
+        "prot_pool_exchange": ({"pool": 1}, (0, 4.0)),
+        **{f"usage_prot_{e}": ({"pool": -1, f"prot_{e}": 1}, (0, 1.25 if e != "E" else 1.0)) for e in ("X1", "X2", "X3", "E")},
+    }
+    for rid, (st, bounds) in spec.items():
+        r = cobra.Reaction(rid)
+        r.add_metabolites({mets[m]: c for m, c in st.items()})
+        r.bounds = bounds
+        model.add_reactions([r])
+    model.objective = "biomass"
+    model.ec = EcData(
+        rxns=["R1", "R2"], kcat=np.ones(2), source=[""] * 2, notes=[""] * 2, eccodes=[""] * 2,
+        genes=["g1", "g2", "g3", "gE"], enzymes=["X1", "X2", "X3", "E"], mw=np.full(4, 100.0),
+        sequence=[""] * 4, concs=np.array([1.25, 1.25, 1.25, 1.0]),
+        rxn_enz_mat=sparse.csr_matrix([[1.0, 1.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]),
+    )
+    return model
+
+
+def test_per_complex_does_not_pick_a_large_complex_for_the_pool_price(tmp_path):
+    model = _series_toy(_adapter(tmp_path, gr_exp=1.1))
+    flexibilize_enz_concs(model, verbose=False, per_complex=True)
+    for e in ("X1", "X2", "X3"):
+        assert model.reactions.get_by_id(f"usage_prot_{e}").upper_bound == pytest.approx(1.25)
+    assert model.optimize().objective_value >= 1.1 * 0.9975 - 1e-9

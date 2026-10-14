@@ -37,6 +37,7 @@ from ..ec_model.constants import (
     USAGE_PREFIX,
 )
 from .get_conc_control_coeffs import get_conc_control_coeffs
+from .level_complex_concs import ComplexFamilies, complex_families
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -103,6 +104,7 @@ def flexibilize_enz_concs(
     iter_per_enzyme: int = 5,
     bio_rxn: Optional[str] = None,
     verbose: bool = True,
+    per_complex: bool = False,
 ) -> FlexEnzResult:
     """Iteratively relax enzyme concentration constraints until the
     model reaches ``exp_growth``.
@@ -153,6 +155,12 @@ def flexibilize_enz_concs(
         adapter; pass it (with ``exp_growth``) to run without an adapter.
     verbose
         Whether per-iteration progress is logged at INFO.
+    per_complex
+        When the most limiting enzyme is a non-shared subunit of a
+        complex (see ``complex_families``), raise every measured subunit
+        of that complex by the same factor, and keep one factor per
+        complex in the refinement pass, so that concentrations levelled
+        by ``level_complex_concs`` stay levelled. Off by default.
 
     Returns
     -------
@@ -203,6 +211,9 @@ def flexibilize_enz_concs(
     proteins = [model.ec.enzymes[i] for i in measured_idx]
     n_proteins = len(proteins)
     frequence = np.zeros(n_proteins, dtype=int)
+    touched = np.zeros(n_proteins, dtype=bool)
+    position = {p: i for i, p in enumerate(proteins)}
+    families: Optional[ComplexFamilies] = complex_families(model) if per_complex else None
 
     initial_sol = model.optimize()
     if (
@@ -265,11 +276,14 @@ def flexibilize_enz_concs(
             break
 
         increase = fold_change * frequence[max_idx]
-        ec_idx = measured_idx[max_idx]
-        usage_rxn = model.reactions.get_by_id(
-            f"{USAGE_PREFIX}{proteins[max_idx]}"
-        )
-        usage_rxn.upper_bound = float(model.ec.concs[ec_idx]) * (1.0 + increase)
+        members = families.members(proteins[max_idx]) if families else [proteins[max_idx]]
+        for member in members:
+            if member not in position:
+                continue
+            i = position[member]
+            touched[i] = True
+            usage_rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{member}")
+            usage_rxn.upper_bound = float(model.ec.concs[measured_idx[i]]) * (1.0 + increase)
 
         new_sol = model.optimize()
         pred_growth = float(new_sol.objective_value or 0.0)
@@ -282,6 +296,7 @@ def flexibilize_enz_concs(
     return _build_result(
         model, proteins, measured_idx, frequence,
         flex_break, exp_growth, pool_old, pool_new, bio_rxn_id,
+        touched=touched, families=families,
     )
 
 
@@ -345,9 +360,13 @@ def _build_result(
     pool_old: Optional[float],
     pool_new: Optional[float],
     bio_rxn_id: str,
+    touched: Optional[np.ndarray] = None,
+    families: Optional[ComplexFamilies] = None,
 ) -> FlexEnzResult:
     """Build the FlexEnzResult and apply the post-loop UB refinement."""
     flex_mask = frequence > 0
+    if touched is not None:
+        flex_mask = flex_mask | touched
     flex_indices = np.where(flex_mask)[0]
     if len(flex_indices) == 0:
         return _maybe_add_pool(FlexEnzResult(), pool_old, pool_new)
@@ -377,6 +396,8 @@ def _build_result(
                 dtype=float,
             )
 
+        if families is not None:
+            new_concs = _per_complex(flex_proteins, old_concs_arr, new_concs, families)
         keep_old_mask = new_concs < old_concs_arr
         for i, rxn_id in enumerate(usage_rxn_ids):
             ub = (
@@ -410,6 +431,30 @@ def _build_result(
         )
 
     return _finalize_and_sort(_maybe_add_pool(result, pool_old, pool_new))
+
+
+def _per_complex(
+    proteins: list[str],
+    old: np.ndarray,
+    new: np.ndarray,
+    families: ComplexFamilies,
+) -> np.ndarray:
+    """One factor per complex: every flexibilized subunit takes the largest new/old of its complex."""
+    out = new.copy()
+    index = {p: i for i, p in enumerate(proteins)}
+    seen: set[str] = set()
+    for protein in proteins:
+        if protein in seen:
+            continue
+        group = [m for m in families.members(protein) if m in index]
+        seen.update(group)
+        if len(group) < 2:
+            continue
+        ratios = [new[index[m]] / old[index[m]] for m in group if old[index[m]] > 0]
+        factor = max(ratios) if ratios else 1.0
+        for m in group:
+            out[index[m]] = old[index[m]] * factor
+    return out
 
 
 def _maybe_add_pool(

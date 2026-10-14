@@ -9,11 +9,18 @@ and gives each complex one abundance, scaled to every subunit by its
 stoichiometry.
 
 A complex is a set of enzymes that catalyses a reaction together, taken
-from ``ec.rxn_enz_mat``. Enzyme sets that share at least half of the
-smaller set's subunits are one complex (isozyme variants that swap a
-subunit, the same complex on different reactions). A subunit that ends
-up in more than one complex, or that also catalyses a reaction on its
-own, is *shared*: it is left as measured and does not take part in the
+from ``ec.rxn_enz_mat``. Two enzyme sets are one complex when they share
+at least two subunits and at least half of the larger set (isozyme
+variants that swap a subunit, the same complex on different reactions).
+A single shared protein never merges two sets, so electron carriers and
+shared subunits (cytochrome c, thioredoxin, the E3 subunit of the
+2-oxo-acid dehydrogenases) do not chain unrelated complexes together.
+
+A subunit in exactly two complexes belongs to the one whose enzyme sets
+catalyse more reactions (the core subunits COX1-3 of complex IV also
+appear in one assembly reaction). A subunit in three or more complexes,
+in two with equal weight, or that also catalyses a reaction on its own
+is *shared*: it is left as measured and does not take part in the
 summary.
 """
 from __future__ import annotations
@@ -41,22 +48,26 @@ class ComplexFamilies:
     complexes
         One dict per complex, ``{enzyme: copies}`` over every subunit
         that appears in any of its enzyme sets.
+    owner
+        For every subunit that belongs to a complex, the index of that
+        complex in ``complexes``.
     shared
-        Enzymes that belong to more than one complex, or to a complex
-        and also catalyse a reaction alone.
+        Subunits of a complex that belong to none: carriers and subunits
+        shared between complexes.
     """
 
     complexes: list[dict[str, float]] = field(default_factory=list)
+    owner: dict[str, int] = field(default_factory=dict)
     shared: set[str] = field(default_factory=set)
 
+    def owned(self, index: int) -> dict[str, float]:
+        """``{enzyme: copies}`` of the subunits complex ``index`` owns."""
+        return {e: c for e, c in self.complexes[index].items() if self.owner.get(e) == index}
+
     def members(self, enzyme: str) -> list[str]:
-        """The non-shared subunits of the complex ``enzyme`` belongs to, or ``[enzyme]``."""
-        if enzyme in self.shared:
-            return [enzyme]
-        for complex_ in self.complexes:
-            if enzyme in complex_:
-                return [e for e in complex_ if e not in self.shared]
-        return [enzyme]
+        """The subunits of the complex ``enzyme`` belongs to, or ``[enzyme]``."""
+        index = self.owner.get(enzyme)
+        return [enzyme] if index is None else list(self.owned(index))
 
 
 @dataclass
@@ -81,7 +92,9 @@ class LevelComplexResult:
     skipped: list[tuple[str, ...]] = field(default_factory=list)
 
 
-def complex_families(model: "EcModel", min_overlap: float = 0.5) -> ComplexFamilies:
+def complex_families(
+    model: "EcModel", min_overlap: float = 0.5, min_shared: int = 2,
+) -> ComplexFamilies:
     """Group the enzymes of multi-subunit reactions into complexes.
 
     Parameters
@@ -90,11 +103,14 @@ def complex_families(model: "EcModel", min_overlap: float = 0.5) -> ComplexFamil
         An EcModel with ``ec.rxn_enz_mat`` (copies per subunit).
     min_overlap
         Two enzyme sets are one complex when they share at least this
-        fraction of the smaller set's subunits.
+        fraction of the larger set's subunits...
+    min_shared
+        ...and at least this many subunits.
     """
     matrix = model.ec.rxn_enz_mat.tocsr()
     enzymes = list(model.ec.enzymes)
     sets: dict[frozenset, dict[str, float]] = {}
+    reactions: dict[frozenset, int] = {}
     alone: set[str] = set()
     for row in range(matrix.shape[0]):
         start, end = matrix.indptr[row], matrix.indptr[row + 1]
@@ -103,6 +119,7 @@ def complex_families(model: "EcModel", min_overlap: float = 0.5) -> ComplexFamil
             alone.update(present)
         elif present:
             sets.setdefault(frozenset(present), present)
+            reactions[frozenset(present)] = reactions.get(frozenset(present), 0) + 1
 
     keys = list(sets)
     parent = list(range(len(keys)))
@@ -121,22 +138,40 @@ def complex_families(model: "EcModel", min_overlap: float = 0.5) -> ComplexFamil
         for x in range(len(indices)):
             for y in range(x + 1, len(indices)):
                 i, j = indices[x], indices[y]
-                if len(keys[i] & keys[j]) >= min_overlap * min(len(keys[i]), len(keys[j])):
+                common = len(keys[i] & keys[j])
+                if common >= min_shared and common >= min_overlap * max(len(keys[i]), len(keys[j])):
                     parent[find(i)] = find(j)
 
     grouped: dict[int, dict[str, float]] = {}
+    weight: dict[int, dict[str, int]] = {}
     for i, key in enumerate(keys):
+        w = weight.setdefault(find(i), {})
+        for enzyme in key:
+            w[enzyme] = w.get(enzyme, 0) + reactions[key]
         complex_ = grouped.setdefault(find(i), {})
         for enzyme, copies in sets[key].items():
+            if enzyme in complex_ and complex_[enzyme] != copies:
+                logger.warning(
+                    "complex_families: %s has %g copies in one variant and %g in another; "
+                    "the first is used", enzyme, complex_[enzyme], copies,
+                )
             complex_.setdefault(enzyme, copies)
-    complexes = list(grouped.values())
+    roots = list(grouped)
+    complexes = [grouped[r] for r in roots]
 
-    count: dict[str, int] = {}
-    for complex_ in complexes:
-        for enzyme in complex_:
-            count[enzyme] = count.get(enzyme, 0) + 1
-    shared = {e for e, n in count.items() if n > 1} | (alone & set(count))
-    return ComplexFamilies(complexes=complexes, shared=shared)
+    found: dict[str, list[tuple[int, int]]] = {}
+    for index, root in enumerate(roots):
+        for enzyme, w in weight[root].items():
+            found.setdefault(enzyme, []).append((w, index))
+    owner: dict[str, int] = {}
+    for enzyme, hits in found.items():
+        if enzyme in alone or len(hits) > 2:
+            continue
+        hits.sort(reverse=True)
+        if len(hits) == 1 or hits[0][0] > hits[1][0]:
+            owner[enzyme] = hits[0][1]
+    shared = set(found) - set(owner)
+    return ComplexFamilies(complexes=complexes, owner=owner, shared=shared)
 
 
 def level_complex_abundances(
@@ -178,8 +213,8 @@ def level_complex_abundances(
     order = list(uniprot_ids)
     result = LevelComplexResult(shared=sorted(families.shared & set(values)))
 
-    for complex_ in families.complexes:
-        members = {e: c for e, c in complex_.items() if e not in families.shared}
+    for index, complex_ in enumerate(families.complexes):
+        members = families.owned(index)
         measured = [values[e] / c for e, c in members.items() if np.isfinite(values.get(e, np.nan)) and values[e] > 0]
         if not measured:
             result.skipped.append(tuple(sorted(complex_)))

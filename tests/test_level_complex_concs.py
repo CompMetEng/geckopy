@@ -169,3 +169,54 @@ def test_per_complex_raises_every_subunit_by_the_same_factor(tmp_path):
     factor_2 = model.reactions.usage_prot_X2.upper_bound / 3.0
     assert factor_1 == pytest.approx(factor_2)
     assert model.optimize().objective_value == pytest.approx(2.0, rel=5e-3)
+
+
+def test_one_shared_protein_does_not_chain_complexes_together():
+    rows = {"R1": {"A": 1, "B": 1}, "R2": {"A": 1, "C": 1}, "R3": {"A": 1, "D": 1, "E": 1, "F": 1}}
+    families = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), rows))
+    assert sorted(sorted(c) for c in families.complexes) == [["A", "B"], ["A", "C"], ["A", "D", "E", "F"]]
+    assert families.shared == {"A"}
+
+
+def test_an_electron_carrier_in_several_complexes_is_shared_not_a_bridge():
+    # B, C, D form a complex that takes carrier S or carrier H (two variants);
+    # S also pairs with E, like cytochrome c with a dehydrogenase.
+    rows = {"R1_EXP_1": {"B": 1, "C": 1, "D": 1, "S": 1}, "R1_EXP_2": {"B": 1, "C": 1, "D": 1, "H": 1},
+            "R2": {"E": 1, "S": 1}}
+    families = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), rows))
+    assert sorted(sorted(c) for c in families.complexes) == [["B", "C", "D", "H", "S"], ["E", "S"]]
+    assert "S" in families.shared
+    assert "E" not in families.members("B")
+
+
+def test_per_complex_relaxes_a_levelled_complex_whose_subunits_bind_together(tmp_path):
+    model = _complex_toy(_adapter(tmp_path, gr_exp=2.0))
+    model.reactions.usage_prot_X2.upper_bound = 1.0
+    model.ec.concs = np.array([1.0, 1.0])
+    flexibilize_enz_concs(model, verbose=False, per_complex=True)
+    assert model.reactions.usage_prot_X1.upper_bound == pytest.approx(model.reactions.usage_prot_X2.upper_bound)
+    assert model.optimize().objective_value == pytest.approx(2.0, rel=5e-3)
+
+
+def test_per_complex_never_lowers_a_cap_below_its_measurement(tmp_path):
+    model = _complex_toy(_adapter(tmp_path, gr_exp=2.0))
+    flexibilize_enz_concs(model, verbose=False, per_complex=True)
+    assert model.reactions.usage_prot_X1.upper_bound >= 1.0
+    assert model.reactions.usage_prot_X2.upper_bound >= 3.0
+
+
+def test_a_subunit_in_two_complexes_belongs_to_the_one_with_more_reactions():
+    # A, B, C, D is a complex on three reactions; A, B with E, F, G, H on one
+    # (an assembly step): A and B belong to the first, not shared.
+    rows = {"R1": {"A": 1, "B": 1, "C": 1, "D": 1}, "R2": {"A": 1, "B": 1, "C": 1, "D": 1},
+            "R3": {"A": 1, "B": 1, "C": 1, "D": 1}, "R4": {"A": 1, "B": 1, "E": 1, "F": 1, "G": 1, "H": 1}}
+    families = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), rows))
+    assert sorted(families.members("A")) == ["A", "B", "C", "D"]
+    assert sorted(families.members("E")) == ["E", "F", "G", "H"]
+    assert families.shared == set()
+
+
+def test_a_subunit_in_two_equally_weighted_complexes_is_shared():
+    rows = {"R1": {"A": 1, "B": 1, "C": 1, "D": 1}, "R2": {"A": 1, "B": 1, "E": 1, "F": 1, "G": 1, "H": 1}}
+    families = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), rows))
+    assert {"A", "B"} <= families.shared

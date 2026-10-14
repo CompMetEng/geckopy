@@ -156,11 +156,15 @@ def flexibilize_enz_concs(
     verbose
         Whether per-iteration progress is logged at INFO.
     per_complex
-        When the most limiting enzyme is a non-shared subunit of a
-        complex (see ``complex_families``), raise every measured subunit
-        of that complex by the same factor, and keep one factor per
-        complex in the refinement pass, so that concentrations levelled
-        by ``level_complex_concs`` stay levelled. Off by default.
+        Treat every complex (see ``complex_families``) as one enzyme:
+        rank complexes by the summed control coefficients of their
+        subunits (the gain from raising them all together cannot exceed
+        that sum, and a levelled complex binds on all subunits at once,
+        so no single subunit shows a gain), raise every measured subunit
+        of the picked complex by the same factor, count iterations per
+        complex, and keep one factor per complex in the refinement pass,
+        so that concentrations levelled by ``level_complex_concs`` stay
+        levelled. Off by default.
 
     Returns
     -------
@@ -214,6 +218,20 @@ def flexibilize_enz_concs(
     touched = np.zeros(n_proteins, dtype=bool)
     position = {p: i for i, p in enumerate(proteins)}
     families: Optional[ComplexFamilies] = complex_families(model) if per_complex else None
+    # Indices into ``proteins`` of each unit that is relaxed together: a
+    # complex's measured, non-shared subunits, or a single enzyme.
+    units: list[list[int]] = []
+    unit_of = np.zeros(n_proteins, dtype=int)
+    assigned: set[int] = set()
+    for i, protein in enumerate(proteins):
+        if i in assigned:
+            continue
+        members = [position[m] for m in families.members(protein) if m in position] if families else [i]
+        for j in members:
+            unit_of[j] = len(units)
+        assigned.update(members)
+        units.append(members)
+    unit_frequence = np.zeros(len(units), dtype=int)
 
     initial_sol = model.optimize()
     if (
@@ -264,9 +282,14 @@ def flexibilize_enz_concs(
                 pred_growth = pool_pred_growth
             break
 
-        max_idx = int(np.argmax(control_coeffs))
+        unit_coeffs = np.zeros(len(units))
+        np.add.at(unit_coeffs, unit_of, control_coeffs)
+        unit = int(np.argmax(unit_coeffs))
+        members = units[unit]
+        max_idx = max(members, key=lambda j: control_coeffs[j])
         frequence[max_idx] += 1
-        if frequence[max_idx] > iter_per_enzyme:
+        unit_frequence[unit] += 1
+        if unit_frequence[unit] > iter_per_enzyme:
             logger.warning(
                 "flexibilize_enz_concs: iter limit reached for protein %r; "
                 "consider revising its kcat.",
@@ -275,15 +298,14 @@ def flexibilize_enz_concs(
             flex_break = True
             break
 
-        increase = fold_change * frequence[max_idx]
-        members = families.members(proteins[max_idx]) if families else [proteins[max_idx]]
-        for member in members:
-            if member not in position:
-                continue
-            i = position[member]
+        increase = fold_change * unit_frequence[unit]
+        for i in members:
             touched[i] = True
-            usage_rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{member}")
-            usage_rxn.upper_bound = float(model.ec.concs[measured_idx[i]]) * (1.0 + increase)
+            usage_rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{proteins[i]}")
+            usage_rxn.upper_bound = max(
+                usage_rxn.upper_bound,
+                float(model.ec.concs[measured_idx[i]]) * (1.0 + increase),
+            )
 
         new_sol = model.optimize()
         pred_growth = float(new_sol.objective_value or 0.0)

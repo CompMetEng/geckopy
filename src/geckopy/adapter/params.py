@@ -8,7 +8,7 @@ geckopy-only extensions with no MATLAB equivalent.
 Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
 """
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -53,6 +53,50 @@ class ComplexParams(BaseModel):
 
     taxonomic_id: Optional[int] = Field(
         default=None, description="Taxonomy ID for Complex Portal query"
+    )
+
+
+class SpontaneousParams(BaseModel):
+    """Which reactions proceed without an enzyme.
+
+    Both rules may be given; a reaction is spontaneous if either matches.
+    GECKO (MATLAB) reads the same keys, so a project needs no code for this.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    name_contains: Optional[str] = Field(
+        default=None,
+        description="Reactions whose name contains this text are spontaneous.",
+    )
+    file: Optional[Path] = Field(
+        default=None,
+        description=(
+            "TSV of spontaneous reactions, relative to the project folder: "
+            "a header row, reaction identifiers in the first column and, "
+            "optionally, a second column where 1 or true marks the "
+            "spontaneous ones."
+        ),
+    )
+
+
+class MatlabParams(BaseModel):
+    """Settings that only GECKO (MATLAB) reads; geckopy ignores them.
+
+    They let one model_adapter.toml configure both tools.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    make_model_anaerobic: Optional[str] = Field(
+        default=None,
+        description="MATLAB function that constrains the ecModel to anaerobic growth.",
+    )
+    change_protein_biomass: Optional[str] = Field(
+        default=None,
+        description="MATLAB function that changes the protein content of the biomass.",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Further GECKO parameters, kept under their MATLAB names.",
     )
 
 
@@ -277,3 +321,5 @@ class ModelParameters(BaseModel):
     complex: ComplexParams = Field(default_factory=ComplexParams)
     evotune: EvotuneParams = Field(default_factory=EvotuneParams)
     okp: OkpParams = Field(default_factory=OkpParams)
+    spontaneous: SpontaneousParams = Field(default_factory=SpontaneousParams)
+    matlab: MatlabParams = Field(default_factory=MatlabParams)

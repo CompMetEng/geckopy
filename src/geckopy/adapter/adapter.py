@@ -87,9 +87,11 @@ class ModelAdapter:
         data["path"] = folder
         params = ModelParameters.model_validate(data)
 
-        # Resolve conv_gem relative to the folder if it is not absolute.
+        # Resolve project paths relative to the folder if they are not absolute.
         if not params.conv_gem.is_absolute():
             params.conv_gem = folder / params.conv_gem
+        if params.spontaneous.file is not None and not params.spontaneous.file.is_absolute():
+            params.spontaneous.file = folder / params.spontaneous.file
 
         # Note: a subclass in the project's `adapter.py` is not auto-discovered;
         # import and instantiate your ModelAdapter subclass explicitly.
@@ -101,10 +103,29 @@ class ModelAdapter:
     def get_spontaneous_reactions(self, model: "cobra.Model") -> list[str]:
         """Return IDs of reactions that proceed without enzyme catalysis.
 
-        The default returns an empty list. Override in a subclass to
-        identify spontaneous reactions for your organism.
+        The default reads the ``[spontaneous]`` section of the adapter:
+        reactions whose name contains ``name_contains``, and those listed
+        in ``file``. Without that section it returns an empty list.
+        Override in a subclass for other rules.
         """
-        return []
+        rules = self.params.spontaneous
+        if rules.name_contains is None and rules.file is None:
+            return []
+        listed: set[str] = set()
+        if rules.file is not None:
+            with open(rules.file, "r", encoding="utf-8") as f:
+                next(f)  # header
+                for line in f:
+                    parts = line.rstrip("\n").split("\t")
+                    if not parts[0]:
+                        continue
+                    if len(parts) == 1 or parts[1].strip().lower() in ("1", "true"):
+                        listed.add(parts[0].strip('"'))
+        return [
+            r.id for r in model.reactions
+            if r.id in listed
+            or (rules.name_contains is not None and rules.name_contains in (r.name or ""))
+        ]
 
     def get_uniprot_compatible_genes(self, in_genes: list[str]) -> list[str]:
         """Map model gene IDs to IDs usable in UniProt queries.

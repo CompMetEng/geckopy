@@ -24,6 +24,34 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_KCAT_COLUMN_SUFFIX = "kcat (1/s)"
+_RANGE_RE = re.compile(
+    r"^\s*([0-9.eE+-]+)\s+to\s+([0-9.eE+-]+)\s*(?:s\^-1)?\s*$"
+)
+
+
+def _kcat_value(text: str) -> float | None:
+    """A prediction as a number in 1/s.
+
+    Plain numbers are returned as they are. CatRange predicts a class,
+    which OKP returns as its range (``"10 to 100 s^-1"``); it becomes the
+    geometric midpoint, or half the upper bound for the class starting at
+    0, the values OKP returned for these classes before. Anything else is
+    None.
+    """
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        pass
+    match = _RANGE_RE.match(text or "")
+    if match is None:
+        return None
+    try:
+        low, high = float(match.group(1)), float(match.group(2))
+    except ValueError:
+        return None
+    return (low * high) ** 0.5 if low > 0 else high / 2
+
 _OUTPUT_COLUMNS = [
     "rxn_id", "source", "eccode", "substrates", "genes",
     "kcat", "wildcard_level", "origin",
@@ -44,9 +72,10 @@ def parse_okp_output(
         ``ec.rxn_enz_mat`` and per-metabolite SMILES populated.
     result
         Either the CSV text or a path to the result file. Expected
-        columns include ``kcat (1/s)``, ``Source kcat``,
-        ``Protein Sequence`` and ``Substrate`` (extra similarity
-        columns are ignored).
+        columns include ``kcat (1/s)`` (CatRange: ``Predicted kcat
+        range: kcat (1/s)``, a number or a class range such as
+        ``10 to 100 s^-1``), ``Source kcat``, ``Protein Sequence`` and
+        ``Substrate`` (extra similarity columns are ignored).
 
     Returns
     -------
@@ -71,15 +100,18 @@ def parse_okp_output(
     df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
     df.columns = [c.strip() for c in df.columns]
 
-    required = ["kcat (1/s)", "Source kcat", "Protein Sequence", "Substrate"]
+    kcat_columns = [c for c in df.columns if c.endswith(_KCAT_COLUMN_SUFFIX)]
+    required = ["Source kcat", "Protein Sequence", "Substrate"]
     missing = [c for c in required if c not in df.columns]
+    if len(kcat_columns) != 1:
+        missing.insert(0, _KCAT_COLUMN_SUFFIX)
     if missing:
         raise ValueError(
             f"OKP result is missing expected column(s): {missing}. "
             f"Found: {list(df.columns)}"
         )
 
-    numeric_kcat = pd.to_numeric(df["kcat (1/s)"], errors="coerce")
+    numeric_kcat = pd.to_numeric(df[kcat_columns[0]].map(_kcat_value), errors="coerce")
     valid_mask = numeric_kcat.notna()
     if not valid_mask.any():
         raise ValueError(

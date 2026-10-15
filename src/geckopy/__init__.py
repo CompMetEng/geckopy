@@ -126,6 +126,7 @@ from geckopy.limit_proteins import (
     get_conc_control_coeffs,
     level_complex_abundances,
     level_complex_concs,
+    relax_enz_concs,
     relax_proteomics_greedy,
 )
 
@@ -225,6 +226,7 @@ __all__ = [
     "get_conc_control_coeffs",
     "level_complex_abundances",
     "level_complex_concs",
+    "relax_enz_concs",
     "relax_proteomics_greedy",
     # utilities
     "AddNewRxnsResult",

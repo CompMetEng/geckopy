@@ -18,6 +18,7 @@ from .level_complex_concs import (
     level_complex_abundances,
     level_complex_concs,
 )
+from .relax_enz_concs import relax_enz_concs
 from .relax_proteomics_greedy import (
     GreedyRelaxResult,
     RelaxationStep,
@@ -40,5 +41,6 @@ __all__ = [
     "get_conc_control_coeffs",
     "level_complex_abundances",
     "level_complex_concs",
+    "relax_enz_concs",
     "relax_proteomics_greedy",
 ]

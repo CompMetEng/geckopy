@@ -134,3 +134,120 @@ def test_shipped_example_adapter_toml_is_valid(example_dir):
     """Verify every folder under examples/ has a model_adapter.toml that
     validates against the current ModelParameters schema."""
     ModelAdapter.from_folder(example_dir)
+
+
+SPONTANEOUS_TOML = MINIMAL_TOML + """
+[spontaneous]
+name_contains = "spontaneous"
+file = "data/spontaneousReactions.tsv"
+"""
+
+
+def test_spontaneous_reactions_from_toml(tmp_path):
+    import cobra
+
+    folder = _write_adapter_folder(tmp_path, SPONTANEOUS_TOML)
+    (folder / "data").mkdir()
+    (folder / "data" / "spontaneousReactions.tsv").write_text(
+        "rxns\tspontaneous\nR1\t0\nR2\t1\nR3\t1\n"
+    )
+    model = cobra.Model("m")
+    for rid, name in [("R1", "a"), ("R2", "b"), ("R4", "spontaneous c"), ("R5", "d")]:
+        model.add_reactions([cobra.Reaction(rid, name=name)])
+    adapter = ModelAdapter.from_folder(folder)
+    assert adapter.params.spontaneous.file == folder / "data" / "spontaneousReactions.tsv"
+    assert adapter.get_spontaneous_reactions(model) == ["R2", "R4"]
+
+
+# A file as GECKO's convertAdapterToToml writes it, MATLAB-only settings included.
+CONVERTED_TOML = """\
+# Model adapter for testus testus, converted from TestGEMAdapter.
+conv_gem = "models/testModel.xml"
+org_name = "testus testus"
+sigma = 0.5
+p_tot = 0.5
+f = 4
+gr_exp = 0.41
+c_source = "E1"
+bio_rxn = "R4"
+enzyme_comp = "c"
+
+[kegg]
+id = "tst"
+gene_id = "kegg"
+
+[uniprot]
+type = "taxonomy"
+id = "TE00000000"
+gene_id_field = "gene_tst"
+reviewed = true
+
+[complex]
+taxonomic_id = 123456
+
+[evotune.source_groups.dlkcat]
+sources = ["dlkcat"]
+
+[evotune.source_groups.brenda]
+sources = ["brenda"]
+
+[evotune.sigma0_log_source]
+dlkcat = 0.4
+brenda = 0.2
+
+[matlab]
+make_model_anaerobic = "anaerobicModel_GECKO"
+
+[matlab.params]
+c_UptakeExp = 0.641339301
+"""
+
+
+def test_toml_converted_from_matlab_adapter_loads(tmp_path):
+    folder = _write_adapter_folder(tmp_path, CONVERTED_TOML)
+    adapter = ModelAdapter.from_folder(folder)
+    assert adapter.params.f == 4
+    assert adapter.params.matlab.make_model_anaerobic == "anaerobicModel_GECKO"
+    assert adapter.params.matlab.params == {"c_UptakeExp": 0.641339301}
+    assert set(adapter.params.evotune.source_groups) == {"dlkcat", "brenda"}
+
+
+def _schema_leaves(model_cls, prefix=""):
+    """Dotted keys of every leaf field of a pydantic model, with defaults."""
+    from pydantic import BaseModel
+
+    leaves = {}
+    instance = model_cls.model_construct()
+    for name, field in model_cls.model_fields.items():
+        key = f"{prefix}{name}"
+        annotation = field.annotation
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            leaves.update(_schema_leaves(annotation, key + "."))
+        else:
+            leaves[key] = field
+    return leaves
+
+
+def test_adapter_parameter_table_matches_schema():
+    """adapterParameters.tsv, shared with GECKO, lists every key and its default."""
+    import csv
+    import tomllib
+
+    from geckopy.adapter.params import ModelParameters
+
+    table = Path(__file__).resolve().parent.parent / "src" / "geckopy" / "adapter" / "adapterParameters.tsv"
+    with open(table, newline="", encoding="utf-8") as f:
+        rows = {r["toml_key"]: r for r in csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)}
+
+    leaves = _schema_leaves(ModelParameters)
+    leaves.pop("path")  # set from the project folder, never written
+    leaves.pop("matlab.params")  # free-form
+    assert set(rows) == set(leaves)
+
+    for key, field in leaves.items():
+        default_text = rows[key]["default"]
+        if field.is_required() or not default_text:
+            continue
+        expected = tomllib.loads(f"x = {default_text}")["x"]
+        default = field.get_default(call_default_factory=True)
+        assert default == expected, key

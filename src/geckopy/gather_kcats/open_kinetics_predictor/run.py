@@ -141,6 +141,7 @@ def fetch_open_kinetics_predictor(
     adapter: Optional["ModelAdapter"] = None,
     base_url: str = _BASE_URL,
     session: Optional[requests.Session] = None,
+    out_file: Optional[str | Path] = None,
 ) -> tuple[bool, Optional[pd.DataFrame]]:
     """Check an OKP job and, when finished, download + parse the result.
 
@@ -159,6 +160,9 @@ def fetch_open_kinetics_predictor(
         Polling cadence and overall deadline (seconds) when ``wait``.
     api_key, adapter, base_url, session
         Key resolution / adapter / testing knobs (see submit).
+    out_file
+        Where the result is stored, and read from with ``use_stored``
+        (default: ``data/OKP_output.csv``).
 
     Returns
     -------
@@ -173,7 +177,7 @@ def fetch_open_kinetics_predictor(
         model, adapter, purpose="fetch_open_kinetics_predictor needs params.path",
     )
     data_dir = Path(adapter.params.path) / "data"
-    out_file = data_dir / "OKP_output.csv"
+    out_file = Path(out_file) if out_file is not None else data_dir / "OKP_output.csv"
 
     if use_stored:
         if not out_file.is_file():

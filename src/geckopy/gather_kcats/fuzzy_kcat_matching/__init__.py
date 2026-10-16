@@ -36,6 +36,7 @@ from ._escalation import apply_force_wildcards, escalate_wildcard
 from ._organism import filter_by_organism, resolve_organism_index
 
 if TYPE_CHECKING:
+    from ...adapter import ModelAdapter
     from ...databases import BrendaData, PhylDist
     from ...ec_model.ec_model import EcModel
 
@@ -81,6 +82,7 @@ def fuzzy_kcat_matching(
     ec_rxns: Optional[Iterable[str]] = None,
     force_wildcard_level: int = 0,
     aggregate: Optional[str] = None,
+    adapter: Optional["ModelAdapter"] = None,
 ) -> pd.DataFrame:
     """Match each ec reaction to BRENDA kcat data with progressive
     relaxation of EC, substrate, and organism specificity.
@@ -161,6 +163,9 @@ def fuzzy_kcat_matching(
         across whichever rows survive the EC + organism + substrate
         gates. See ``docs/kcat_aggregation.md`` for the empirical
         rationale.
+    adapter
+        Model adapter for ``org_name`` and the aggregation default
+        (default: ``model.adapter``).
 
     Returns
     -------
@@ -182,7 +187,7 @@ def fuzzy_kcat_matching(
     """
     from ...adapter import resolve_adapter
     adapter = resolve_adapter(
-        model,
+        model, adapter,
         purpose="fuzzy_kcat_matching reads params.org_name from the adapter",
     )
     if force_wildcard_level < 0:

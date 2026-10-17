@@ -68,11 +68,11 @@ evotune = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/SysBioChalmers/geckopy"
-Source = "https://github.com/SysBioChalmers/geckopy"
-Issues = "https://github.com/SysBioChalmers/geckopy/issues"
-"GECKO MATLAB" = "https://github.com/SysBioChalmers/GECKO"
-"raven-toolbox" = "https://github.com/SysBioChalmers/raven-toolbox"
+Homepage = "https://github.com/CompMetEng/geckopy"
+Source = "https://github.com/CompMetEng/geckopy"
+Issues = "https://github.com/CompMetEng/geckopy/issues"
+"GECKO MATLAB" = "https://github.com/CompMetEng/GECKO"
+"raven-toolbox" = "https://github.com/CompMetEng/raven-toolbox"
 
 [project.scripts]
 geckopy = "geckopy.cli:main"

@@ -14,7 +14,7 @@ them require you to change your model files.
 > (forward-direction protein reactions, several bug fixes, a reformatted
 > BRENDA snapshot, the REST-based OpenKineticsPredictor flow) that
 > geckopy also follows — see
-> [GECKO3_to_GECKO4.md](https://github.com/SysBioChalmers/GECKO/blob/main/GECKO3_to_GECKO4.md)
+> [GECKO 3 to GECKO 4](https://gecko-docs.readthedocs.io/en/latest/gecko3-to-gecko4.html)
 > for the full list. Throughout this guide, individual functions that
 > are affected by those 3→4 changes carry a **`[3→4]`** marker; that
 > marker is geckopy's signal that the function's behaviour or schema
@@ -475,7 +475,7 @@ for the MATLAB-side items the port surfaced.
 - MATLAB-side bugs and rough edges the port found are tracked in
   [future_improvements.md](future_improvements.md).
 - For the GECKO 3→4 changes as they apply on the MATLAB side, see
-  [GECKO3_to_GECKO4.md](https://github.com/SysBioChalmers/GECKO/blob/main/GECKO3_to_GECKO4.md)
+  [GECKO 3 to GECKO 4](https://gecko-docs.readthedocs.io/en/latest/gecko3-to-gecko4.html)
   in the GECKO repository.
 - For the YAML schema (shared with MATLAB GECKO 4 / RAVEN), see
   [yaml_format.md](yaml_format.md).

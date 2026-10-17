@@ -20,7 +20,7 @@ from scipy.io import loadmat
 # keggPhylDist.mat as distributed with RAVEN, pinned to a release tag so
 # the download is reproducible.
 KEGG_PHYL_DIST_URL = (
-    "https://raw.githubusercontent.com/SysBioChalmers/RAVEN/3.0.0b1/"
+    "https://raw.githubusercontent.com/CompMetEng/RAVEN/3.0.0b1/"
     "reconstruction/kegg/keggPhylDist.mat"
 )
 _TIMEOUT_SECONDS = 120

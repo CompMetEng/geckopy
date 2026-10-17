@@ -1,6 +1,6 @@
 # raven-toolbox integration
 
-geckopy depends on [raven-toolbox](https://github.com/SysBioChalmers/raven-toolbox),
+geckopy depends on [raven-toolbox](https://github.com/CompMetEng/raven-toolbox),
 the Python port of the RAVEN Toolbox. raven-toolbox owns the generic
 model-manipulation primitives and the YAML I/O (including the GECKO
 ec-model substructure); geckopy keeps the enzyme-constraint *algorithms*

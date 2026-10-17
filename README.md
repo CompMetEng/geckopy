@@ -1,6 +1,6 @@
 # geckopy
 
-[![tests](https://github.com/SysBioChalmers/geckopy/actions/workflows/test.yml/badge.svg)](https://github.com/SysBioChalmers/geckopy/actions/workflows/test.yml)
+[![tests](https://github.com/CompMetEng/geckopy/actions/workflows/test.yml/badge.svg)](https://github.com/CompMetEng/geckopy/actions/workflows/test.yml)
 
 Enzyme-constrained genome-scale metabolic modelling in Python.
 
@@ -11,7 +11,7 @@ Enzyme-constrained genome-scale metabolic modelling in Python.
 > the place to actually learn or look things up.
 
 > **Disambiguation.** This is a new, from-scratch port of the
-> [GECKO Toolbox](https://github.com/SysBioChalmers/GECKO) (MATLAB). It is unrelated to
+> [GECKO Toolbox](https://github.com/CompMetEng/GECKO) (MATLAB). It is unrelated to
 > the earlier and separate `geckopy` Python package
 > ([on PyPI as release 2.0.2 and earlier](https://pypi.org/project/geckopy/2.0.2/))
 > described in Carrasco Muriel, Long & Sonnenschein, *Microbiology Spectrum*
@@ -26,7 +26,7 @@ each enzyme has a finite capacity (its kcat) and a finite supply (the
 cell's total protein budget). An *ec*Model (enzyme-constrained model)
 adds those limits to the network.
 
-geckopy is a Python port of the [GECKO Toolbox](https://github.com/SysBioChalmers/GECKO)
+geckopy is a Python port of the [GECKO Toolbox](https://github.com/CompMetEng/GECKO)
 (MATLAB). It builds on [cobrapy](https://github.com/opencobra/cobrapy) for
 the standard modelling layer, then layers GECKO's enzyme-constraint machinery
 on top: it fetches kcat values from BRENDA, predicts them with DLKcat, tunes
@@ -40,7 +40,7 @@ curations, and integrates proteomics measurements.
 
 ## Install
 
-geckopy depends on [raven-toolbox](https://github.com/SysBioChalmers/raven-toolbox)
+geckopy depends on [raven-toolbox](https://github.com/CompMetEng/raven-toolbox)
 (the Python port of the RAVEN Toolbox). Both are currently pre-releases on
 PyPI, so a plain `pip install geckopy` will install the wrong version — `--pre` is
 required:

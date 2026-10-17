@@ -216,6 +216,37 @@ def test_parse_no_numeric_kcat_raises():
         parse_okp_output(_ec_model(), csv_text)
 
 
+def test_parse_catrange_class_ranges():
+    """CatRange's column holds class ranges; each becomes its geometric
+    midpoint, as OKP returned it before."""
+    csv_text = (
+        "Predicted kcat range: kcat (1/s),Source kcat,Extra Info kcat,Protein Sequence,Substrate\n"
+        "10 to 100 s^-1,Prediction from CatRange,Predicted range: 10 to 100 s^-1,S1,CCO\n"
+    )
+    df = parse_okp_output(_ec_model(), csv_text)
+    assert not df.empty
+    assert all(df["source"] == "OKP-CatRange")
+    assert df["kcat"].iloc[0] == pytest.approx(10 ** 1.5)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("12.5", 12.5),
+    ("10 to 100 s^-1", 10 ** 1.5),
+    ("0 to 1e-08 s^-1", 5e-9),
+    ("1000 to 1e+08 s^-1", 10 ** 5.5),
+    ("", None),
+    ("NA", None),
+])
+def test_kcat_value(text, expected):
+    from geckopy.gather_kcats.open_kinetics_predictor.parse_output import _kcat_value
+
+    value = _kcat_value(text)
+    if expected is None:
+        assert value is None or value != value
+    else:
+        assert value == pytest.approx(expected)
+
+
 def test_parse_missing_column_raises():
     csv_text = "kcat (1/s),Protein Sequence\n1.0,S1\n"
     with pytest.raises(ValueError, match="missing expected column"):

@@ -12,7 +12,7 @@ cobra doesn't model: kcat values, the enzyme list (MW, sequence,
 concentration), and the reaction-enzyme coupling matrix.
 
 geckopy delegates the I/O to
-[raven-toolbox](https://github.com/SysBioChalmers/raven-toolbox), which
+[raven-toolbox](https://github.com/CompMetEng/raven-toolbox), which
 calls cobrapy for the cobra-shaped portion and parses the GECKO
 `ec-rxns` / `ec-enzymes` / `gecko_light` sections into a typed
 `EcData` substructure attached as `model.ec`. That means:

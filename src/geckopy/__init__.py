@@ -120,16 +120,22 @@ from geckopy.kcat_tuning import (
 
 # limit_proteins
 from geckopy.limit_proteins import (
+    ComplexFamilies,
     FlexEnzResult,
     GreedyRelaxResult,
+    LevelComplexResult,
     RelaxationStep,
     apply_flux_data_constraints,
     calculate_f_factor,
+    complex_families,
     constrain_enz_concs,
     constrain_flux_data,  # deprecated; alias of apply_flux_data_constraints
     fill_enz_concs,
     flexibilize_enz_concs,
     get_conc_control_coeffs,
+    level_complex_abundances,
+    level_complex_concs,
+    relax_enz_concs,
     relax_proteomics_greedy,
 )
 
@@ -224,15 +230,21 @@ __all__ = [
     "sensitivity_tuning",
     "truncate_values",
     # limit_proteins
+    "ComplexFamilies",
     "FlexEnzResult",
     "GreedyRelaxResult",
+    "LevelComplexResult",
     "RelaxationStep",
     "apply_flux_data_constraints",
     "calculate_f_factor",
+    "complex_families",
     "constrain_enz_concs",
     "fill_enz_concs",
     "flexibilize_enz_concs",
     "get_conc_control_coeffs",
+    "level_complex_abundances",
+    "level_complex_concs",
+    "relax_enz_concs",
     "relax_proteomics_greedy",
     # utilities
     "AddNewRxnsResult",

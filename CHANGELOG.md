@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* New: `level_complex_concs` and `level_complex_abundances` give every enzyme
+  complex one abundance, the median per copy over its measured subunits, so a
+  single badly quantified subunit no longer sets a complex's capacity.
+  `complex_families` groups isozyme variants into complexes and leaves shared
+  subunits and electron carriers as measured. See `docs/relaxation_methods.md`.
+* New: `relax_enz_concs` relaxes enzyme caps (and, if need be, the protein
+  pool) by the least total fold increase that reaches the target growth, in one
+  LP, so the result does not depend on the order in which limiting enzymes are
+  found.
+* `flexibilize_enz_concs` gained `per_complex=True`: complexes are ranked and
+  raised as one unit, keeping levelled subunits levelled. Off by default.
+
 * Fix: `write_dlkcat_input` and the OpenKineticsPredictor input builder
   raised `TypeError: cannot use 'list' as a set element` on any model that
   had been saved and reloaded. cobra returns an annotation value as a list

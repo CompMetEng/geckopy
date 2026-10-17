@@ -287,8 +287,9 @@ class OkpParams(BaseModel):
     method: str = Field(
         default="CataPro",
         description=(
-            "Predictor method: CataPro, CatPred, DLKcat, EITLEM, "
-            "KinForm-H, KinForm-L, UniKP (see GET /api/v1/methods/)."
+            "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
+            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNuP, UniKP "
+            "(see GET /api/v1/methods/)."
         ),
     )
     handle_long_sequences: str = Field(

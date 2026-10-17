@@ -102,16 +102,19 @@ class MatlabParams(BaseModel):
 
 class KcatStageParams(BaseModel):
     """One ``[[kcat_assignment.stage]]``: decides each reaction that is still
-    open by the first listed source with a value."""
+    open, by the first listed source with a value (``select``) or by all
+    listed sources with a value, weighted by their reliability
+    (``combine``)."""
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["select"] = Field(default="select", description="What the stage does.")
+    action: Literal["select", "combine"] = Field(default="select", description="What the stage does.")
     sources: list[str] = Field(
         min_length=1,
         description=(
-            "Source file names (custom, dlkcat, okp_catapro, ...) and the BRENDA tiers "
+            "Source file names (custom, ec_tree, dlkcat, okp_catapro, ...), the OKP "
+            "methods of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
             "database_exact, database_top and database_bottom, which read brenda.tsv; "
-            "first listed wins."
+            "for select the first listed wins."
         ),
     )
     criteria: Literal["max", "min", "median", "mean"] = Field(
@@ -126,7 +129,7 @@ class KcatAssignmentParams(BaseModel):
     """How kcats are assigned from the kcat source files (``collect_kcats``)."""
     model_config = ConfigDict(extra="forbid")
 
-    preset: Optional[Literal["gecko_classic", "gecko_median", "brenda_ec_tree"]] = Field(
+    preset: Optional[Literal["brenda_ec_tree", "ec_tree_okp", "okp", "gecko_median", "gecko_classic"]] = Field(
         default=None,
         description=(
             "Kcat assignment preset; brenda_ec_tree is used when neither a preset nor "

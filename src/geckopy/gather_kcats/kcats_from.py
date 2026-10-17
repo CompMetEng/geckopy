@@ -22,7 +22,7 @@ import pandas as pd
 from ..databases import load_brenda_data, load_brenda_measurements, load_dlkcat_ignore_lists, load_phyl_dist
 from .ec_tree import ECTree
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
-from .kcat_sources import kcat_source_file, save_kcat_source
+from .kcat_sources import format_number, kcat_source_file, save_kcat_source
 from .open_kinetics_predictor import fetch_open_kinetics_predictor, submit_open_kinetics_predictor
 from .open_kinetics_predictor.parse_output import parse_okp_output
 from .read_dlkcat_output import read_dlkcat_output
@@ -455,6 +455,9 @@ def kcats_from_okp(
         parameters: dict = {"method": method}
         if "ecRxns" in job:
             parameters["ec_rxns"] = int(job["ecRxns"])
+        if "similarity" in kcat_list:
+            kcat_list = kcat_list.assign(detail=[f"similarity={format_number(v)}" if pd.notna(v) else ""
+                                                 for v in kcat_list["similarity"]])
         path = save_kcat_source(model, kcat_list, name, adapter=adapter, generator="kcats_from_okp",
                                 parameters=parameters, data=f"OKP job {job['jobId']}")
         logger.info("OKP (%s) kcats written to %s", method, path)

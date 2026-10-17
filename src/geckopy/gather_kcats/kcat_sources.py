@@ -433,8 +433,8 @@ def load_kcat_source(
     (kcat_list, report)
         ``kcat_list`` has one row per applied match, in the kcat-list schema
         (``rxn_id``, ``source``, ``eccode``, ``substrates``, ``genes``,
-        ``kcat``, ``wildcard_level``, ``origin``) plus ``log10_sd`` and
-        ``line`` (the line of the file). ``report`` has the ``invalid``,
+        ``kcat``, ``wildcard_level``, ``origin``) plus ``log10_sd``,
+        ``detail`` (the detail column) and ``line`` (the line of the file). ``report`` has the ``invalid``,
         ``unmatched`` and ``partial`` rows.
     """
     path = Path(name)
@@ -509,6 +509,7 @@ def load_kcat_source(
         "wildcard_level": pd.Series(wc, dtype=float),
         "origin": pd.Series(origin, dtype=float),
         "log10_sd": sub["log10_sd"].to_numpy(dtype=float),
+        "detail": sub["detail"].tolist(),
         "line": pd.Series(sub["line"].tolist(), dtype=int),
     })
     kcat_list.attrs["source_name"] = meta.get("source", "")

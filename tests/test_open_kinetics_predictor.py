@@ -199,10 +199,12 @@ def test_parse_kcat_and_columns():
     df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     assert list(df.columns) == [
         "rxn_id", "source", "eccode", "substrates", "genes",
-        "kcat", "wildcard_level", "origin",
+        "kcat", "wildcard_level", "origin", "similarity",
     ]
     cco_rows = df[df["source"] == "OKP-CataPro"]
     assert all(cco_rows["kcat"] == 12.5)
+    # The max similarity column gives the similarity, in percent.
+    assert cco_rows["similarity"].notna().all()
     assert all(s == ["ala"] for s in cco_rows["substrates"])
     assert all(g == ["g1"] for g in cco_rows["genes"])
 

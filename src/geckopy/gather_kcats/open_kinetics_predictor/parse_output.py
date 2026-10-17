@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from ...databases.pubchem import met_smiles as read_met_smiles
@@ -75,13 +76,16 @@ def parse_okp_output(
         columns include ``kcat (1/s)`` (CatRange: ``Predicted kcat
         range: kcat (1/s)``, a number or a class range such as
         ``10 to 100 s^-1``), ``Source kcat``, ``Protein Sequence`` and
-        ``Substrate`` (extra similarity columns are ignored).
+        ``Substrate``; ``max similarity to <method> training data``, when
+        present, gives ``similarity``.
 
     Returns
     -------
     pandas.DataFrame
         Columns ``rxn_id, source, eccode, substrates, genes, kcat,
-        wildcard_level, origin``. ``source`` is the per-row provenance
+        wildcard_level, origin, similarity`` (the enzyme's highest
+        sequence similarity to the method's training data, in percent; NaN
+        without the similarity column). ``source`` is the per-row provenance
         from the ``Source kcat`` column (the prediction method such as
         ``CataPro``, or a database such as ``BRENDA`` / ``Sabio-RK`` /
         ``UniProt``), prefixed with ``OKP-`` to mark it as having come
@@ -112,6 +116,9 @@ def parse_okp_output(
         )
 
     numeric_kcat = pd.to_numeric(df[kcat_columns[0]].map(_kcat_value), errors="coerce")
+    sim_columns = [c for c in df.columns if c.startswith("max similarity to ")]
+    similarity = (pd.to_numeric(df[sim_columns[0]], errors="coerce") if sim_columns
+                  else pd.Series(np.nan, index=df.index))
     valid_mask = numeric_kcat.notna()
     if not valid_mask.any():
         raise ValueError(
@@ -151,6 +158,7 @@ def parse_okp_output(
         sequence = df.at[idx, "Protein Sequence"]
         smiles = df.at[idx, "Substrate"]
         kcat = float(numeric_kcat[idx])
+        sim = float(similarity[idx])
         bare_source = _PREDICTION_PREFIX_RE.sub("", df.at[idx, "Source kcat"]).strip()
         source = f"OKP-{bare_source}"
 
@@ -187,7 +195,7 @@ def parse_okp_output(
                 if cobra_id in met_consumers.get(met.id, set()):
                     sub_name = met.name
                     break
-            rows.append((model.ec.rxns[ec_idx], source, sub_name, gene, kcat))
+            rows.append((model.ec.rxns[ec_idx], source, sub_name, gene, kcat, sim))
 
     if unmatched:
         logger.warning(
@@ -210,6 +218,7 @@ def parse_okp_output(
         "kcat": [r[4] for r in rows],
         "wildcard_level": pd.array([pd.NA] * n, dtype="Int64"),
         "origin": pd.array([pd.NA] * n, dtype="Int64"),
+        "similarity": [r[5] for r in rows],
     })
     logger.info("parse_okp_output: mapped %d kcat row(s).", n)
     return out

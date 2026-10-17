@@ -117,6 +117,30 @@ def cmd_brenda_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_upgrade(args: argparse.Namespace) -> int:
+    """List, or with --apply carry out, the steps that bring a GECKO 3
+    project to the GECKO 4 layout (see :func:`geckopy.upgrade.upgrade_project`)."""
+    import pandas as pd
+
+    from .adapter import ModelAdapter
+    from .upgrade import upgrade_project
+    from .utilities.load_ec_model import load_ec_model
+
+    ec_model = None
+    if args.ec_model:
+        adapter = ModelAdapter.from_folder(args.folder)
+        ec_model = load_ec_model(Path(args.ec_model).resolve(), adapter=adapter)
+    report = upgrade_project(args.folder, dry_run=not args.apply, ec_model=ec_model)
+    if report.empty:
+        print(f"{args.folder} has the current GECKO 4 layout.")
+        return 0
+    with pd.option_context("display.max_colwidth", 120, "display.width", 200):
+        print(report.to_string(index=False))
+    if not args.apply and (report["status"] == "to do").any():
+        print("Run geckopy upgrade with --apply to carry out the steps; originals go to legacy/<date>/.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="geckopy", description="Command-line interface for geckopy."
@@ -189,6 +213,16 @@ def main(argv: list[str] | None = None) -> int:
         help="KEGG entry field to use as the gene matching key (default: kegg)",
     )
     kegg_parser.set_defaults(func=cmd_kegg_download)
+
+    upgrade_parser = sub.add_parser(
+        "upgrade", help="Bring a GECKO 3 project to the GECKO 4 layout (a dry run without --apply)"
+    )
+    upgrade_parser.add_argument("folder", help="Project folder")
+    upgrade_parser.add_argument("--apply", action="store_true", help="Carry out the steps")
+    upgrade_parser.add_argument(
+        "--ec-model", help="The full ecModel (YAML) the custom kcats and stored predictions are for",
+    )
+    upgrade_parser.set_defaults(func=cmd_upgrade)
 
     args = parser.parse_args(argv)
     return args.func(args)

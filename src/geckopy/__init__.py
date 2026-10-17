@@ -161,7 +161,13 @@ from geckopy.utilities import (
     save_ec_model,
 )
 
+from geckopy.upgrade import convert_custom_kcats, upgrade_ec_model, upgrade_project
+
 __all__ = [
+    # Upgrades
+    "convert_custom_kcats",
+    "upgrade_ec_model",
+    "upgrade_project",
     # Adapter
     "ModelAdapter",
     "ModelParameters",

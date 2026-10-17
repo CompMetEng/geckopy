@@ -99,7 +99,8 @@ def kcats_from_brenda(
         default ``save_as`` the file then only holds those reactions.
     brenda, phyl_dist
         Loaded BRENDA data and KEGG phylogenetic distances (default: loaded
-        from the adapter's folders).
+        from the adapter's folders; ``PhylDist.mat`` is downloaded there
+        when missing).
     save, save_as
         Write the source file, and its name without ``.tsv``.
     adapter
@@ -124,7 +125,12 @@ def kcats_from_brenda(
     if brenda is None:
         brenda = load_brenda_data(folder)
     if phyl_dist is None:
-        phyl_dist = load_phyl_dist(adapter.get_phyl_dist_path())
+        phyl_path = Path(adapter.get_phyl_dist_path())
+        if not phyl_path.is_file():
+            from ..databases import download_phyl_dist
+
+            download_phyl_dist(phyl_path)
+        phyl_dist = load_phyl_dist(phyl_path)
     kcat_list = fuzzy_kcat_matching(
         model, brenda, phyl_dist, ec_rxns=ec_rxns,
         force_wildcard_level=force_wildcard_level, aggregate=aggregation, adapter=adapter,

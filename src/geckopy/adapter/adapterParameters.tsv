@@ -1,4 +1,5 @@
 toml_key	matlab_field	default	description
+project_format	projectFormat		Layout version of the project folder; upgradeGECKOproject and geckopy upgrade write 4
 conv_gem	convGEM		Path to the conventional GEM, relative to the project folder
 org_name	org_name		Scientific name of the organism
 sigma	sigma	0.5	Average enzyme saturation factor

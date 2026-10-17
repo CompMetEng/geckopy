@@ -314,6 +314,10 @@ class ModelParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     path: Path = Field(description="Root folder of this ecModel project")
+    project_format: Optional[int] = Field(
+        default=None,
+        description="Layout version of the project folder; geckopy upgrade and upgradeGECKOproject write 4.",
+    )
     conv_gem: Path = Field(description="Path to the conventional GEM SBML file")
 
     org_name: str = Field(description="Scientific name of the organism")

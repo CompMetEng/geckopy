@@ -10,13 +10,10 @@ Three tab-delimited files are read from the BRENDA folder:
     sa.tsv     specific activities (same wide shape)
     mw.tsv     molecular weights (single value per (ec, organism))
 
-The files are produced by the ``geckopy brenda-refresh`` CLI and kept
-plain text in the repo. The published wheel ships xz-compressed
-copies instead (``kcat.tsv.xz`` etc. -- a build hook compresses them;
-see ``hatch_build.py``), since they're most of the installed
-package's size; this loader looks for the ``.xz`` variant first and
-falls back to plain text, so it works against either an installed
-wheel or a git checkout without caring which.
+The files are produced by the ``geckopy brenda-refresh`` CLI. geckopy's
+own come from a toolbox-assets release (see
+:func:`~geckopy.databases.fetch_brenda_asset`). This loader reads plain
+text, or ``.xz``-compressed copies (``kcat.tsv.xz`` etc.) when present.
 
 kcat and SA have seven tab-delimited columns: EC number, substrate
 (``*`` for SA), organism, value-max, value-median, n (number of raw
@@ -198,8 +195,7 @@ def load_brenda_data(
 
 
 def _resolve_brenda_path(folder: Path, stem: str) -> Path:
-    """Prefer ``<stem>.tsv.xz`` (installed wheel); fall back to
-    ``<stem>.tsv`` (git checkout, or freshly written by brenda-refresh)."""
+    """``<stem>.tsv.xz`` when present, otherwise ``<stem>.tsv``."""
     xz_path = folder / f"{stem}.tsv.xz"
     if xz_path.is_file():
         return xz_path

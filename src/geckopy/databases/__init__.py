@@ -1,4 +1,5 @@
 """Database loaders, downloaders, and protein utilities."""
+from .brenda_asset import BRENDA_ASSET, fetch_brenda_asset
 from .brenda_loader import BrendaData, load_brenda_data
 from .brenda_measurements import load_brenda_measurements
 from .complex_portal_download import get_complex_data
@@ -19,6 +20,7 @@ from .uniprot_download import download_uniprot
 from .uniprot_loader import UniprotDB, load_uniprot_tsv
 
 __all__ = [
+    "BRENDA_ASSET",
     "BrendaData",
     "ComplexPortalEntry",
     "DLKcatIgnoreLists",
@@ -28,6 +30,7 @@ __all__ = [
     "ProtData",
     "UniprotDB",
     "calculate_mw",
+    "fetch_brenda_asset",
     "download_kegg",
     "download_phyl_dist",
     "download_uniprot",

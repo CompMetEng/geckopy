@@ -124,9 +124,10 @@ fill_eccodes_from_database(ec_model, uniprot_db, kegg_db=kegg_db)
 # `dlkcat.tsv`, `okp_<method>.tsv`, `custom.tsv`), which `assign_kcats`
 # combines in STEP 26-31; `[kcat_assignment]` in model_adapter.toml sets
 # how. `update_kcat_sources(ec_model)` gathers all sources that the
-# configuration needs in one call. The BRENDA data ships with geckopy. When BRENDA has no value for
-# S. cerevisiae itself, the value of the phylogenetically closest
-# organism is used, based on the KEGG phylogenetic distances in
+# configuration needs in one call. geckopy downloads its BRENDA files
+# once (toolbox-assets release `brenda-2026.1-1`). When BRENDA has no
+# value for S. cerevisiae itself, the value of the phylogenetically
+# closest organism is used, based on the KEGG phylogenetic distances in
 # `data/PhylDist.mat`. That file (~5 MB) is downloaded from RAVEN on
 # the first run.
 

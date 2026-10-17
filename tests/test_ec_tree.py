@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from geckopy import ModelAdapter, make_ec_model
-from geckopy.databases import load_brenda_measurements
+from geckopy.databases import fetch_brenda_asset, load_brenda_measurements
 from geckopy.gather_kcats import (
     assign_kcats,
     collect_kcats,
@@ -57,8 +57,12 @@ def test_ec_tree_worked_example():
         ECTree(_table(), k=0)
 
 
-def test_bundled_measurement_table():
-    folder = Path(__file__).parents[1] / "src" / "geckopy" / "data" / "brenda"
+def test_brenda_asset():
+    """geckopy's BRENDA release: the four tables, the same release in each."""
+    folder = fetch_brenda_asset()
+    assert sorted(p.name for p in folder.glob("*.tsv")) >= ["kcat.tsv", "measurements.tsv", "mw.tsv", "sa.tsv"]
+    with open(folder / "kcat.tsv", encoding="utf-8") as f:
+        assert f.readline().startswith("# BRENDA release 2026.1")
     t = load_brenda_measurements(folder)
     assert t.attrs["release"].startswith("BRENDA release ")
     assert len(t) > 50000 and (t["kcat"] > 0).all()
@@ -105,7 +109,7 @@ def test_kcats_from_ec_tree_writes_file(tmp_path):
     assert meta["data"] == "BRENDA release test"
     assert set(records["source"]) == {"ec_tree"}
     assert records["detail"].str.match(r"^n=\d+; depth=[234]$").all()
-    # Without a measurement table in the project, geckopy's own is used.
+    # Without a measurement table in the project, geckopy's BRENDA release is used.
     kcats_from_ec_tree(model, adapter=adapter, save_as="ec_tree_bundled")
     _, meta = read_kcat_source(project / "data" / "kcats" / "ec_tree_bundled.tsv")
     assert meta["data"].startswith("BRENDA release ")

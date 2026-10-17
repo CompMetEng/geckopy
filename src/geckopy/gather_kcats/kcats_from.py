@@ -144,17 +144,16 @@ def kcats_from_brenda(
 
 def _measurements(adapter: "ModelAdapter") -> pd.DataFrame:
     """The BRENDA measurement table of the adapter's BRENDA folder, or of
-    geckopy's own BRENDA files when that folder has none."""
-    bundled = Path(__file__).resolve().parents[1] / "data" / "brenda"
+    geckopy's BRENDA release when that folder has none."""
+    from ..databases import fetch_brenda_asset
+
     folder = Path(adapter.get_brenda_db_folder())
     try:
         return load_brenda_measurements(folder)
     except FileNotFoundError:
-        if folder.resolve() == bundled:
-            raise
-        table = load_brenda_measurements(bundled)
-        logger.warning("%s has no measurements.tsv; using geckopy's BRENDA measurement table (%s).",
-                       folder, table.attrs.get("release", ""))
+        table = load_brenda_measurements(fetch_brenda_asset(["measurements.tsv"]))
+        logger.warning("%s has no measurements.tsv; using the BRENDA measurement table of %s (%s).",
+                       folder, table.attrs.get("release", ""), "toolbox-assets")
         return table
 
 

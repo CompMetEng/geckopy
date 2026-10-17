@@ -171,16 +171,17 @@ class ModelAdapter:
 
         Prefers `<project_path>/data/brenda/` (consistent with
         `get_phyl_dist_path`, and writable on read-only installs), where
-        `geckopy brenda-refresh` writes. Falls back to the snapshot
-        bundled with geckopy when the project has no copy, so the
-        out-of-the-box flow still works. Override to point elsewhere.
+        `geckopy brenda-refresh` writes. Without a project copy, the files
+        of geckopy's BRENDA release on toolbox-assets are downloaded once
+        and cached (see `geckopy.databases.fetch_brenda_asset`). Override
+        to point elsewhere.
         """
         project = self.params.path / "data" / "brenda"
-        if not project.is_dir():
-            bundled = Path(__file__).resolve().parent.parent / "data" / "brenda"
-            if bundled.is_dir():
-                return bundled
-        return project
+        if project.is_dir():
+            return project
+        from ..databases import fetch_brenda_asset
+
+        return fetch_brenda_asset()
 
     def get_phyl_dist_path(self) -> Path:
         """Return the path to the phylogenetic distance structure file.

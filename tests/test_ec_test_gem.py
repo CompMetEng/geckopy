@@ -33,8 +33,8 @@ def test_adapter_resolves_conv_gem_path(adapter):
 
 
 def test_adapter_finds_brenda_folder_and_phyldist(adapter):
-    # BRENDA defaults to the bundled snapshot inside the geckopy package,
-    # not the per-project data dir.
+    # Without data/brenda in the project, BRENDA comes from geckopy's
+    # toolbox-assets release, cached by raven-toolbox.
     folder = adapter.get_brenda_db_folder()
     assert folder.is_dir()
     assert (folder / "kcat.tsv").is_file()

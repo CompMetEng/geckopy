@@ -79,12 +79,13 @@ geckopy = "geckopy.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/geckopy"]
-# kcat.tsv/sa.tsv/mw.tsv are shipped xz-compressed instead -- see
+# kcat.tsv/sa.tsv/mw.tsv/measurements.tsv are shipped xz-compressed instead -- see
 # hatch_build.py and src/geckopy/databases/brenda_loader.py.
 exclude = [
     "src/geckopy/data/brenda/kcat.tsv",
     "src/geckopy/data/brenda/sa.tsv",
     "src/geckopy/data/brenda/mw.tsv",
+    "src/geckopy/data/brenda/measurements.tsv",
 ]
 
 [tool.hatch.build.targets.wheel.hooks.custom]

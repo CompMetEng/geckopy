@@ -32,7 +32,7 @@ okp.method	okp.method	"CataPro"	OpenKineticsPredictor method
 okp.handle_long_sequences	okp.handleLongSequences	"truncate"	How OpenKineticsPredictor handles sequences that are too long
 okp.include_similarity_columns	okp.includeSimilarityColumns	true	Return similarity to the method's training data
 okp.canonicalize_substrates	okp.canonicalizeSubstrates	true	Canonicalize substrate SMILES before prediction
-kcat_assignment.preset			Kcat assignment preset: gecko_median (used when neither preset nor stages are given) or gecko_classic
+kcat_assignment.preset			Kcat assignment preset: brenda_ec_tree (used when neither preset nor stages are given), gecko_median or gecko_classic
 kcat_assignment.isozymes		true	Fill reactions without a kcat from their isozymes after the stages
 kcat_assignment.standard		true	Give the remaining reactions the standard kcat
 kcat_assignment.stage			Stages instead of a preset: action, sources, criteria and BRENDA limits ([[kcat_assignment.stage]])

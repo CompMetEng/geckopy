@@ -15,7 +15,7 @@ from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-_BRENDA_FILES = ("kcat.tsv", "sa.tsv", "mw.tsv")
+_BRENDA_FILES = ("kcat.tsv", "sa.tsv", "mw.tsv", "measurements.tsv")
 
 
 class BrendaCompressHook(BuildHookInterface):

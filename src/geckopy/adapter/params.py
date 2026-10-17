@@ -126,10 +126,10 @@ class KcatAssignmentParams(BaseModel):
     """How kcats are assigned from the kcat source files (``collect_kcats``)."""
     model_config = ConfigDict(extra="forbid")
 
-    preset: Optional[Literal["gecko_classic", "gecko_median"]] = Field(
+    preset: Optional[Literal["gecko_classic", "gecko_median", "brenda_ec_tree"]] = Field(
         default=None,
         description=(
-            "Kcat assignment preset; gecko_median is used when neither a preset nor "
+            "Kcat assignment preset; brenda_ec_tree is used when neither a preset nor "
             "stages are given."
         ),
     )

@@ -90,10 +90,10 @@ def test_assign_kcats_reproduces_chain(tmp_path):
     assert {"custom", "1"} <= set(decisions["stage"])
 
 
-def test_default_preset_is_gecko_median(tmp_path):
-    """Without [kcat_assignment] the preset is gecko_median: the BRENDA
-    median, and BRENDA matches beyond origin 4 rank below DLKcat."""
-    base, adapter, project = _project(tmp_path)
+def test_gecko_median_preset(tmp_path):
+    """gecko_median: the BRENDA median, and BRENDA matches beyond origin 4
+    rank below DLKcat."""
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n')
     data = project / "data"
     uniprot = load_uniprot_tsv(data / "uniprot.tsv")
     a = base.copy()
@@ -116,7 +116,7 @@ def test_default_preset_is_gecko_median(tmp_path):
 def test_collect_kcats_leaves_model(tmp_path):
     """collect_kcats decides on a copy; a missing source is reported;
     custom.tsv decides first."""
-    base, adapter, project = _project(tmp_path)
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n')
     kcats_from_brenda(base, adapter=adapter)
     decisions, report, decided = collect_kcats(base, adapter=adapter, write_report=False)
     assert not np.any(base.ec.kcat)

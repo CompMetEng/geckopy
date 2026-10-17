@@ -82,6 +82,7 @@ from geckopy.gather_kcats import (
     get_standard_kcat,  # deprecated; alias of assign_standard_kcat
     kcats_from_brenda,
     kcats_from_dlkcat,
+    kcats_from_ec_tree,
     kcats_from_okp,
     load_kcat_source,
     merge_dlkcat_and_fuzzy_kcats,  # deprecated; alias of merge_kcats
@@ -205,6 +206,7 @@ __all__ = [
     "fuzzy_kcat_matching",
     "kcats_from_brenda",
     "kcats_from_dlkcat",
+    "kcats_from_ec_tree",
     "kcats_from_okp",
     "load_kcat_source",
     "merge_dlkcat_and_fuzzy_kcats",  # deprecated; alias of merge_kcats

@@ -233,8 +233,9 @@ def save_kcat_source(
         A kcat list as returned by the ``kcats_from_*`` functions,
         ``fuzzy_kcat_matching``, ``read_dlkcat_output`` or ``merge_kcats``:
         columns ``rxn_id`` and ``kcat``, optionally ``substrates``,
-        ``eccode``, ``wildcard_level``, ``origin``, ``source`` and
-        ``log10_sd``.
+        ``eccode``, ``wildcard_level``, ``origin``, ``source``,
+        ``log10_sd`` and ``detail`` (further ``key=value`` pairs for the
+        detail column).
     name
         Name of the source; the file is ``<name>.tsv``.
     adapter
@@ -273,9 +274,9 @@ def save_kcat_source(
 
     rows = []
     no_enzymes = 0
-    for rxn, kcat, subs, src, wc, origin, ec_code, sd in zip(
+    for rxn, kcat, subs, src, wc, origin, ec_code, sd, extra in zip(
         kcat_list["rxn_id"], kcat_list["kcat"], col("substrates"), col("source"),
-        col("wildcard_level"), col("origin"), col("eccode"), col("log10_sd"),
+        col("wildcard_level"), col("origin"), col("eccode"), col("log10_sd"), col("detail"),
     ):
         if kcat is None or pd.isna(kcat) or not (math.isfinite(float(kcat)) and float(kcat) > 0):
             continue
@@ -288,6 +289,8 @@ def save_kcat_source(
             detail.append(f"wc={int(wc)}")
         if origin is not None and pd.notna(origin):
             detail.append(f"origin={int(origin)}")
+        if extra is not None and not (isinstance(extra, float) and math.isnan(extra)) and str(extra).strip():
+            detail.append(str(extra).strip())
         rows.append([
             _clean(base[i]), _clean(enzymes[i]), _clean(subs), format_number(kcat),
             format_number(sd), _clean(src), "; ".join(detail), _clean(ec_code), "",

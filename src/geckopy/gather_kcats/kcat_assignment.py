@@ -24,7 +24,7 @@ from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
 from .kcat_sources import load_kcat_source, read_kcat_source
-from .kcats_from import _brenda_release, kcats_from_brenda, kcats_from_dlkcat, kcats_from_okp
+from .kcats_from import _brenda_release, _measurements, kcats_from_brenda, kcats_from_dlkcat, kcats_from_ec_tree, kcats_from_okp
 from .merge_kcats import _strip_okp_prefix, merge_kcats, normalize_source
 from .select_kcat_value import apply_kcat_list
 
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PRESETS = ("gecko_classic", "gecko_median")
+PRESETS = ("gecko_classic", "gecko_median", "brenda_ec_tree")
 _DATABASE_TOKENS = {"brenda", "sabio_rk"}
 OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
                "OmniESI", "OmniESI-O2DENet", "TurNuP", "UniKP")
@@ -68,13 +68,16 @@ def _preset_stages(preset: str) -> tuple[list[Stage], dict[str, dict[str, Any]]]
         return [Stage(sources=order, top_origin_limit=6)], {"brenda": {"aggregation": "max"}}
     if preset == "gecko_median":
         return [Stage(sources=order, top_origin_limit=4)], {"brenda": {"aggregation": "median"}}
+    if preset == "brenda_ec_tree":
+        return ([Stage(sources=["custom", "database_top", "ec_tree", "dlkcat"], top_origin_limit=1)],
+                {"brenda": {"aggregation": "median"}, "ec_tree": {"k": 5}})
     raise ValueError(f"Unknown kcat assignment preset {preset!r}. Presets: {', '.join(PRESETS)}.")
 
 
 def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
     """Read ``[kcat_assignment]`` and ``[kcat_sources]`` of the adapter.
 
-    Without a preset or stages the preset is ``gecko_median``.
+    Without a preset or stages the preset is ``brenda_ec_tree``.
     """
     a = adapter.params.kcat_assignment
     if a.stage:
@@ -83,7 +86,7 @@ def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
                         wildcard_limit=s.wildcard_limit) for s in a.stage]
         preset, sources = "", {}
     else:
-        preset = a.preset or "gecko_median"
+        preset = a.preset or "brenda_ec_tree"
         stages, sources = _preset_stages(preset)
     sources = {**sources, **{k: dict(v) for k, v in adapter.params.kcat_sources.items()}}
     return KcatAssignmentConfig(preset=preset, isozymes=a.isozymes, standard=a.standard,
@@ -218,28 +221,30 @@ def collect_kcats(
     in model_adapter.toml sets, without changing the model given;
     :func:`assign_kcats` applies the decisions.
 
-    The order is a preset (``gecko_median``, the default, or
-    ``gecko_classic``) or ``[[kcat_assignment.stage]]`` tables. A select
+    The order is a preset or ``[[kcat_assignment.stage]]`` tables. A select
     stage decides each reaction that is still open by the first listed
     source with a value (see :func:`merge_kcats`); sources are source file
     names and the BRENDA tiers ``database_exact``, ``database_top`` and
-    ``database_bottom``, which read ``brenda.tsv``. Both presets order
-    custom, database_top, dlkcat and database_bottom:
+    ``database_bottom``, which read ``brenda.tsv``. The presets:
 
-    - ``gecko_median`` uses the BRENDA median, and database_top holds the
-      matches without EC wildcards from the organism or other organisms,
-      with or without the substrate (origin 1 to 4). Matches with EC
-      wildcards and specific-activity matches (origin 5 and 6) rank below
-      DLKcat.
-    - ``gecko_classic`` uses the BRENDA maximum and ranks the
+    - ``brenda_ec_tree`` (the default): custom kcats, the BRENDA median of
+      measurements of the organism on the reaction's substrate (origin 1,
+      without EC wildcards), the EC tree (:func:`kcats_from_ec_tree`), then
+      DLKcat for reactions without an EC number.
+    - ``gecko_median``: custom kcats, the BRENDA median of matches without
+      EC wildcards from the organism or other organisms, with or without the
+      substrate (origin 1 to 4), DLKcat, then the other BRENDA matches (EC
+      wildcards, and specific activities, origin 5 and 6).
+    - ``gecko_classic``: as gecko_median with the BRENDA maximum and the
       specific-activity matches above DLKcat (origin up to 6), as the GECKO
       3 tutorial.
 
-    Against measured kcats hidden from the search, the BRENDA median of each
-    origin from 1 to 4 was as close as DLKcat or closer, while the maximum
-    was further off than the median at every origin; specific-activity
-    matches could not be tested. The aggregation is
-    ``[kcat_sources.brenda] aggregation`` (see :func:`update_kcat_sources`).
+    Against measured kcats hidden from the search, the EC tree was closer
+    than the BRENDA median at origins 2 and 4 and with EC wildcards and as
+    close at origins 1 and 3; the BRENDA median was as close as DLKcat or
+    closer at every origin, and the maximum further off than the median.
+    The BRENDA aggregation is ``[kcat_sources.brenda] aggregation`` (see
+    :func:`update_kcat_sources`).
 
     After the stages: custom kcats of ``data/customKcats.tsv`` when a stage
     lists custom but there is no ``data/kcats/custom.tsv``; with
@@ -328,10 +333,11 @@ def update_kcat_sources(
 
     Lists the source files that ``[kcat_assignment]`` uses and gathers those
     that are missing or outdated with :func:`kcats_from_brenda`,
-    :func:`kcats_from_dlkcat` and :func:`kcats_from_okp`. A file is outdated
-    when its header records other settings than ``[kcat_sources.<name>]``
-    asks for (the preset sets these for brenda) or, for brenda, another
-    BRENDA release than geckopy's BRENDA files. DLKcat reads
+    :func:`kcats_from_ec_tree`, :func:`kcats_from_dlkcat` and
+    :func:`kcats_from_okp`. A file is outdated when its header records other
+    settings than ``[kcat_sources.<name>]`` asks for (presets set these for
+    brenda and ec_tree) or, for brenda and ec_tree, another BRENDA release
+    than the BRENDA files in use. DLKcat reads
     ``data/DLKcat.tsv`` if it exists and runs DLKcat (Docker) otherwise; OKP
     submits or fetches a job and reports it as pending while it runs.
     ``custom.tsv`` and files it cannot gather are left as they are. Calling
@@ -354,7 +360,7 @@ def update_kcat_sources(
         file = kcat_dir / f"{name}.tsv"
         if name == "custom":
             status, note = "skipped", "curated by hand"
-        elif name not in ("brenda", "dlkcat") and not name.startswith("okp_"):
+        elif name not in ("brenda", "dlkcat", "ec_tree") and not name.startswith("okp_"):
             status, note = "skipped", "not a source geckopy gathers"
         elif not file.is_file():
             status = "missing"
@@ -365,6 +371,10 @@ def update_kcat_sources(
                 if key not in recorded or not _same(recorded[key], value):
                     status, note = "outdated", f"{key} differs from model_adapter.toml"
                     break
+            if status == "current" and name == "ec_tree":
+                release = _measurements(adapter).attrs.get("release", "")
+                if release and meta.get("data") and meta["data"] != release:
+                    status, note = "outdated", f"made from {meta['data']}; geckopy has {release}"
             if status == "current" and name == "brenda":
                 release = _brenda_release(Path(adapter.get_brenda_db_folder()))
                 if release and meta.get("data") and meta["data"] != release:
@@ -382,6 +392,8 @@ def _gather(model: "EcModel", name: str, wanted: dict[str, Any], adapter: "Model
         if name == "brenda":
             kcats_from_brenda(model, aggregation=wanted.get("aggregation"),
                               force_wildcard_level=int(wanted.get("force_wildcard_level", 0)), adapter=adapter)
+        elif name == "ec_tree":
+            kcats_from_ec_tree(model, k=float(wanted.get("k", 5)), adapter=adapter)
         elif name == "dlkcat":
             run = not (Path(adapter.params.path) / "data" / "DLKcat.tsv").is_file()
             if run and shutil.which("docker") is None:

@@ -1,5 +1,6 @@
 """Database loaders, downloaders, and protein utilities."""
 from .brenda_loader import BrendaData, load_brenda_data
+from .brenda_measurements import load_brenda_measurements
 from .complex_portal_download import get_complex_data
 from .complex_portal_loader import (
     ComplexPortalEntry,
@@ -33,6 +34,7 @@ __all__ = [
     "find_met_smiles",
     "get_complex_data",
     "load_brenda_data",
+    "load_brenda_measurements",
     "load_complex_portal_json",
     "load_dlkcat_ignore_lists",
     "load_flux_data",

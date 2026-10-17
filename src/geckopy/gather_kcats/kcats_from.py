@@ -3,7 +3,8 @@
 One function per source, each with its own options, each writing
 ``data/kcats/<source>.tsv`` in the project folder by default (see
 :mod:`geckopy.gather_kcats.kcat_sources`). GECKO (MATLAB) has the same
-functions as ``kcatsFromBrenda``, ``kcatsFromDLKcat`` and ``kcatsFromOKP``.
+functions as ``kcatsFromBrenda``, ``kcatsFromECTree``, ``kcatsFromDLKcat`` and
+``kcatsFromOKP``.
 """
 from __future__ import annotations
 
@@ -15,9 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional
 
+import numpy as np
 import pandas as pd
 
-from ..databases import load_brenda_data, load_dlkcat_ignore_lists, load_phyl_dist
+from ..databases import load_brenda_data, load_brenda_measurements, load_dlkcat_ignore_lists, load_phyl_dist
+from .ec_tree import ECTree
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_sources import kcat_source_file, save_kcat_source
 from .open_kinetics_predictor import fetch_open_kinetics_predictor, submit_open_kinetics_predictor
@@ -136,6 +139,100 @@ def kcats_from_brenda(
         )
         logger.info("BRENDA kcats for %d reactions written to %s",
                     int((kcat_list["kcat"] > 0).sum()), path)
+    return kcat_list
+
+
+def _measurements(adapter: "ModelAdapter") -> pd.DataFrame:
+    """The BRENDA measurement table of the adapter's BRENDA folder, or of
+    geckopy's own BRENDA files when that folder has none."""
+    bundled = Path(__file__).resolve().parents[1] / "data" / "brenda"
+    folder = Path(adapter.get_brenda_db_folder())
+    try:
+        return load_brenda_measurements(folder)
+    except FileNotFoundError:
+        if folder.resolve() == bundled:
+            raise
+        table = load_brenda_measurements(bundled)
+        logger.warning("%s has no measurements.tsv; using geckopy's BRENDA measurement table (%s).",
+                       folder, table.attrs.get("release", ""))
+        return table
+
+
+def kcats_from_ec_tree(
+    model: "EcModel",
+    *,
+    k: float = 5.0,
+    ec_rxns: Optional[Iterable[str]] = None,
+    measurements: Optional[pd.DataFrame] = None,
+    save: bool = True,
+    save_as: str = "ec_tree",
+    adapter: Optional["ModelAdapter"] = None,
+) -> pd.DataFrame:
+    """Estimate kcats from the EC tree and keep them as ``ec_tree.tsv``.
+
+    Each reaction gets the median kcat of all wild-type BRENDA measurements
+    of its EC number, from any organism and substrate, shrunk toward the
+    median of the EC's 3-digit and 2-digit classes with weight
+    ``n / (n + k)`` for ``n`` measurements (see
+    :class:`~geckopy.gather_kcats.ec_tree.ECTree`). A reaction with several
+    EC numbers uses the one with most measurements. Reactions without an EC
+    number, or whose EC classes have no measurements, get no value.
+
+    Parameters
+    ----------
+    model
+        EcModel with EC numbers (``model.ec.eccodes``).
+    k
+        Shrinkage constant: the number of measurements at which an EC's own
+        median and its class count equally.
+    ec_rxns
+        ``model.ec.rxns`` to estimate kcats for (default: all). With the
+        default ``save_as`` the file then only holds those reactions.
+    measurements
+        BRENDA measurement table (default: ``measurements.tsv`` of the
+        adapter's BRENDA folder, see
+        :func:`~geckopy.databases.load_brenda_measurements`).
+    save, save_as
+        Write the source file, and its name without ``.tsv``.
+    adapter
+        Model adapter (default: ``model.adapter``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        The kcat list; ``detail`` has the number of measurements of the EC
+        (``n``) and the deepest EC level with measurements (``depth``).
+    """
+    adapter = _adapter(model, adapter, "kcats_from_ec_tree needs the BRENDA folder and project folder")
+    ec_rxns = _rxn_subset(ec_rxns)
+    if save:
+        path = kcat_source_file(save_as, model=model, adapter=adapter)  # fails before estimating
+        _warn_subset(ec_rxns, model, path)
+    if measurements is None:
+        measurements = _measurements(adapter)
+    tree = ECTree(measurements, k=k)
+    wanted = None if ec_rxns is None else set(ec_rxns)
+    rows = []
+    for rxn, eccodes in zip(model.ec.rxns, model.ec.eccodes):
+        if wanted is not None and rxn not in wanted:
+            continue
+        value, n, depth, ec = tree.estimate(eccodes)
+        if depth == 0:
+            continue
+        rows.append({"rxn_id": rxn, "source": "ec_tree", "eccode": ec, "substrates": [], "genes": [],
+                     "kcat": float(10 ** value), "wildcard_level": np.nan, "origin": np.nan,
+                     "detail": f"n={n}; depth={depth}"})
+    kcat_list = pd.DataFrame(rows, columns=["rxn_id", "source", "eccode", "substrates", "genes", "kcat",
+                                            "wildcard_level", "origin", "detail"])
+    if save:
+        parameters = {"k": k}
+        if ec_rxns is not None:
+            parameters["ec_rxns"] = len(ec_rxns)
+        path = save_kcat_source(
+            model, kcat_list, save_as, adapter=adapter, generator="kcats_from_ec_tree",
+            parameters=parameters, data=measurements.attrs.get("release", ""),
+        )
+        logger.info("EC-tree kcats for %d reactions written to %s", len(kcat_list), path)
     return kcat_list
 
 

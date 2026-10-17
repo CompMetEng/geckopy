@@ -250,7 +250,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `kcatsFromBrenda`                   | `kcats_from_brenda`                  | Fuzzy BRENDA matching, kept as `data/kcats/brenda.tsv`. Loads the BRENDA data and KEGG distances from the adapter unless passed in. |
 | `kcatsFromDLKcat`                   | `kcats_from_dlkcat`                  | DLKcat (run in Docker with `run=True`, or an earlier output), kept as `data/kcats/dlkcat.tsv`. |
 | `kcatsFromOKP`                      | `kcats_from_okp`                     | One OpenKineticsPredictor method, kept as `data/kcats/okp_<method>.tsv`; submits a job when there is none, writes the file once it is done. Returns `(kcat_list, done)`. |
-| `saveKcatSource`, `readKcatSource`, `loadKcatSource` | `save_kcat_source`, `read_kcat_source`, `load_kcat_source` | Kcat source files: one per source, keyed by conventional reaction and enzyme set, the same file format in both tools. `load_kcat_source` maps a file to the current model and reports rows that fit no reaction. |
+| `saveKcatSource`, `loadKcatSource` | `save_kcat_source`, `load_kcat_source`, `read_kcat_source` | Kcat source files: one per source, keyed by conventional reaction and enzyme set, the same file format in both tools. `load_kcat_source` maps a file to the current model and reports rows that fit no reaction. **`[Py]`** `read_kcat_source` reads a file without a model; GECKO gives the same in `loadKcatSource`'s `report.header` and `report.records`. |
 | `getEcRxnKeys`                      | `ec_rxn_keys`                        | Conventional reaction and enzyme set per `ec.rxns` entry. |
 
 ### 5.3 Get enzyme data (`src/geckomat/get_enzyme_data`)

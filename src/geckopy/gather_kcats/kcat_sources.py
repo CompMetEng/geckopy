@@ -11,8 +11,7 @@ lines (source, generator, parameters, data, kind, created), then a
 tab-separated table with the columns ``rxn``, ``enzymes``, ``substrate``,
 ``kcat``, ``log10_sd``, ``source``, ``detail``, ``ec_code`` and ``note``,
 sorted by reaction, enzymes, substrate and source. GECKO (MATLAB) reads and
-writes the same files with ``saveKcatSource``, ``readKcatSource`` and
-``loadKcatSource``.
+writes the same files with ``saveKcatSource`` and ``loadKcatSource``.
 """
 from __future__ import annotations
 

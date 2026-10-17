@@ -25,14 +25,11 @@ import cobra
 from geckopy import (
     ModelAdapter,
     apply_complex_data,
-    apply_custom_kcats,
-    apply_kcat_constraints,
-    apply_kcat_list,
-    assign_standard_kcat,
+    assign_kcats,
     fill_eccodes_from_database,
-    fill_kcats_from_isozymes,
     find_met_smiles,
-    fuzzy_kcat_matching,
+    kcats_from_brenda,
+    kcats_from_dlkcat,
     load_brenda_data,
     load_conventional_gem,
     load_dlkcat_ignore_lists,
@@ -40,8 +37,6 @@ from geckopy import (
     load_phyl_dist,
     load_uniprot_tsv,
     make_ec_model,
-    merge_kcats,
-    read_dlkcat_output,
     save_ec_model,
     set_kcat_for_reactions,
     set_prot_pool_size,
@@ -125,7 +120,11 @@ fill_eccodes_from_database(ec_model, uniprot_db, kegg_db=kegg_db)
 
 # %% [markdown]
 # **STEP 18-19** Gather kcat values from BRENDA via fuzzy matching.
-# The BRENDA data ships with geckopy. When BRENDA has no value for
+# Each kcat source is kept as a file in `data/kcats` (`brenda.tsv`,
+# `dlkcat.tsv`, `okp_<method>.tsv`, `custom.tsv`), which `assign_kcats`
+# combines in STEP 26-31; `[kcat_assignment]` in model_adapter.toml sets
+# how. `update_kcat_sources(ec_model)` gathers all sources that the
+# configuration needs in one call. The BRENDA data ships with geckopy. When BRENDA has no value for
 # S. cerevisiae itself, the value of the phylogenetically closest
 # organism is used, based on the KEGG phylogenetic distances in
 # `data/PhylDist.mat`. That file (~5 MB) is downloaded from RAVEN on
@@ -137,8 +136,8 @@ phyl_dist_path = adapter.get_phyl_dist_path()
 if not phyl_dist_path.is_file():
     download_phyl_dist(phyl_dist_path)
 phyl_dist = load_phyl_dist(phyl_dist_path)
-kcat_list_fuzzy = fuzzy_kcat_matching(ec_model, brenda, phyl_dist)
-print(f"Fuzzy BRENDA matches: {len(kcat_list_fuzzy)} rows")
+kcat_list_fuzzy = kcats_from_brenda(ec_model, brenda=brenda, phyl_dist=phyl_dist)
+print(f"Fuzzy BRENDA matches: {len(kcat_list_fuzzy)} rows, kept as data/kcats/brenda.tsv")
 
 # %% [markdown]
 # **STEP 20-22** Gather metabolite SMILES. `find_met_smiles` queries
@@ -166,66 +165,44 @@ find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 # shipped `data/DLKcat.tsv` already has output from a previous run.)
 
 # %% [markdown]
-# **STEP 25** Load DLKcat output.
+# **STEP 25** Load DLKcat output from `data/DLKcat.tsv`, kept as
+# `data/kcats/dlkcat.tsv`.
 
 # %%
-kcat_list_dlkcat = read_dlkcat_output(
-    ec_model, params.path / "data" / "DLKcat.tsv",
-)
+kcat_list_dlkcat = kcats_from_dlkcat(ec_model)
 print(f"DLKcat predictions: {len(kcat_list_dlkcat)} rows")
 
 # %% [markdown]
-# **STEP 26** Combine kcat from BRENDA and DLKcat. For each reaction,
-# the first source in the priority list that has a kcat is used:
-# BRENDA matches without EC wildcard and with origin up to 6
-# (`database_top`), then DLKcat, then any remaining BRENDA match
-# (`database_bottom`). See `help(merge_kcats)` for the tier
-# definitions.
+# **STEP 26-31** Assign kcat values. `assign_kcats` combines the kcat
+# source files and applies the result to `ec_model`, in the stages that
+# model_adapter.toml sets:
+#
+# - **STEP 26** For each reaction, the first source in the priority list
+#   that has a kcat is used: custom kcats, then BRENDA matches without EC
+#   wildcard and with origin up to 4 (`database_top`), then DLKcat, then
+#   any remaining BRENDA match (`database_bottom`). See
+#   `help(merge_kcats)` for the tier definitions. (The GECKO tutorial
+#   uses the `gecko_classic` preset, which takes origin up to 6.)
+# - **STEP 27** The kcats are written to `ec_model.ec.kcat`.
+# - **STEP 28** Manually curated kcat values from `data/customKcats.tsv`,
+#   or from `data/kcats/custom.tsv` when that exists.
+# - **STEP 29** Reactions without a kcat take one from their isozymes.
+# - **STEP 30** Get standard kcat. Assigns a protein cost to reactions
+#   without a gene association, except for exchange / transport /
+#   pseudoreactions and any reactions listed in `data/pseudoRxns.tsv`.
+# - **STEP 31** Apply kcat constraints to the stoichiometric matrix:
+#   `ec.kcat`, `ec.mw` and `ec.rxn_enz_mat` become the protein
+#   pseudo-substrate stoichiometry in `model.S`. Re-run
+#   `apply_kcat_constraints` any time `ec.kcat`, `ec.rxn_enz_mat`, or
+#   `ec.mw` changes.
+#
+# The decision per reaction is in `output/<model id>_kcatDecisions.tsv`:
+# which stage and source gave its kcat, and how many values there were.
+# `collect_kcats` gives the same decisions without changing the model.
 
 # %%
-kcat_list_merged = merge_kcats(
-    kcat_list_fuzzy, kcat_list_dlkcat,
-    source_priority=["database_top", "dlkcat", "database_bottom"],
-)
-
-# %% [markdown]
-# **STEP 27** Populate `ec_model.ec.kcat` from the merged list.
-
-# %%
-apply_kcat_list(ec_model, kcat_list_merged)
-
-# %% [markdown]
-# **STEP 28** Apply manually-curated kcat values from
-# `data/customKcats.tsv`.
-
-# %%
-apply_custom_kcats(ec_model, path=params.path / "data" / "customKcats.tsv")
-
-# %% [markdown]
-# **STEP 29** Propagate kcat values across isozymes (sibling
-# enzymes that catalyse the same reaction).
-
-# %%
-fill_kcats_from_isozymes(ec_model)
-
-# %% [markdown]
-# **STEP 30** Get standard kcat. Assigns a protein cost to
-# reactions without a gene association, except for exchange /
-# transport / pseudoreactions and any reactions listed in
-# `data/pseudoRxns.tsv`.
-
-# %%
-assign_standard_kcat(ec_model, uniprot_db)
-
-# %% [markdown]
-# **STEP 31** Apply kcat constraints to the stoichiometric matrix.
-# `apply_kcat_constraints` translates `ec.kcat`, `ec.mw`, and
-# `ec.rxn_enz_mat` into the protein pseudo-substrate stoichiometry
-# in `model.S`. Re-run any time `ec.kcat`, `ec.rxn_enz_mat`, or
-# `ec.mw` changes.
-
-# %%
-apply_kcat_constraints(ec_model)
+kcat_decisions, kcat_report = assign_kcats(ec_model, uniprot_db=uniprot_db)
+print(kcat_decisions["stage"].value_counts().to_string())
 
 # %% [markdown]
 # **STEP 32** Set the upper bound of the protein pool exchange.

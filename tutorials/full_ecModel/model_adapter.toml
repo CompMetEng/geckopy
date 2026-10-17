@@ -27,6 +27,13 @@ reviewed = true
 [complex]
 taxonomic_id = 559292
 
+# Kcat assignment (assign_kcats): the stages of the gecko_median preset,
+# with the BRENDA aggregation that kcats_from_brenda takes from
+# kcat_aggregate_brenda (the maximum).
+[[kcat_assignment.stage]]
+sources = ["custom", "database_top", "dlkcat", "database_bottom"]
+top_origin_limit = 4
+
 [evotune]
 sigma0_log_default = 0.3
 rmse_threshold = 0.2

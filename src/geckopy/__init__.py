@@ -74,7 +74,9 @@ from geckopy.ec_model.pipeline import (
 # Gather-kcats
 from geckopy.gather_kcats import (
     apply_kcat_list,
+    assign_kcats,
     assign_standard_kcat,
+    collect_kcats,
     fetch_open_kinetics_predictor,
     fuzzy_kcat_matching,
     get_standard_kcat,  # deprecated; alias of assign_standard_kcat
@@ -91,6 +93,7 @@ from geckopy.gather_kcats import (
     save_kcat_source,
     select_kcat_value,  # deprecated; alias of apply_kcat_list
     submit_open_kinetics_predictor,
+    update_kcat_sources,
     write_dlkcat_input,
 )
 
@@ -189,7 +192,9 @@ __all__ = [
     "set_prot_pool_size",
     # Gather-kcats
     "apply_kcat_list",
+    "assign_kcats",
     "assign_standard_kcat",
+    "collect_kcats",
     "fetch_open_kinetics_predictor",
     "fuzzy_kcat_matching",
     "kcats_from_brenda",
@@ -204,6 +209,7 @@ __all__ = [
     "run_dlkcat",
     "save_kcat_source",
     "submit_open_kinetics_predictor",
+    "update_kcat_sources",
     "write_dlkcat_input",
     # get_enzyme_data
     "copy_ec_to_gem",

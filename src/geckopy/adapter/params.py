@@ -100,6 +100,54 @@ class MatlabParams(BaseModel):
     )
 
 
+class KcatStageParams(BaseModel):
+    """One ``[[kcat_assignment.stage]]``: decides each reaction that is still
+    open by the first listed source with a value."""
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["select"] = Field(default="select", description="What the stage does.")
+    sources: list[str] = Field(
+        min_length=1,
+        description=(
+            "Source file names (custom, dlkcat, okp_catapro, ...) and the BRENDA tiers "
+            "database_exact, database_top and database_bottom, which read brenda.tsv; "
+            "first listed wins."
+        ),
+    )
+    criteria: Literal["max", "min", "median", "mean"] = Field(
+        default="max", description="Among several values of one source for a reaction."
+    )
+    top_origin_limit: int = Field(default=4, description="Origin limit of database_top.")
+    bottom_origin_limit: int = Field(default=6, description="Origin limit of database_bottom.")
+    wildcard_limit: int = Field(default=3, description="Wildcard limit of database_bottom.")
+
+
+class KcatAssignmentParams(BaseModel):
+    """How kcats are assigned from the kcat source files (``collect_kcats``)."""
+    model_config = ConfigDict(extra="forbid")
+
+    preset: Optional[Literal["gecko_classic", "gecko_median"]] = Field(
+        default=None,
+        description=(
+            "Kcat assignment preset; gecko_median is used when neither a preset nor "
+            "stages are given."
+        ),
+    )
+    isozymes: bool = Field(
+        default=True, description="Fill reactions without a kcat from their isozymes after the stages."
+    )
+    standard: bool = Field(default=True, description="Give the remaining reactions the standard kcat.")
+    stage: list[KcatStageParams] = Field(
+        default_factory=list, description="Stages instead of a preset."
+    )
+
+    @model_validator(mode="after")
+    def _preset_or_stages(self) -> "KcatAssignmentParams":
+        if self.preset is not None and self.stage:
+            raise ValueError("[kcat_assignment] gives both a preset and stages; give one of the two.")
+        return self
+
+
 class SourceGroupRule(BaseModel):
     """One trust-tier entry in ``EvotuneParams.source_groups``.
 
@@ -322,4 +370,9 @@ class ModelParameters(BaseModel):
     evotune: EvotuneParams = Field(default_factory=EvotuneParams)
     okp: OkpParams = Field(default_factory=OkpParams)
     spontaneous: SpontaneousParams = Field(default_factory=SpontaneousParams)
+    kcat_assignment: KcatAssignmentParams = Field(default_factory=KcatAssignmentParams)
+    kcat_sources: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Settings per kcat source file, e.g. kcat_sources.brenda.aggregation.",
+    )
     matlab: MatlabParams = Field(default_factory=MatlabParams)

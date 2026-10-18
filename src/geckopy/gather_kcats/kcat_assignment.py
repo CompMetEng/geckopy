@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PRESETS = ("brenda_ec_tree", "ec_tree_okp", "okp", "gecko_median", "gecko_classic")
+PRESETS = ("brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic")
 _DATABASE_TOKENS = {"brenda", "sabio_rk"}
 OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
                "OmniESI", "OmniESI-O2DENet", "TurNuP", "UniKP")
@@ -77,8 +77,12 @@ def _preset_stages(preset: str) -> tuple[list[Stage], dict[str, dict[str, Any]]]
     if preset == "brenda_ec_tree":
         return ([Stage(sources=own + ["ec_tree"], top_origin_limit=1), Stage(sources=["okp"], action="combine")],
                 {**brenda, "ec_tree": {"k": 5}})
+    if preset == "ec_tree_homologs":
+        return ([Stage(sources=own, top_origin_limit=1), Stage(sources=["ec_tree", "homologs"], action="combine"),
+                 Stage(sources=["okp"], action="combine")], {**brenda, "ec_tree": {"k": 5}})
     if preset == "ec_tree_okp":
-        return ([Stage(sources=own, top_origin_limit=1), Stage(sources=["ec_tree", "okp"], action="combine"),
+        return ([Stage(sources=own, top_origin_limit=1),
+                 Stage(sources=["ec_tree", "homologs", "okp"], action="combine"),
                  Stage(sources=["okp"], action="combine")], {**brenda, "ec_tree": {"k": 5}})
     if preset == "okp":
         return [Stage(sources=["custom"]), Stage(sources=["okp"], action="combine")], {}
@@ -311,9 +315,12 @@ def collect_kcats(
       measurements of the organism on the reaction's substrate (origin 1,
       without EC wildcards), the EC tree (:func:`kcats_from_ec_tree`); then
       the OKP methods combined for the reactions left (without an EC number).
+    - ``ec_tree_homologs``: custom kcats, the organism's own BRENDA value;
+      then the EC tree and homologs (:func:`kcats_from_homologs`) combined;
+      then the OKP methods combined.
     - ``ec_tree_okp``: custom kcats, the organism's own BRENDA value; then
-      the EC tree and the OKP methods combined; then the OKP methods
-      combined.
+      the EC tree, homologs and the OKP methods combined; then the OKP
+      methods combined.
     - ``okp``: custom kcats; then the OKP methods combined.
     - ``gecko_median``: custom kcats, the BRENDA median of matches without
       EC wildcards from the organism or other organisms, with or without the
@@ -446,7 +453,7 @@ def update_kcat_sources(
         file = kcat_dir / f"{name}.tsv"
         if name == "custom":
             status, note = "skipped", "curated by hand"
-        elif name not in ("brenda", "dlkcat", "ec_tree") and not name.startswith("okp_"):
+        elif name not in ("brenda", "dlkcat", "ec_tree", "homologs") and not name.startswith("okp_"):
             status, note = "skipped", "not a source geckopy gathers"
         elif not file.is_file():
             status = "missing"
@@ -457,7 +464,7 @@ def update_kcat_sources(
                 if key not in recorded or not _same(recorded[key], value):
                     status, note = "outdated", f"{key} differs from model_adapter.toml"
                     break
-            if status == "current" and name == "ec_tree":
+            if status == "current" and name in ("ec_tree", "homologs"):
                 release = _measurements(adapter).attrs.get("release", "")
                 if release and meta.get("data") and meta["data"] != release:
                     status, note = "outdated", f"made from {meta['data']}; geckopy has {release}"
@@ -480,6 +487,11 @@ def _gather(model: "EcModel", name: str, wanted: dict[str, Any], adapter: "Model
                               force_wildcard_level=int(wanted.get("force_wildcard_level", 0)), adapter=adapter)
         elif name == "ec_tree":
             kcats_from_ec_tree(model, k=float(wanted.get("k", 5)), adapter=adapter)
+        elif name == "homologs":
+            from .homologs import kcats_from_homologs
+
+            kcats_from_homologs(model, adapter=adapter, **{k: wanted[k] for k in ("k", "min_identity", "coverage")
+                                                          if k in wanted})
         elif name == "dlkcat":
             run = not (Path(adapter.params.path) / "data" / "DLKcat.tsv").is_file()
             if run and shutil.which("docker") is None:

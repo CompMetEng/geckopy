@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 _OUTPUT_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "kcat"]
-_PAIR_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence"]
+_PAIR_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "met_id"]
 _NORMALIZE_RE = re.compile(r"[^0-9a-zA-Z]+")
 
 
@@ -157,7 +157,7 @@ def extract_enzyme_substrate_pairs(
     Returns
     -------
     pandas.DataFrame
-        Columns ``rxn_id, gene, substrate, smiles, sequence``.
+        Columns ``rxn_id, gene, substrate, smiles, sequence, met_id``.
     """
     n_ec = model.ec.n_rxns
     if ec_rxns is None:
@@ -257,6 +257,7 @@ def extract_enzyme_substrate_pairs(
                 "smiles": met_smiles[sub_i],
                 "sequence": model.ec.sequence[gene_idx]
                             if gene_idx < len(model.ec.sequence) else "",
+                "met_id": met_ids[sub_i],
             })
 
     df = pd.DataFrame(rows, columns=_PAIR_COLUMNS)

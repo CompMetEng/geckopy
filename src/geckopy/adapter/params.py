@@ -129,7 +129,7 @@ class KcatAssignmentParams(BaseModel):
     """How kcats are assigned from the kcat source files (``collect_kcats``)."""
     model_config = ConfigDict(extra="forbid")
 
-    preset: Optional[Literal["brenda_ec_tree", "ec_tree_okp", "okp", "gecko_median", "gecko_classic"]] = Field(
+    preset: Optional[Literal["brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic"]] = Field(
         default=None,
         description=(
             "Kcat assignment preset; brenda_ec_tree is used when neither a preset nor "

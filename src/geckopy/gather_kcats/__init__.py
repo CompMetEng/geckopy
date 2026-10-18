@@ -4,6 +4,7 @@ Mirrors GECKO MATLAB's `src/geckomat/gather_kcats/` directory.
 """
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_assignment import assign_kcats, collect_kcats, update_kcat_sources
+from .homologs import kcats_from_homologs
 from .kcat_sources import ec_rxn_keys, load_kcat_source, read_kcat_source, save_kcat_source
 from .kcats_from import kcats_from_brenda, kcats_from_dlkcat, kcats_from_ec_tree, kcats_from_okp
 from .get_standard_kcat import assign_standard_kcat, get_standard_kcat
@@ -41,6 +42,7 @@ __all__ = [
     "kcats_from_brenda",
     "kcats_from_dlkcat",
     "kcats_from_ec_tree",
+    "kcats_from_homologs",
     "kcats_from_okp",
     "load_kcat_source",
     "merge_dlkcat_and_fuzzy_kcats",  # deprecated; use merge_kcats

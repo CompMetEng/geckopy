@@ -410,6 +410,9 @@ def kcats_from_okp(
     adapter = _adapter(model, adapter, "kcats_from_okp needs params.path")
     if not method:
         method = adapter.params.okp.method
+    if method in ("CatPred", "TurNup"):
+        raise ValueError(f"{method} reads whole reactions (substrate set{', and products' if method == 'TurNup' else ''}); "
+                         "kcats_from_okp submits enzyme-substrate pairs only.")
     ec_rxns = _rxn_subset(ec_rxns)
     tag = re.sub(r"[^A-Za-z0-9]+", "_", method).lower()
     data_dir = Path(adapter.params.path) / "data"

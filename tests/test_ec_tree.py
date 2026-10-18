@@ -137,7 +137,7 @@ def test_brenda_ec_tree_preset(tmp_path):
         table[["ec", "kcat"]].to_csv(f, sep="\t", index=False)
     report = update_kcat_sources(model, dry_run=True, adapter=adapter)
     assert list(report["source"])[:3] == ["custom", "brenda", "ec_tree"]
-    assert all(s.startswith("okp_") for s in report["source"][3:]) and len(report) == 13
+    assert all(s.startswith("okp_") for s in report["source"][3:]) and len(report) == 11
     brenda = kcats_from_brenda(model, aggregation="median", adapter=adapter)
     kcats_from_ec_tree(model, adapter=adapter)
     decisions, rep, decided = collect_kcats(model, adapter=adapter, write_report=False)

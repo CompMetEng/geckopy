@@ -291,7 +291,7 @@ class OkpParams(BaseModel):
         default="CataPro",
         description=(
             "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
-            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNuP, UniKP "
+            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "
             "(see GET /api/v1/methods/)."
         ),
     )

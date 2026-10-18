@@ -38,10 +38,14 @@ logger = logging.getLogger(__name__)
 PRESETS = ("brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic")
 _DATABASE_TOKENS = {"brenda", "sabio_rk"}
 OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
-               "OmniESI", "OmniESI-O2DENet", "TurNuP", "UniKP")
-#: The OKP methods of the ``okp`` source group by default: those with combination
-#: parameters (CatRange predicts classes, and has none).
-DEFAULT_OKP_METHODS = tuple(m for m in OKP_METHODS if m != "CatRange")
+               "OmniESI", "OmniESI-O2DENet", "TurNup", "UniKP")
+#: OKP methods that read whole reactions (substrate set, and products for TurNup)
+#: instead of enzyme-substrate pairs; kcats_from_okp submits pairs only.
+REACTION_OKP_METHODS = ("CatPred", "TurNup")
+#: The OKP methods of the ``okp`` source group by default: those that read
+#: enzyme-substrate pairs and have combination parameters (CatRange predicts
+#: classes, and has none).
+DEFAULT_OKP_METHODS = tuple(m for m in OKP_METHODS if m != "CatRange" and m not in REACTION_OKP_METHODS)
 
 
 def okp_file(method: str) -> str:

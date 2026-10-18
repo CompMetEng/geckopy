@@ -7,6 +7,8 @@ BRENDA measurements (at least 40% identity, 80% coverage of both sequences).
 Each homolog measured on the same substrate (same InChIKey, without the
 protonation flag) contributes the median of its measurements; the estimate
 is the mean of the ``k`` most identical such homologs, weighted by identity.
+Homologs at 95% identity or more are measurements of (nearly) the same
+protein: when there are any, the estimate is the median of those alone.
 Model metabolites are matched to InChIKeys through ``substrates.tsv`` of the
 BRENDA files: their ChEBI annotations, then MetaNetX annotations, then their
 names. GECKO has the same in ``kcatsFromHomologs``.
@@ -30,6 +32,10 @@ if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
 
 logger = logging.getLogger(__name__)
+
+#: Identity from which a homolog counts as the same protein (the ``exact``
+#: evidence bin of the combination parameters).
+EXACT_IDENTITY = 0.95
 
 _GREEK = {"α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "epsilon", "ω": "omega",
           "κ": "kappa", "λ": "lambda", "μ": "mu", "ψ": "psi", "ξ": "xi", "ζ": "zeta"}
@@ -160,7 +166,7 @@ def kcats_from_homologs(
     -------
     pandas.DataFrame
         The kcat list; ``detail`` has the identity of the nearest homolog
-        (``identity``) and the number of homologs averaged (``n``).
+        (``identity``) and the number of homologs used (``n``).
     """
     from ..adapter import resolve_adapter
     from ..databases import load_brenda_measurements, load_dlkcat_ignore_lists
@@ -191,8 +197,12 @@ def kcats_from_homologs(
 
         estimates: dict[tuple[str, str], tuple[float, float, int]] = {}
         for seq, ik in pairs[["sequence", "inchikey"]].drop_duplicates().itertuples(index=False):
-            found = [(ident, medians[(t, ik)]) for t, ident in by_query.get(seq_ids[seq], []) if (t, ik) in medians][:k]
-            if found:
+            found = [(ident, medians[(t, ik)]) for t, ident in by_query.get(seq_ids[seq], []) if (t, ik) in medians]
+            exact = [v for ident, v in found if ident >= EXACT_IDENTITY]
+            if exact:
+                estimates[(seq, ik)] = (float(np.median(exact)), float(found[0][0]), len(exact))
+            elif found:
+                found = found[:k]
                 w = np.array([f[0] for f in found])
                 v = np.array([f[1] for f in found])
                 estimates[(seq, ik)] = (float(np.sum(w * v) / np.sum(w)), float(w[0]), len(found))
@@ -204,7 +214,7 @@ def kcats_from_homologs(
             best = max(est, key=lambda e: e[1])
             rows.append({"rxn_id": rxn, "source": "homologs", "substrates": [sub],
                          "kcat": float(10 ** np.median([e[0] for e in est])),
-                         "detail": f"identity={best[1]:.2f}; n={best[2]}"})
+                         "detail": f"identity={best[1]:.3f}; n={best[2]}"})
         kcat_list = pd.DataFrame(rows, columns=columns)
     if save:
         parameters = {"k": k, "min_identity": min_identity, "coverage": coverage}

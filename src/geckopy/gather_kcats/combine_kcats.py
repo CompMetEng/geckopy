@@ -7,7 +7,9 @@ evidence for that reaction (the evidence bin):
 - ``ec_tree``: the number of measurements of the full EC number, or the
   deepest EC level with measurements (``ec4:1-2`` ... ``ec4:>100``, ``ec3``,
   ``ec2``, ``ec0``);
-- ``homologs``: the identity of the nearest homolog;
+- ``homologs``: the identity of the nearest homolog (``exact`` from 95%,
+  where the homolog is the same protein: no bias and the smallest variance,
+  an assumption, as the benchmark hides such homologs);
 - ``okp_<method>``: the enzyme's similarity to the method's training
   sequences, in percent (``<40``, ``40-60``, ``60-80``, ``>80``).
 
@@ -77,6 +79,8 @@ def evidence_bin(source: str, detail: str) -> str:
         if not m:
             return ""
         v = float(m.group(1))
+        if v >= 0.95:
+            return "exact"
         for hi, label in ((0.5, "40"), (0.6, "50"), (0.7, "60"), (0.8, "70"), (0.9, "80")):
             if v <= hi:
                 return label

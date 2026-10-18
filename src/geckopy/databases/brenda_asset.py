@@ -30,7 +30,7 @@ _REGISTRY: dict = {
             },
             "kcatCombineParams.tsv": {
                 "url": "https://github.com/CompMetEng/toolbox-assets/releases/download/brenda-2026.1-1/kcatCombineParams.tsv",
-                "sha256": "11fa0cdd3dd81feb70a3db0aa321b5140dd6551a666ed1c2672f3317cc889431",
+                "sha256": "9e2bed95cfa1073db409eee39161126a643ddfef06cc093c2de5a77aebaa7cda",
             },
             "measurements.tsv.gz": {
                 "url": "https://github.com/CompMetEng/toolbox-assets/releases/download/brenda-2026.1-1/measurements.tsv.gz",

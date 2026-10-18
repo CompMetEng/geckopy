@@ -5,7 +5,6 @@ P4 (reaction R3, substrate m1) has an exact copy h1, measured on m1 at 10 and
 100 /s, and an unrelated h3 at 1000 /s. GECKO's homologsTests use the same
 fixture (tests/data/homologFixture).
 """
-import math
 import shutil
 from pathlib import Path
 
@@ -64,21 +63,23 @@ def test_kcats_from_homologs(tmp_path):
     model, adapter, project = _project(tmp_path)
     kcat_list = kcats_from_homologs(model, adapter=adapter)
     assert list(kcat_list["rxn_id"]) == ["R3"]
-    expected = 10 ** ((1.0 * math.log10(20) + 0.8 * 2) / 1.8)
-    assert kcat_list["kcat"].iloc[0] == pytest.approx(expected, rel=1e-9)
-    assert kcat_list["detail"].iloc[0] == "identity=1.00; n=2"
+    # h1 is the same protein (100% identity): its median alone, 20 /s.
+    assert kcat_list["kcat"].iloc[0] == pytest.approx(20.0)
+    assert kcat_list["detail"].iloc[0] == "identity=1.000; n=1"
     assert kcat_list["substrates"].iloc[0] == ["m1"]
     records, meta = read_kcat_source(project / "data" / "kcats" / "homologs.tsv")
     assert meta["parameters"] == '{"coverage":0.8,"k":10,"min_identity":0.4}'
     assert meta["data"] == "BRENDA release test"
     assert list(records["rxn"]) == ["R3"] and list(records["substrate"]) == ["m1"]
-    # With only the closest homolog (k=1): the exact copy, median of 10 and 40.
-    one = kcats_from_homologs(model, k=1, save=False, adapter=adapter)
-    assert one["kcat"].iloc[0] == pytest.approx(20.0)
-    assert one["detail"].iloc[0] == "identity=1.00; n=1"
-    # Above 90% identity only h1 is found.
-    high = kcats_from_homologs(model, min_identity=0.9, save=False, adapter=adapter)
-    assert high["kcat"].iloc[0] == pytest.approx(20.0)
+    # Without h1, the homologs below 95% identity are averaged by identity:
+    # h2 (80%) alone.
+    seqs = (project / "data" / "brenda" / "sequences.fasta").read_text().split(">")
+    (project / "data" / "brenda" / "sequences.fasta").write_text(">" + ">".join(x for x in seqs[1:] if not x.startswith("h1")))
+    rest = kcats_from_homologs(model, save=False, adapter=adapter)
+    assert rest["kcat"].iloc[0] == pytest.approx(100.0)
+    assert rest["detail"].iloc[0] == "identity=0.800; n=1"
+    # Above 90% identity nothing is left.
+    assert kcats_from_homologs(model, min_identity=0.9, save=False, adapter=adapter).empty
 
 
 def test_homolog_presets(tmp_path):

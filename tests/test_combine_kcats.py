@@ -30,6 +30,8 @@ ec_tree\tec3\t0\t4\t50
 okp_catapro\t<40\t0.2\t2\t50
 okp_catapro\t>80\t0\t0.5\t50
 okp_unikp\t40-60\t-0.3\t1\t50
+homologs\t90\t0\t1\t50
+homologs\texact\t0\t0.01\t0
 """
 
 
@@ -48,6 +50,8 @@ def test_evidence_bins():
     assert evidence_bin("okp_catapro", "similarity=95") == ">80"
     assert evidence_bin("okp_catapro", "") == ""
     assert evidence_bin("homologs", "identity=0.85") == "80"
+    assert evidence_bin("homologs", "identity=0.949") == "90"
+    assert evidence_bin("homologs", "identity=0.950") == "exact"
 
 
 def test_combine_worked_example(tmp_path):
@@ -132,6 +136,24 @@ def test_okp_presets(tmp_path):
     d = decisions.set_index("ec_rxn")
     assert d.loc[rxns[0], "kcat"] == pytest.approx(10 ** 1.2)
     assert d.loc[rxns[0], "source"].startswith("combined (") and d.loc[rxns[0], "stage"] == "2"
+
+
+def test_exact_homolog_dominates(tmp_path):
+    """EC tree 10 /s (ec4:3-5: bias 0.1, variance 1) and a homolog at 100%
+    identity measured at 100 /s (exact: bias 0, variance 0.01):
+    (0.9 * 1 + 2 * 100) / 101. GECKO's tc0098 has the same numbers."""
+    model, adapter, project = _project(tmp_path, "ec_tree_homologs")
+    rxn = [r for r in model.ec.rxns if r.startswith("R")][0]
+    i = model.ec.rxns.index(rxn)
+    tree = pd.DataFrame({"rxn_id": [rxn], "source": "ec_tree", "kcat": [10.0], "substrates": [[]],
+                         "eccode": [model.ec.eccodes[i]], "detail": ["n=4; depth=4"]})
+    hom = pd.DataFrame({"rxn_id": [rxn], "source": "homologs", "kcat": [100.0], "substrates": [["m1"]],
+                        "detail": ["identity=1.000; n=1"]})
+    save_kcat_source(model, tree, "ec_tree", adapter=adapter)
+    save_kcat_source(model, hom, "homologs", adapter=adapter)
+    decisions, _, _ = collect_kcats(model, adapter=adapter, write_report=False)
+    d = decisions.set_index("ec_rxn")
+    assert d.loc[rxn, "kcat"] == pytest.approx(10 ** ((0.9 + 200) / 101))
 
 
 def test_unknown_okp_method(tmp_path):

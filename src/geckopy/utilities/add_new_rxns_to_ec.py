@@ -246,7 +246,7 @@ def _add_protein_pseudometabolites(
             continue
         m = cobra.Metabolite(met_id, name=met_id, compartment=comp_id)
         m.annotation["sbo"] = "SBO:0000252"
-        m.notes["enzyme_usage"] = "Enzyme-usage pseudometabolite"
+        m.notes["note"] = "Enzyme-usage pseudometabolite"
         new_mets.append(m)
     if new_mets:
         model.add_metabolites(new_mets)

@@ -336,7 +336,7 @@ def _add_standard_pseudoenzyme(
         prot_std = cobra.Metabolite(
             _STANDARD_MET_ID, name=_STANDARD_MET_ID, compartment=comp_id,
         )
-        prot_std.notes["enzyme_usage"] = "Standard enzyme-usage pseudometabolite"
+        prot_std.notes["note"] = "Standard enzyme-usage pseudometabolite"
         model.add_metabolites([prot_std])
 
         pool_met = model.metabolites.get_by_id(POOL_ID)

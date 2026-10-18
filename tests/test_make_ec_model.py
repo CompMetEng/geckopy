@@ -85,6 +85,20 @@ def test_make_ec_model_adds_prot_metabolites():
         assert p in met_ids
 
 
+def test_make_ec_model_enzyme_notes_saved_as_raven_met_notes(tmp_path):
+    """The enzyme and pool pseudometabolites carry RAVEN's free-text metNotes,
+    as GECKO's makeEcModel writes them, so that RAVEN can read the YAML."""
+    from ruamel.yaml import YAML
+    from geckopy.utilities import save_ec_model
+    model, adapter = _load_fresh_ectestgem()
+    ec_model = make_ec_model(model, adapter)
+    save_ec_model(ec_model, tmp_path / "ec.yml")
+    doc = YAML(typ="safe").load((tmp_path / "ec.yml").read_text())
+    mets = {m["id"]: m for m in doc["metabolites"]}
+    assert mets["prot_P1"]["notes"] == "Enzyme-usage pseudometabolite"
+    assert mets["prot_pool"]["notes"] == "Enzyme-usage protein pool"
+
+
 def test_make_ec_model_adds_usage_and_exchange_reactions():
     model, adapter = _load_fresh_ectestgem()
     ec_model = make_ec_model(model, adapter)

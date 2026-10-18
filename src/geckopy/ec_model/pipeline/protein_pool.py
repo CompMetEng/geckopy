@@ -114,7 +114,7 @@ def add_protein_pseudometabolites(model: "EcModel") -> list[str]:
             compartment=comp_id,
         )
         met.annotation["sbo"] = "SBO:0000252"
-        met.notes["enzyme_usage"] = "Enzyme-usage pseudometabolite"
+        met.notes["note"] = "Enzyme-usage pseudometabolite"
         new_mets.append(met)
 
     if new_mets:
@@ -154,7 +154,7 @@ def add_protein_pool_pseudometabolite(model: "EcModel") -> None:
         name=POOL_ID,
         compartment=comp_id,
     )
-    pool.notes["enzyme_usage"] = "Enzyme-usage protein pool"
+    pool.notes["note"] = "Enzyme-usage protein pool"
     model.add_metabolites([pool])
 
 

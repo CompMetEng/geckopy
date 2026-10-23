@@ -208,8 +208,27 @@ def test_metadata_includes_date_version_description(tmp_path):
     doc = _read_yaml(path)
     md = doc["metaData"]
     assert md["date"] == date.today().isoformat()
-    assert "geckopy_version" in md
+    assert md["gecko_format"] == "4"
+    assert md["generator"].startswith("geckopy ")
+    assert "geckopy_version" not in md
     assert md["description"] == "Enzyme-constrained model of demo"
+    # The same lines as GECKO's saveEcModel writes.
+    text = path.read_text()
+    assert '  - gecko_format: "4"\n' in text
+    assert "  - generator: geckopy " in text
+
+
+def test_metadata_keeps_model_metadata(tmp_path):
+    """The model's own metaData, its date included, is kept, as RAVEN keeps model.date and annotation."""
+    adapter = _adapter(tmp_path)
+    model = _build_full_ec_model(adapter)
+    model.notes["metaData"] = {"date": "2025-01-31", "geckopy_version": "4.0.0b1",
+                               "taxonomy": "taxonomy/4932", "organization": "Chalmers"}
+    doc = _read_yaml(save_ec_model(model))
+    assert doc["metaData"]["date"] == "2025-01-31"
+    assert doc["metaData"]["taxonomy"] == "taxonomy/4932"
+    assert doc["metaData"]["organization"] == "Chalmers"
+    assert "geckopy_version" not in doc["metaData"]
 
 
 def test_input_model_not_mutated(tmp_path):

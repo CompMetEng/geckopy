@@ -20,6 +20,13 @@ geckopy keeps three application-level concerns:
    clear message if the YAML lacks the ec sections, and attach the
    adapter to ``model.adapter`` so downstream geckopy code finds it.
 
+4. **ecModel format** — a file whose protein usage and pool reactions
+   raven-toolbox turned forward from the GECKO 3 direction gives a
+   warning that names :func:`~geckopy.upgrade_project`; an ecModel
+   format (``gecko_format`` in the file's ``metaData``, see
+   :func:`~geckopy.save_ec_model`) above 4 is an error. GECKO's
+   ``loadEcModel`` does the same.
+
 geckopy has no global default adapter: pass one explicitly, or use an
 absolute filename.
 
@@ -27,17 +34,22 @@ Ported from GECKO MATLAB: src/geckomat/utilities/loadEcModel.m.
 """
 from __future__ import annotations
 
+import re
+import threading
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from raven_toolbox.io import EcData, read_yaml_model
 
 from ..ec_model.ec_model import EcModel
+from ..upgrade import upgrade_ec_model
 
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter
 
 
+_HOOK_LOCK = threading.Lock()  # warnings.showwarning is one global per process
 _DEFAULT_FILENAME = "ecModel.yml"
 _YAML_SUFFIXES = {".yml", ".yaml"}
 
@@ -71,14 +83,39 @@ def load_ec_model(
     ------
     ValueError
         If the extension isn't YAML, the filename is relative without an
-        adapter, or the YAML lacks the GECKO ``ec-rxns`` / ``ec-enzymes``
-        sections (in which case it isn't an ecModel).
+        adapter, the YAML lacks the GECKO ``ec-rxns`` / ``ec-enzymes``
+        sections (in which case it isn't an ecModel), or its ecModel
+        format is above 4.
     FileNotFoundError
         If the resolved file doesn't exist.
     """
     path = _resolve_path(filename, adapter)
 
-    cobra_model = read_yaml_model(path)
+    # read_yaml_model turns GECKO 3 protein reactions forward, with a warning
+    # that names how many. That warning is counted and replaced; every other
+    # warning goes through the caller's filters and display unchanged.
+    turned = 0
+    show = warnings.showwarning
+
+    def count_turned(message, category, filename, lineno, file=None, line=None):
+        nonlocal turned
+        m = re.search(r"reverse-direction convention for (\d+) protein", str(message))
+        if m:
+            turned += int(m.group(1))
+        else:
+            show(message, category, filename, lineno, file, line)
+
+    with _HOOK_LOCK, warnings.catch_warnings():
+        warnings.filterwarnings("always", message=r"ecModel uses the older reverse-direction convention")
+        warnings.showwarning = count_turned
+        cobra_model = read_yaml_model(path)
+    meta = (cobra_model.notes or {}).get("metaData") or {}
+    if _format_number(meta.get("gecko_format")) > 4:
+        raise ValueError(
+            f"{path} has ecModel format {meta['gecko_format']} (written by "
+            f"{meta.get('generator', 'an unknown release')}); this geckopy reads "
+            "format 4 and older. Update geckopy to load it."
+        )
     ec = getattr(cobra_model, "ec", None)
     if not isinstance(ec, EcData) or ec.n_rxns == 0 or ec.n_enzymes == 0:
         raise ValueError(
@@ -90,7 +127,27 @@ def load_ec_model(
         cobra_model, adapter=adapter, gecko_light=ec.gecko_light,
     )
     ec_model.ec = ec
+    # raven-toolbox turns the reactions with a negative lower bound; GECKO
+    # turns those whose stoichiometry has the GECKO 3 sign, which also
+    # covers a usage reaction fixed to zero.
+    turned += len(upgrade_ec_model(ec_model))
+    if turned:
+        warnings.warn(
+            f"{path} has {turned} protein usage and pool reactions in the GECKO 3 direction; "
+            "they are turned forward in the loaded model. upgrade_project upgrades the "
+            "files of the project.",
+            stacklevel=2,
+        )
     return ec_model
+
+
+def _format_number(value) -> float:
+    """``gecko_format`` as a number; a value that is not a number counts as
+    no format, as GECKO's ``loadEcModel`` reads it with ``str2double``."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def _resolve_path(

@@ -111,8 +111,40 @@ def test_upgrade_project(tmp_path, capsys):
     assert (legacy / "data" / "customKcats.tsv").is_file()
     assert (legacy / "models" / "ecModel.yml").is_file()
     assert upgrade_ec_model(load_ec_model(project / "models" / "ecModel.yml")) == []
+    assert '  - gecko_format: "4"\n' in (project / "models" / "ecModel.yml").read_text(encoding="utf-8")
 
     again = upgrade_project(project)
     assert set(again["status"]) == {"by hand"}
     assert main(["upgrade", str(project)]) == 0
     assert "select_kcat_value -> apply_kcat_list" in capsys.readouterr().out
+
+
+def test_upgrade_project_reports_newer_format_as_failed(tmp_path):
+    model, adapter, project = _project(tmp_path)
+    save_ec_model(_gecko3(model), project / "models" / "ecModel.yml")
+    save_ec_model(model, project / "models" / "newer.yml")
+    newer = project / "models" / "newer.yml"
+    newer.write_text(newer.read_text(encoding="utf-8").replace('gecko_format: "4"', 'gecko_format: "5"'),
+                     encoding="utf-8")
+    report = upgrade_project(project)
+    rows = report[report["step"] == "saved ecModel"]
+    failed = rows[rows["note"].str.contains("newer.yml", regex=False)]
+    assert list(failed["status"]) == ["failed"] and "format 5" in failed["note"].iloc[0]
+    assert "ecModel.yml" in " ".join(rows[rows["status"] == "to do"]["note"])
+
+
+def test_usage_reaction_fixed_to_zero_is_turned(tmp_path):
+    """As GECKO's loadEcModel, a GECKO 3 usage reaction with both bounds 0 is turned forward too."""
+    import warnings
+
+    model, adapter, project = _project(tmp_path)
+    old = _gecko3(model)
+    usage = next(r for r in old.reactions if r.id.startswith("usage_prot_"))
+    usage.bounds = (0, 0)
+    save_ec_model(old, project / "models" / "ecModel.yml")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = load_ec_model(project / "models" / "ecModel.yml")
+    assert {m.id: c for m, c in loaded.reactions.get_by_id(usage.id).metabolites.items()} == \
+        {m.id: c for m, c in model.reactions.get_by_id(usage.id).metabolites.items()}
+    assert any("GECKO 3 direction" in str(w.message) for w in caught)

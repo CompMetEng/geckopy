@@ -38,7 +38,7 @@ add three application-level concerns on top:
 
 1. **File-extension validation** — only `.yml` / `.yaml` is accepted (SBML ecModel I/O was dropped; the message points users at the new contract).
 2. **Adapter-aware path resolution** — relative filenames resolve under `<adapter.params.path>/models/<filename>`.
-3. **Provenance + diagnostics** — `save_ec_model` injects a `metaData` block (date + geckopy version + description); both wrappers fast-fail with clear messages when the YAML isn't an ecModel or the in-memory model has an empty `ec`.
+3. **Provenance + diagnostics** — `save_ec_model` writes a `metaData` block (the model's own metaData with its date, the ecModel format `gecko_format`, the release as `generator`, and a description); both wrappers fast-fail with clear messages when the YAML isn't an ecModel or the in-memory model has an empty `ec`.
 
 On-disk format is the same RAVEN/cobrapy YAML in both directions: files
 written by geckopy load in raven-toolbox (as a `cobra.Model` with

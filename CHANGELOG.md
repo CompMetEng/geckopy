@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* New: `save_ec_model` records the ecModel format (`gecko_format: "4"`) and
+  the release that wrote the file (`generator: geckopy <version>`) in the
+  `metaData`, the keys GECKO's `saveEcModel` writes, in place of
+  `geckopy_version`. The model's own metaData, its date included, is kept.
+  `load_ec_model` refuses a `gecko_format` above 4 and warns about a GECKO 3
+  ecModel with a message that names `upgrade_project`; it turns the same
+  protein reactions as GECKO's `loadEcModel`, including a usage reaction fixed
+  to zero. `upgrade_project` reports an ecModel it cannot read as failed
+  and goes on with the other steps.
 * New: `level_complex_concs` and `level_complex_abundances` give every enzyme
   complex one abundance, the median per copy over its measured subunits, so a
   single badly quantified subunit no longer sets a complex's capacity.

@@ -421,9 +421,10 @@ def test_autoflip_legacy_reverse_direction(tmp_path):
         flipped = load_ec_model("ecModel.yml", adapter=adapter)
 
     msgs = [str(w.message) for w in caught]
-    assert any("forward convention" in m for m in msgs), (
-        f"expected a flip warning, got: {msgs}"
+    assert any("in the GECKO 3 direction" in m and "upgrade_project" in m for m in msgs), (
+        f"expected a GECKO 3 warning, got: {msgs}"
     )
+    assert not any("forward convention" in m for m in msgs)
 
     # Every flipped reaction should now look like the canonical fixture.
     canonical_doc = _canonical_yaml()
@@ -486,3 +487,64 @@ def test_legacy_metadata_and_smiles_normalized(tmp_path):
     assert model.name == "demo ecModel"
     met = model.metabolites.get_by_id("A_c")
     assert met.annotation.get("smiles") in ("C(C)O", ["C(C)O"])
+
+
+def test_newer_ecmodel_format_raises(tmp_path):
+    """A file of an ecModel format above 4 is refused, naming its writer."""
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "5", "generator": "geckopy 9.0.0"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with pytest.raises(ValueError, match=r"ecModel format 5 \(written by geckopy 9\.0\.0\)"):
+        load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_format_4_file_loads_without_warning(tmp_path):
+    import warnings
+
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "4"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        load_ec_model("ecModel.yml", adapter=adapter)
+    assert not [w for w in caught if "ecModel" in str(w.message)]
+
+
+def test_format_that_is_not_a_number_loads(tmp_path):
+    """As GECKO's str2double, a gecko_format that is not a number counts as none."""
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "4.1.0"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_newer_format_without_generator_names_unknown_release(tmp_path):
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "5"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with pytest.raises(ValueError, match="written by an unknown release"):
+        load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_other_reader_warnings_pass_through(tmp_path, monkeypatch):
+    """Only raven-toolbox's GECKO 3 warning is replaced; other warnings reach the caller."""
+    import importlib
+    import warnings
+
+    lem = importlib.import_module("geckopy.utilities.load_ec_model")
+
+    adapter = _adapter(tmp_path)
+    _write_yaml(tmp_path / "models" / "ecModel.yml", _canonical_yaml())
+    read = lem.read_yaml_model
+
+    def read_with_warning(path):
+        warnings.warn("unrelated reader warning", UserWarning)
+        return read(path)
+
+    monkeypatch.setattr(lem, "read_yaml_model", read_with_warning)
+    with pytest.warns(UserWarning, match="unrelated reader warning"):
+        load_ec_model("ecModel.yml", adapter=adapter)

@@ -16,8 +16,8 @@ geckopy keeps three application-level concerns:
    ``<adapter.params.path>/models/<filename>``.
 3. **Empty-ecModel guard + provenance injection** — fast-fail when the
    caller forgot to run ``make_ec_model``; write a small ``metaData``
-   block (date + geckopy version + description) so saved files carry
-   provenance information.
+   block (date, ecModel format, geckopy release, description) so saved
+   files carry provenance information.
 
 The provenance/description metadata is written only into the saved
 YAML; the in-memory model's ``notes`` are mutated only transiently for
@@ -133,17 +133,24 @@ def _resolve_path(
 def _build_metadata(model: EcModel) -> dict:
     """Provenance block written under the top-level ``metaData`` key.
 
-    Save date, geckopy version, and a description string of the form
-    ``"Enzyme-constrained model of <id>"``. Author / email /
-    organization / taxonomy could be sourced from ``adapter.params``
-    once those fields are added to ``ModelParameters``.
+    The model's own ``metaData`` (from the file it was read from, or the
+    conventional model it was made from) with ``date`` kept or set to
+    today, as RAVEN keeps ``model.date``; ``gecko_format``, the ecModel
+    format the file follows (as ``project_format`` in
+    ``model_adapter.toml``, written as text as GECKO's ``saveEcModel``
+    writes it); ``generator``, the release that wrote the file; and a
+    description string of the form ``"Enzyme-constrained model of <id>"``.
+    GECKO's ``saveEcModel`` writes the same ``gecko_format`` and
+    ``generator``.
     """
     try:
         geckopy_version = version("geckopy")
     except PackageNotFoundError:
         geckopy_version = "unknown"
-    return {
-        "date": date.today().isoformat(),
-        "geckopy_version": geckopy_version,
-        "description": f"Enzyme-constrained model of {model.id}",
-    }
+    meta = dict((model.notes or {}).get("metaData") or {})
+    meta.pop("geckopy_version", None)
+    meta["date"] = meta.get("date") or date.today().isoformat()
+    meta["gecko_format"] = "4"
+    meta["generator"] = f"geckopy {geckopy_version}"
+    meta["description"] = f"Enzyme-constrained model of {model.id}"
+    return meta

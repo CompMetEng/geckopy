@@ -246,12 +246,16 @@ def upgrade_project(
         from .utilities.load_ec_model import load_ec_model
         from .utilities.save_ec_model import save_ec_model
 
-        # read_yaml_model already turns GECKO 3 protein reactions forward, with a
-        # warning that names how many; the file itself keeps the old direction.
+        # load_ec_model turns GECKO 3 protein reactions forward, with a warning
+        # that names how many; the file itself keeps the old direction.
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            model = load_ec_model(path)
-        flipped = [re.search(r"for (\d+) protein", str(w.message)) for w in caught]
+            try:
+                model = load_ec_model(path)
+            except Exception as err:  # an ecModel this geckopy cannot read stops only its own row
+                rows.append(("saved ecModel", "failed", f"{path.relative_to(project)}: {err}"))
+                continue
+        flipped = [re.search(r"(\d+) protein usage", str(w.message)) for w in caught]
         flipped = [int(m.group(1)) for m in flipped if m]
         changed = upgrade_ec_model(model)
         n_turned = sum(flipped) + len(changed)

@@ -392,24 +392,15 @@ def test_equiv_infeasible_model_both_zero():
     [
         "glpk",
         "glpk_exact",
-        # optlang's scipy backend explicitly does NOT implement duals
-        # (`constraint.dual` raises NotImplementedError), so the
-        # shadow-price approach is unavailable there. The finite-difference
-        # function still works on scipy.
-        pytest.param(
-            "scipy",
-            marks=pytest.mark.xfail(
-                raises=NotImplementedError,
-                reason="optlang scipy interface does not expose LP duals",
-                strict=True,
-            ),
-        ),
+        # optlang's scipy backend does not implement duals; the reduced-cost
+        # function then falls back to the finite difference itself.
+        "scipy",
         "gurobi",
     ],
 )
 def test_equiv_across_solvers(solver):
-    """The shadow-price/finite-difference equivalence holds for every LP
-    solver that exposes duals. Uses the single-enzyme linear-regime model
+    """The reduced-cost/finite-difference equivalence holds for every LP
+    solver, through the fallback where the solver exposes no duals. Uses the single-enzyme linear-regime model
     so the LP is non-degenerate / non-breakpoint (where duals would be
     non-unique)."""
     from cobra.util.solver import solvers

@@ -6,10 +6,24 @@ src/geckomat/get_enzyme_data/findECInDB.m.
 from __future__ import annotations
 
 import logging
+import re
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+_EC_SEPARATORS = re.compile(r"[;\s]+")
+
+
+def _split_ec_cell(cell: str) -> list[str]:
+    """Split a database EC cell into its EC tokens.
+
+    UniProt separates codes with ``"; "`` and KEGG with a space, so a cell is
+    split on semicolons and whitespace alike and empty pieces are dropped,
+    as GECKO MATLAB's ``getECstring`` does.
+    """
+    return [token for token in _EC_SEPARATORS.split(cell) if token]
 
 
 def _split_levels(token: str) -> list[str]:
@@ -122,8 +136,9 @@ def find_ec_in_db(
         cross-gene UNION / INTERSECTION ordering.
     db_eccodes
         EC string per protein row in the database. Empty string means
-        "no EC for this protein". Multi-EC strings (``;``-joined) are
-        permitted.
+        "no EC for this protein". A cell may hold several codes, separated
+        by semicolons, spaces or both (``"1.1.1.1; 2.2.2.2"`` from UniProt,
+        ``"1.1.1.4 1.1.1.-"`` from KEGG).
     db_mw
         Molecular weight per protein row, in Da. NaN is tolerated.
     gene_to_protein_indices
@@ -186,7 +201,7 @@ def find_ec_in_db(
             min_idx = int(np.argmin(finite_mws))
             chosen = db_eccodes[matched[min_idx]]
 
-        per_gene_tokens.append(chosen.split(";"))
+        per_gene_tokens.append(_split_ec_cell(chosen))
 
     per_gene_tokens = [t for t in per_gene_tokens if t]
 

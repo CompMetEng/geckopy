@@ -282,6 +282,10 @@ def flexibilize_enz_concs(
             )
             if pool_pred_growth is not None:
                 pred_growth = pool_pred_growth
+            # No enzyme limits growth any more: the highest growth reached is the
+            # target of the final pass and of the reported model, whether or not
+            # exp_growth was reached.
+            exp_growth = pred_growth
             break
 
         if families is not None:

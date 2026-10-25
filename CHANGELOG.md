@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
+  the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
+  times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a
+  rise above 1e-10, which dropped any coefficient with a reduced cost times bound below 1e-6.
+* `fit_sigma(method="bisect")` gives the first grid sigma, `1 / n_sigma_steps`, for a model that
+  cannot grow even at sigma 1, as the grid does; it used to give about 1e-6.
 * `truncate_values` rounds a value exactly halfway between two candidates away from
   zero, as MATLAB's `round(x, n)` does: 100000.5 gives 100001 and 1234565 gives
   1234570, where they gave 100000 and 1234560.

@@ -101,13 +101,18 @@ def fit_sigma(
 
     ``method="grid"`` (default) is the sweep of GECKO's ``sigmaFitter``:
     sigma ``i / n`` for ``i = 1..n`` (every grid point evaluated), and the
-    first grid point with the smallest error wins, so a target that growth
-    cannot reach gives the first sigma of the growth plateau.
+    first grid point with the smallest error wins. For a target that growth
+    cannot reach this is the first sigma of the growth plateau when the
+    plateau values are identical; values that differ by solver noise can move
+    the pick to a later grid point, as in ``sigmaFitter.m``. A model that
+    cannot grow at any sigma gives the first grid point, ``1 / n_sigma_steps``.
     ``method="bisect"`` exploits that growth is monotone non-decreasing in
     sigma and finds the best sigma, to a resolution of 1e-6 and not on the
     grid, in about ``log2(n)`` solves; the returned grids then contain only
     the sigmas actually evaluated. For an unreachable target it finds where
-    the growth plateau starts.
+    the growth plateau starts (growth within a relative 1e-9 of its value at
+    sigma 1); a model that cannot grow at sigma 1 gives ``1 / n_sigma_steps``,
+    as the grid does.
 
     The bounds of the objective reaction are set to ``[0, 1000]`` before the
     scan, as ``sigmaFitter.m`` does, and stay so on ``model``. The best sigma
@@ -211,14 +216,19 @@ def fit_sigma(
         # fine (not 1/n) so a steep growth curve still resolves the
         # crossing; n_sigma_steps just caps iterations.
         lo, hi = 0.0, 1.0
-        for _ in range(n_sigma_steps):
-            if hi - lo <= _SIGMA_BISECT_TOL:
-                break
-            mid = 0.5 * (lo + hi)
-            if growth_at(mid) >= reach:
-                hi = mid
-            else:
-                lo = mid
+        if g_max <= 0:
+            # No growth at any sigma: every error is equal, and the grid takes
+            # its first point.
+            hi = 1.0 / n_sigma_steps
+        else:
+            for _ in range(n_sigma_steps):
+                if hi - lo <= _SIGMA_BISECT_TOL:
+                    break
+                mid = 0.5 * (lo + hi)
+                if growth_at(mid) >= reach:
+                    hi = mid
+                else:
+                    lo = mid
         best_sigma = hi
         if g_max < growth_rate:
             plateau_sigma = hi

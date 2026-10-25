@@ -45,9 +45,10 @@ def fill_kcats_from_isozymes(
     For each reaction with no kcat assigned (``ec.kcat == 0``), find
     its siblings whose kcat is set (``> 0``). If any exist, take their
     mean and assign it. Set ``ec.source`` to ``"isozymes"`` for the
-    filled entries. A NaN kcat is not a missing kcat: it is left as it
-    is, as ``getKcatAcrossIsozymes`` does, and a NaN sibling does not
-    contribute to the mean.
+    filled entries. Only a kcat of 0 is filled, as in ``getKcatAcrossIsozymes``:
+    a NaN kcat is not a missing kcat and is left as it is. A NaN sibling
+    does not contribute to the mean here; in ``getKcatAcrossIsozymes`` it
+    does, so there the mean is NaN and the row is not filled.
 
     Reactions whose siblings all also lack a kcat stay at 0. Reactions
     with a single isozyme (no siblings beyond themselves) also stay at 0.

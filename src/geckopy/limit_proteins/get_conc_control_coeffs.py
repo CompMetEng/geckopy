@@ -23,6 +23,14 @@ _GROWTH_DELTA_THRESHOLD = 1e-10
 # Relative raise of a usage upper bound that confirms a nonzero reduced cost (0.01 percent).
 _VERIFY_STEP = 1e-4
 
+# A reduced cost is kept when the optimum rises by at least this fraction of the rise the
+# reduced cost predicts for the step (reduced cost times the bound times ``_VERIFY_STEP``).
+_VERIFY_MIN_FRACTION = 0.5
+
+# Smallest rise of the optimum that counts, relative to max(1, |optimum|); below it the
+# two solves do not differ beyond solver noise.
+_VERIFY_GROWTH_FLOOR = 1e-12
+
 # Solvers we have explicitly confirmed do not expose LP duals via optlang.
 # Anything else is tried, and a failed or NaN dual read falls back as well.
 _NO_DUALS_SOLVER_TAGS = ("scipy",)
@@ -53,9 +61,12 @@ def get_conc_control_coeffs(
     ``prot_<id>`` metabolite dual and cancels out of the reduced cost
     (``|dual(prot_<id>) - dual(prot_pool)|``). A nonzero reduced cost is
     kept only if raising that bound by 0.01 percent raises the optimum
-    (one extra solve per nonzero value), because the dual overestimates
-    the effect at a degenerate vertex. A zero reduced cost needs no
-    check. When the active solver does not expose variable duals
+    by at least half of the rise the reduced cost predicts (one extra
+    solve per nonzero value), because the dual overestimates the effect
+    at a degenerate vertex. The test is relative to the predicted rise,
+    so a small coefficient on a small bound is kept as readily as a large
+    one; the rise must also exceed 1e-12 times max(1, |optimum|). A zero
+    reduced cost needs no check. When the active solver does not expose variable duals
     (optlang's scipy backend) or returns NaN duals, the function falls
     back to the per-protein finite-difference loop and logs once that it
     has done so. The fold-change probe size is only used in that fallback.
@@ -144,12 +155,16 @@ def _shadow_price_coeffs(
         if rc <= _GROWTH_DELTA_THRESHOLD:
             continue
         rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{proteins[i]}")
+        predicted_gain = rc * rxn.upper_bound * _VERIFY_STEP
         with model:
             rxn.upper_bound = rxn.upper_bound * (1.0 + _VERIFY_STEP)
             new_sol = model.optimize()
-        if (
-            _solution_is_optimal(new_sol)
-            and new_sol.objective_value - initial_growth > _GROWTH_DELTA_THRESHOLD
+        if not _solution_is_optimal(new_sol):
+            continue
+        gain = new_sol.objective_value - initial_growth
+        if gain >= max(
+            _VERIFY_MIN_FRACTION * predicted_gain,
+            _VERIFY_GROWTH_FLOOR * max(1.0, abs(initial_growth)),
         ):
             coeffs[i] = rc
 

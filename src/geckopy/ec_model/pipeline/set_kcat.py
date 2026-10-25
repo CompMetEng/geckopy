@@ -41,11 +41,12 @@ def set_kcat_for_reactions(
     - An ID that matches nothing is ignored.
 
     The ``kcat`` argument follows numpy-style broadcasting: a single
-    float applies to every matched reaction; a sequence of length
-    ``len(rxn_ids)`` gives one value per input ID (broadcast across
-    that ID's own matches); a sequence of length equal to the total
-    number of matched reactions gives one value per resolved match, in
-    ``ec.rxns`` order.
+    float applies to every matched reaction; a sequence of length equal
+    to the total number of matched reactions gives one value per
+    resolved match, in ``ec.rxns`` order; a sequence of length
+    ``len(rxn_ids)`` otherwise gives one value per input ID (broadcast
+    across that ID's own matches). When both lengths fit, the per-match
+    form applies, so an ID that matches nothing never shifts the values.
 
     That last form lets one un-suffixed ``rxn_id`` that expands to
     multiple isozymes take a list of per-isozyme values, matching
@@ -116,24 +117,24 @@ def set_kcat_for_reactions(
         kcat_per_index = [float(kcat)] * total_matches
     else:
         kcat_seq = list(kcat)
-        # kcat_seq has length len(rxn_ids) (one value per input ID,
-        # broadcast across that ID's own matches), or length
-        # total_matches (one value per resolved match, in ec.rxns
-        # order -- MATLAB setKcatForReactions's positional semantics;
-        # see the docstring's fragility note). When every input matches
-        # exactly one row the two are the same list, so there's no
-        # ambiguity between them.
-        if len(kcat_seq) == len(rxn_ids):
+        # kcat_seq has length total_matches (one value per resolved match,
+        # in input order -- MATLAB setKcatForReactions's positional
+        # semantics), or length len(rxn_ids) (one value per input ID,
+        # broadcast across that ID's own matches). The positional form is
+        # tried first, so an input ID without a match never shifts the
+        # values the way the per-input form would; when every input
+        # matches exactly one row the two forms are the same list.
+        if len(kcat_seq) == total_matches:
+            kcat_per_index = [float(v) for v in kcat_seq]
+        elif len(kcat_seq) == len(rxn_ids):
             kcat_per_index = []
             for value, indices in zip(kcat_seq, matches_per_input):
                 kcat_per_index.extend([float(value)] * len(indices))
-        elif len(kcat_seq) == total_matches:
-            kcat_per_index = [float(v) for v in kcat_seq]
         else:
             raise ValueError(
                 f"kcat has length {len(kcat_seq)}; expected a scalar, "
-                f"length {len(rxn_ids)} (one per input rxn_id), or length "
-                f"{total_matches} (one per resolved match)."
+                f"length {total_matches} (one per resolved match) or "
+                f"length {len(rxn_ids)} (one per input rxn_id)."
             )
 
     # Apply to ec.kcat and ec.source.

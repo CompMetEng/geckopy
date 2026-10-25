@@ -68,11 +68,23 @@ def test_a_list_naming_one_reaction_still_updates_only_that_one():
     assert _coef(model, "R5", "prot_P5") == 0.0
 
 
-def test_set_kcat_for_reactions_without_ids_does_not_rewrite_the_model():
+def test_set_kcat_for_reactions_with_an_empty_id_list_changes_nothing():
     model = _model()
     model.ec.kcat[model.ec.rxns.index("R3")] = 10.0
 
     updated = set_kcat_for_reactions(model, [], 5.0, apply=True)
+
+    assert updated == []
+    assert _coef(model, "R3", "prot_P4") == 0.0
+
+
+def test_set_kcat_for_reactions_with_only_unknown_ids_does_not_rewrite_the_model():
+    # an unknown id changes no row; apply=True must not hand an empty list to
+    # apply_kcat_constraints, where an empty list now means every reaction
+    model = _model()
+    model.ec.kcat[model.ec.rxns.index("R3")] = 10.0
+
+    updated = set_kcat_for_reactions(model, ["nonsense"], 5.0, apply=True)
 
     assert updated == []
     assert _coef(model, "R3", "prot_P4") == 0.0

@@ -496,11 +496,15 @@ def _unit_scores(
             candidates.append((k, reactions, active))
     if _solver_supports_duals(model):
         reduced = sol.reduced_costs
-        for k, _, active in candidates:
-            scores[k] = sum(abs(float(reduced[r.id])) * r.upper_bound for r in active)
-        scores[scores < 1e-12] = 0.0
-        if (scores > 0).any():
-            return scores
+        needed = [r.id for _, _, active in candidates for r in active]
+        # cobra fills reduced_costs with NaN when the solver exposes no duals
+        if np.isfinite(np.asarray([float(reduced[rid]) for rid in needed])).all():
+            for k, _, active in candidates:
+                scores[k] = sum(abs(float(reduced[r.id])) * r.upper_bound for r in active)
+            scores[scores < 1e-12] = 0.0
+            if (scores > 0).any():
+                return scores
+            scores = np.zeros(len(units))
     # No dual singles a unit out (none exposed, or the protein pool binds as
     # well and carries the whole price): probe each candidate with the pool
     # lifted, so the probe finds the caps that limit once the pool is relaxed.

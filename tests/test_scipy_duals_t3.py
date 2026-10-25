@@ -69,6 +69,11 @@ def test_scipy_gives_zero_for_a_bound_that_does_not_bind_while_the_pool_binds(mo
 
 def test_scipy_degenerate_vertex_is_resolved_by_the_verification_step(monkeypatch):
     model = _degenerate_model("scipy")
+    rxn = model.reactions.get_by_id("usage_prot_E")
+    # HiGHS may put the dual of this vertex on R_AB's bound, which leaves nothing to verify: force
+    # the nonzero dual another vertex gives, so the verification step is what removes it
+    assert _forward_reduced_cost(rxn, _flux(model, rxn)) >= 0.0
+    monkeypatch.setattr(mod, "_forward_reduced_cost", lambda rxn, flux=None: 1.0)
     _forbid_finite_difference(monkeypatch)
     _, coeffs = get_conc_control_coeffs(model)
     assert coeffs[0] == 0.0

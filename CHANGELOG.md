@@ -20,6 +20,10 @@
   `ec.kcat` and `ec.source` change; pass `apply=True` to write the S matrix. IDs match without
   regard to letter case, an ID that matches nothing is ignored, and in a gecko-light model the
   `###_` prefix is part of the ID, so `"R2"` no longer expands to `001_R2` and `002_R2`.
+  A kcat list with one value per matched row takes its values by position even when another
+  ID matches nothing, as in MATLAB: `["R2", "nonsense"]` with `[1.0, 2.0]` sets the two `R2` rows to 1.0 and 2.0.
+* `flexibilize_enz_concs` with a levelled complex scores a unit by its probes when the solver
+  returns no usable reduced costs (the scipy solver), where a NaN score could pick the first unit.
 * `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
   the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
   times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a

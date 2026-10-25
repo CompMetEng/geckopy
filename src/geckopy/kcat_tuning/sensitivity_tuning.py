@@ -25,16 +25,19 @@ src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 
 from ..ec_model.constants import (
+    POOL_ID,
     PROT_PREFIX,
     USAGE_PREFIX,
 )
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
+from ..ec_model.pipeline.populate_ec import split_light_rxn_id
 from .corrections import Correction, corrections as build_corrections
 
 if TYPE_CHECKING:
@@ -49,9 +52,20 @@ _TUNING_SOURCE = "sensitivityTuning"
 # than this (absolute, 1/h). Using a tolerance instead of exact equality
 # avoids spinning on sub-numerical-noise increases.
 _GROWTH_STALL_TOL = 1e-9
-# Physical upper bound for a tuned kcat (Bar-Even et al. 2011); tuning never
-# pushes a kcat above the diffusion limit, no matter how limiting it looks.
-_MAX_TUNED_KCAT = 1e7
+
+
+def _num2str(value: float) -> str:
+    """A scalar as MATLAB's ``num2str`` prints it: integers as such, other
+    values with ``max(floor(log10(abs(x))) + 5, 5)`` significant digits."""
+    value = float(value)
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "Inf" if value > 0 else "-Inf"
+    if value == int(value):
+        return str(int(value))
+    digits = max(math.floor(math.log10(abs(value))) + 5, 5)
+    return f"{value:.{digits}g}"
 
 
 @dataclass
@@ -61,7 +75,8 @@ class TunedKcatsResult:
     Attributes
     ----------
     rxns
-        IDs of the reactions whose kcat was bumped, in tuning order.
+        IDs of the reactions whose kcat was bumped, in model order (the
+        order of ``model.reactions``), as ``sensitivityTuning.m`` lists them.
     rxn_names
         Reaction names parallel to ``rxns`` (falls back to the
         reaction ID when it has no name).
@@ -69,12 +84,13 @@ class TunedKcatsResult:
         For each tuned reaction, the catalysing enzyme ID(s),
         ``;``-joined when more than one enzyme is involved.
     old_kcat
-        kcat value before tuning, parallel to ``rxns``.
+        kcat value of the input model, parallel to ``rxns``. A reaction that
+        an earlier run had already tuned reports that run's value.
     new_kcat
         kcat value after tuning, parallel to ``rxns``.
     source
-        Original kcat provenance (``model.ec.source``) before
-        tuning, parallel to ``rxns``.
+        kcat provenance (``model.ec.source``) of the input model,
+        parallel to ``rxns``.
     """
 
     rxns: list[str] = field(default_factory=list)
@@ -135,10 +151,16 @@ def sensitivity_tuning(
        is in ``prot_to_ignore``.
     5. Finds the catalysed reaction consuming the most of that
        enzyme's pseudometabolite and multiplies that reaction's
-       ``ec.kcat`` by ``fold_change``.
-    6. Annotates ``ec.notes`` with the original kcat and source
-       (unless the source is already ``"sensitivityTuning"``).
+       ``ec.kcat`` by ``fold_change``. A tuned kcat has no upper limit.
+    6. Annotates ``ec.notes`` with the original kcat (printed as MATLAB's
+       ``num2str`` does) and source, unless the source is already
+       ``"sensitivityTuning"``.
     7. Re-applies kcat constraints for that single reaction.
+
+    On a gecko-light model each iteration instead picks the reaction with
+    the most flux through the protein pool, multiplies the kcat of all its
+    isozyme rows by ``fold_change`` and re-applies the constraint of that
+    reaction; ``ec.notes`` and ``ec.source`` are left as they are.
 
     Ported from GECKO MATLAB:
     src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
@@ -155,10 +177,13 @@ def sensitivity_tuning(
         Per-iteration kcat multiplier.
     prot_to_ignore
         UniProt IDs whose usage rxns are excluded from being picked
-        as the limiting enzyme.
+        as the limiting enzyme, matched without regard to case. An ID with
+        no usage reaction raises ``ValueError`` on a full model; on a
+        gecko-light model it is ignored.
     max_iterations
-        Hard cap on tuning iterations. A backstop against a target
-        growth rate that is unreachable by raising kcats alone.
+        Hard cap on tuning iterations (``sensitivityTuning.m`` has none). A
+        backstop against a target growth rate that is unreachable by
+        raising kcats alone.
     bio_rxn
         Biomass reaction id to set as the objective. Defaults to
         ``params.bio_rxn`` from the adapter when one is attached; if
@@ -173,16 +198,11 @@ def sensitivity_tuning(
     Raises
     ------
     ValueError
-        If the initial LP is infeasible, or if
-        ``desired_growth_rate`` is needed but no adapter / value is
-        available.
-    NotImplementedError
-        If ``model.ec.gecko_light`` is True.
+        If the initial LP is infeasible, if ``desired_growth_rate`` is
+        needed but no adapter / value is available, or if a
+        ``prot_to_ignore`` ID has no usage reaction (full model).
     """
-    if model.ec.gecko_light:
-        raise NotImplementedError(
-            "sensitivity_tuning does not yet support gecko-light models."
-        )
+    light = bool(model.ec.gecko_light)
 
     if desired_growth_rate is None:
         from ..adapter import resolve_adapter
@@ -218,17 +238,25 @@ def sensitivity_tuning(
             "exchange constraints."
         )
 
+    # The result reports kcat and source as the input model has them.
+    input_kcat = np.array(model.ec.kcat, dtype=float)
+    input_source = list(model.ec.source)
+
     usage_rxn_ids = [
         r.id for r in model.reactions
         if r.id.startswith(USAGE_PREFIX)
     ]
-    ignore_usage_ids = {f"{USAGE_PREFIX}{p}" for p in prot_to_ignore}
+    if light:
+        ignore_usage_ids: set[str] = set()
+        ignore_rxn_ids = _light_rxns_of_enzymes(model, prot_to_ignore)
+    else:
+        ignore_usage_ids = _usage_ids_to_ignore(usage_rxn_ids, prot_to_ignore)
+        ignore_rxn_ids = set()
 
     last_growth = float("nan")
-    tuned_ec_indices: list[int] = []  # indices into model.ec.rxns
-    # ec_idx -> (pre-tune kcat, pre-tune source), captured the first time a
-    # reaction is tuned so the result doesn't have to re-parse ec.notes.
-    pretune: dict[int, tuple[float, str]] = {}
+    # Indices into model.ec.rxns; on a light model the first isozyme row of
+    # each tuned reaction.
+    tuned_ec_indices: list[int] = []
     iteration = 1
 
     while iteration <= max_iterations:
@@ -251,6 +279,22 @@ def sensitivity_tuning(
             break
 
         iteration += 1
+
+        if light:
+            step = _light_step(model, sol, ignore_rxn_ids)
+            if step is None:
+                logger.warning(
+                    "sensitivity_tuning: no reaction draws on the protein "
+                    "pool; cannot continue tuning."
+                )
+                break
+            ec_rows = step
+            for i in ec_rows:
+                model.ec.kcat[i] = float(model.ec.kcat[i]) * fold_change
+            apply_kcat_constraints(model, update_rxns=[model.ec.rxns[ec_rows[0]]])
+            if ec_rows[0] not in tuned_ec_indices:
+                tuned_ec_indices.append(ec_rows[0])
+            continue
 
         # Pick usage rxn with max flux (= most produced enzyme),
         # excluding any in prot_to_ignore.
@@ -318,27 +362,16 @@ def sensitivity_tuning(
         # Record the pre-tune kcat/source the first time this reaction is
         # tuned, and annotate notes (idempotently).
         if model.ec.source[ec_idx] != _TUNING_SOURCE:
-            pretune.setdefault(
-                ec_idx,
-                (float(model.ec.kcat[ec_idx]), model.ec.source[ec_idx]),
-            )
             old_note = model.ec.notes[ec_idx]
             new_note = (
-                f"preTuneKcat={model.ec.kcat[ec_idx]} | "
+                f"preTuneKcat={_num2str(model.ec.kcat[ec_idx])} | "
                 f"source:{model.ec.source[ec_idx]}"
             )
             model.ec.notes[ec_idx] = (
                 f"{old_note}; {new_note}" if old_note else new_note
             )
 
-        target_kcat = float(model.ec.kcat[ec_idx]) * fold_change
-        if target_kcat > _MAX_TUNED_KCAT:
-            target_kcat = _MAX_TUNED_KCAT
-            logger.warning(
-                "sensitivity_tuning: kcat for %s capped at the physical "
-                "ceiling %g /s.", target_rxn.id, _MAX_TUNED_KCAT,
-            )
-        model.ec.kcat[ec_idx] = target_kcat
+        model.ec.kcat[ec_idx] = float(model.ec.kcat[ec_idx]) * fold_change
         model.ec.source[ec_idx] = _TUNING_SOURCE
         apply_kcat_constraints(model, update_rxns=[target_rxn.id])
 
@@ -351,33 +384,95 @@ def sensitivity_tuning(
             max_iterations, desired_growth_rate,
         )
 
-    return _build_result(model, tuned_ec_indices, pretune)
+    return _build_result(model, tuned_ec_indices, input_kcat, input_source)
+
+
+def _usage_ids_to_ignore(
+    usage_rxn_ids: list[str], prot_to_ignore: list[str],
+) -> set[str]:
+    """Usage reaction ids of ``prot_to_ignore``, matched without regard to
+    case; an ID with no usage reaction raises, as MATLAB's ``find`` does."""
+    ignore: set[str] = set()
+    for prot in prot_to_ignore:
+        wanted = f"{USAGE_PREFIX}{prot}".lower()
+        hits = [uid for uid in usage_rxn_ids if uid.lower() == wanted]
+        if not hits:
+            raise ValueError(
+                f"prot_to_ignore: no usage reaction for protein {prot!r}."
+            )
+        ignore.update(hits)
+    return ignore
+
+
+def _light_rxns_of_enzymes(
+    model: "EcModel", prot_to_ignore: list[str],
+) -> set[str]:
+    """Cobra reaction ids that any of the ``prot_to_ignore`` enzymes catalyse
+    (gecko-light), matched without regard to case; unknown IDs are ignored."""
+    ignore: set[str] = set()
+    if not prot_to_ignore:
+        return ignore
+    mat = model.ec.rxn_enz_mat.tocsc()
+    wanted = {p.lower() for p in prot_to_ignore}
+    for j, enzyme in enumerate(model.ec.enzymes):
+        if enzyme.lower() not in wanted:
+            continue
+        for row in mat[:, j].nonzero()[0]:
+            ignore.add(split_light_rxn_id(model.ec.rxns[int(row)])[1])
+    return ignore
+
+
+def _light_step(
+    model: "EcModel", sol, ignore_rxn_ids: set[str],
+) -> Optional[list[int]]:
+    """The ec rows of the reaction with the most flux through the protein
+    pool (gecko-light), or ``None`` when no reaction draws on it."""
+    pool = model.metabolites.get_by_id(POOL_ID)
+    best_id: Optional[str] = None
+    best_value = 0.0
+    for rxn in model.reactions:
+        if rxn.id in ignore_rxn_ids or pool not in rxn.metabolites:
+            continue
+        value = rxn.metabolites[pool] * float(sol.fluxes.get(rxn.id, 0.0))
+        if value < best_value:
+            best_value = value
+            best_id = rxn.id
+    if best_id is None:
+        return None
+    rows = [
+        i for i, ec_id in enumerate(model.ec.rxns)
+        if split_light_rxn_id(ec_id)[1] == best_id
+    ]
+    return rows or None
 
 
 def _build_result(
     model: "EcModel",
     ec_indices: list[int],
-    pretune: dict[int, tuple[float, str]],
+    input_kcat: np.ndarray,
+    input_source: list[str],
 ) -> TunedKcatsResult:
-    """Snapshot pre/post kcat values for tuned reactions."""
+    """Snapshot input and tuned kcat values of the tuned reactions, listed in
+    model order."""
     if not ec_indices:
         return TunedKcatsResult()
 
-    rxns = [model.ec.rxns[i] for i in ec_indices]
-    rxn_names = [
-        model.reactions.get_by_id(r).name or r for r in rxns
+    light = bool(model.ec.gecko_light)
+    cobra_ids = [
+        split_light_rxn_id(model.ec.rxns[i])[1] if light else model.ec.rxns[i]
+        for i in ec_indices
     ]
+    order = sorted(
+        range(len(ec_indices)), key=lambda k: model.reactions.index(cobra_ids[k]),
+    )
+    ec_indices = [ec_indices[k] for k in order]
+    rxns = [cobra_ids[k] for k in order]
+    rxn_names = [model.reactions.get_by_id(r).name or r for r in rxns]
     new_kcat = np.array(
         [float(model.ec.kcat[i]) for i in ec_indices], dtype=float,
     )
-
-    # Pre-tune kcat/source come from the dict captured during tuning.
-    old_kcat: list[float] = []
-    sources: list[str] = []
-    for i in ec_indices:
-        old, src = pretune.get(i, (float("nan"), ""))
-        old_kcat.append(old)
-        sources.append(src)
+    old_kcat = np.array([float(input_kcat[i]) for i in ec_indices], dtype=float)
+    sources = [input_source[i] for i in ec_indices]
 
     enzymes: list[str] = []
     rxn_enz_dense = model.ec.rxn_enz_mat.toarray()
@@ -389,7 +484,7 @@ def _build_result(
         rxns=rxns,
         rxn_names=rxn_names,
         enzymes=enzymes,
-        old_kcat=np.array(old_kcat, dtype=float),
+        old_kcat=old_kcat,
         new_kcat=new_kcat,
         source=sources,
     )

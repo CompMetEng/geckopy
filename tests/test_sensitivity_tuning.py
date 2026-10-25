@@ -108,14 +108,6 @@ def _build_toy(
 # Pre-flight
 # --------------------------------------------------------------------------- #
 
-def test_gecko_light_raises(tmp_path):
-    adapter = _adapter(tmp_path)
-    model = _build_toy(adapter)
-    model.ec.gecko_light = True
-    with pytest.raises(NotImplementedError, match="gecko-light"):
-        sensitivity_tuning(model)
-
-
 def test_no_adapter_no_growth_rate_raises(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)

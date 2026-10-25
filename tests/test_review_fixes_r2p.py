@@ -49,7 +49,7 @@ def _stub_check_solve(monkeypatch, model, gain):
 
 def _fixed_reduced_cost(monkeypatch, value):
     module = sys.modules[MODULE]
-    monkeypatch.setattr(module, "_forward_reduced_cost", lambda rxn: value)
+    monkeypatch.setattr(module, "_forward_reduced_cost", lambda rxn, flux=None: value)
 
 
 # The toy with one enzyme of bound 5 and one unit of enzyme per unit of flux has reduced cost 1,

@@ -47,6 +47,11 @@
   `num2str` does (`preTuneKcat=10`). A `prot_to_ignore` id is matched without regard to
   case and raises `ValueError` when no usage reaction has it. A tuned kcat has no upper
   limit. A gecko-light model is tuned, in place of raising `NotImplementedError`.
+* `get_conc_control_coeffs` also takes the one-solve path with the scipy solver. optlang does not expose
+  variable duals there, so the reduced cost is read from the HiGHS bound marginal of the last `linprog`
+  result, after checking that the stored result is the solution `model.optimize` returned. On the tutorial
+  yeast ecModel this takes seconds where the finite-difference loop took several minutes. A scipy result
+  without bound marginals still falls back to the finite-difference loop.
 * `get_conc_control_coeffs` reads the reduced cost of each usage reaction's forward
   variable and keeps it where a 0.01 percent rise of the bound raises the optimum,
   in place of the `prot_<id>` shadow price. An enzyme whose own bound does not

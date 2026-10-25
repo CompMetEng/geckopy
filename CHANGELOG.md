@@ -8,6 +8,18 @@
   skip the call when the list is empty.
 * `apply_custom_kcats` reads a reaction list in double quotes (`"R3,R5"`) without the quotes,
   as MATLAB's `%q` does, so the quoted list matches R3 and R5 instead of nothing.
+* `make_ec_model` refuses what GECKO's `makeEcModel` refuses, with a `ValueError`: a reaction ID
+  that starts with `usage_prot_` or `prot_pool` or ends in `_REV` or `_EXP_<digits>`, a metabolite
+  ID that starts with `prot_`, an `enzyme_comp` that is not one of the compartment names of the
+  model (a compartment ID that differs from its name no longer passes), and a model without
+  genes. Only a reaction with `lb < 0 < ub` that is not an exchange reaction is split into a
+  `_REV` pair: a reaction with both bounds negative stays as it is instead of raising, and a
+  reaction that only consumes or only produces metabolites, such as `A + B <=>`, is an exchange
+  reaction, as in RAVEN's `getExchangeRxns`.
+* `set_kcat_for_reactions` follows `setKcatForReactions`. `apply` defaults to `False`, so only
+  `ec.kcat` and `ec.source` change; pass `apply=True` to write the S matrix. IDs match without
+  regard to letter case, an ID that matches nothing is ignored, and in a gecko-light model the
+  `###_` prefix is part of the ID, so `"R2"` no longer expands to `001_R2` and `002_R2`.
 * `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
   the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
   times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a

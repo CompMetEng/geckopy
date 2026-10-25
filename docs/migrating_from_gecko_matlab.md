@@ -228,7 +228,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `getComplexData`             | `get_complex_data`            | —                                                                                                                                                                              |
 | `getKcatAcrossIsozymes`      | `fill_kcats_from_isozymes`    | **`[Py]`** Renamed; `get_kcat_across_isozymes` kept as deprecated alias. Aggregation strategy (`max` / `median` / `mean`) is adapter-configurable via `kcat_aggregate_isozymes`. |
 | `getReactionsFromEnzyme`     | `get_reactions_from_enzyme`   | **`[Py]`** Returns one `DataFrame` instead of five parallel cells.                                                                                                            |
-| `setKcatForReactions`        | `set_kcat_for_reactions`      | **`[Py]`** Recognises both `_EXP_<N>` (full) and `###_` (light) suffixes; understands base names that broadcast across isozymes.                                              |
+| `setKcatForReactions`        | `set_kcat_for_reactions`      | Matches IDs without regard to letter case, ignores an unknown ID and does not apply the constraints unless `apply=True`, as `setKcatForReactions`; a light-model row is addressed by its `###_` ID.                    |
 | `setProtPoolSize`            | `set_prot_pool_size`          | **`[3→4]`** Sets the **upper** bound of `prot_pool_exchange` (forward direction).                                                                                              |
 
 ### 5.2 Gather kcats (`src/geckomat/gather_kcats`)

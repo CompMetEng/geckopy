@@ -34,8 +34,9 @@
   in place of the `prot_<id>` shadow price. An enzyme whose own bound does not
   bind now gets 0 while the protein pool binds, where every used enzyme used to
   get the pool's price, and a degenerate vertex no longer gives a spurious
-  coefficient. Where the solver exposes no variable duals, or returns NaN, the
-  finite-difference loop is used.
+  coefficient. Every nonzero reduced cost is checked, however small, and a usage
+  reaction held at its lower bound gets 0 without a check. Where the solver exposes
+  no variable duals, or returns NaN, the finite-difference loop is used.
 * New: `save_ec_model` records the ecModel format (`gecko_format: "4"`) and
   the release that wrote the file (`generator: geckopy <version>`) in the
   `metaData`, the keys GECKO's `saveEcModel` writes, in place of

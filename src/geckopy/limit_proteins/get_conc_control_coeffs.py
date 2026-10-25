@@ -133,6 +133,7 @@ def _shadow_price_coeffs(
 
     cobra_rxn_ids = {r.id for r in model.reactions}
     reduced_costs: dict[int, float] = {}
+    pinned_at_lower: set[int] = set()
     for i, protein in enumerate(proteins):
         rxn_id = f"{USAGE_PREFIX}{protein}"
         if rxn_id not in cobra_rxn_ids:
@@ -150,9 +151,12 @@ def _shadow_price_coeffs(
             _report_finite_difference_fallback(model, "returns no usable variable duals")
             return _finite_difference_coeffs(model, proteins, fold_change, limit)
         reduced_costs[i] = rc
+        if rxn.lower_bound > 0 and usage_flux <= rxn.lower_bound * (1.0 + 1e-9):
+            # Held at its lower bound: raising the upper bound changes nothing.
+            pinned_at_lower.add(i)
 
     for i, rc in reduced_costs.items():
-        if rc <= _GROWTH_DELTA_THRESHOLD:
+        if rc == 0.0 or i in pinned_at_lower:
             continue
         rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{proteins[i]}")
         predicted_gain = rc * rxn.upper_bound * _VERIFY_STEP

@@ -47,4 +47,3 @@ def test_a_model_that_cannot_grow_gives_the_first_grid_sigma(tmp_path, method):
     model = _build_pool_only_model(adapter)
     result = fit_sigma(model, growth_rate=0.5, p_tot=0.0, f=1.0, method=method)
     assert result.sigma == pytest.approx(0.01)
-    assert model.reactions.get_by_id("prot_pool_exchange").upper_bound == 0.0

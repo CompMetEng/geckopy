@@ -1,8 +1,9 @@
 """get_conc_control_coeffs: reduced-cost path across solvers, and its fallbacks.
 
 The coefficient of an enzyme is the reduced cost of its usage reaction's forward variable,
-kept only where a 0.01 percent rise of the bound raises the optimum. An enzyme whose own
-bound does not bind has coefficient 0 also while the shared protein pool binds.
+kept only where a 0.01 percent rise of the bound raises the optimum by at least half of
+the rise the reduced cost predicts. An enzyme whose own bound does not bind has coefficient
+0 also while the shared protein pool binds.
 """
 import sys
 from types import SimpleNamespace

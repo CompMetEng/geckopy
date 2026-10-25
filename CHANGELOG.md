@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* `fit_sigma` scans the 0.01 grid of GECKO's `sigmaFitter` by default (`method="bisect"`
+  stays available and still gives a continuous sigma). A target that growth cannot
+  reach gives the first sigma of the growth plateau, where it used to give 1.0. The
+  bounds of the objective reaction are set to `[0, 1000]` before the scan and stay so on
+  the fitted model, and a solve that is not optimal counts as growth 0.
+* `sensitivity_tuning` follows `sensitivityTuning.m`. The result lists the tuned reactions
+  in model order, and reports the kcat and source of the input model, so a reaction an
+  earlier run had tuned no longer reports NaN. `ec.notes` prints the pre-tune kcat as
+  `num2str` does (`preTuneKcat=10`). A `prot_to_ignore` id is matched without regard to
+  case and raises `ValueError` when no usage reaction has it. A tuned kcat has no upper
+  limit. A gecko-light model is tuned, in place of raising `NotImplementedError`.
 * `get_conc_control_coeffs` reads the reduced cost of each usage reaction's forward
   variable and keeps it where a 0.01 percent rise of the bound raises the optimum,
   in place of the `prot_<id>` shadow price. An enzyme whose own bound does not

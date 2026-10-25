@@ -9,7 +9,9 @@ is 0.5; this function fits a better one.
 The algorithm: try a range of sigma values, set the protein-pool
 bound at each, solve the model, compare the predicted growth
 rate to the experimental one, pick the sigma that minimises the
-difference.
+difference. The default scan is the 0.01 grid of GECKO's
+``sigmaFitter``; the objective reaction's bounds are opened to
+``[0, 1000]`` first, and stay open on the fitted model.
 
 Ported from GECKO MATLAB:
 src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
@@ -29,6 +31,9 @@ if TYPE_CHECKING:
 # Sigma resolution the bisection converges to (fine enough to resolve a steep
 # growth curve; ~20 iterations from the [0, 1] bracket).
 _SIGMA_BISECT_TOL = 1e-6
+# Relative tolerance within which growth counts as being on its plateau, so
+# solver noise does not move the start of the plateau.
+_PLATEAU_RTOL = 1e-9
 
 
 @dataclass
@@ -63,11 +68,18 @@ class SigmaFitterResult:
 def _growth_at_sigma(
     model: "EcModel", p_tot: float, f: float, sigma: float,
 ) -> float:
-    """Solve the model with the pool sized for ``sigma``; revert after."""
+    """Solve the model with the pool sized for ``sigma``; revert after.
+
+    A solve that is not optimal counts as growth 0, as an empty solution
+    does in ``sigmaFitter.m``.
+    """
     with model:
         set_prot_pool_size(model, p_tot=p_tot, f=f, sigma=float(sigma))
         sol = model.optimize()
-        return float(sol.objective_value or 0.0)
+        if sol.status != "optimal" or sol.objective_value is None:
+            return 0.0
+        value = float(sol.objective_value)
+        return value if np.isfinite(value) else 0.0
 
 
 def _sigma_error_pct(growth: float, growth_rate: float) -> float:
@@ -83,17 +95,23 @@ def fit_sigma(
     p_tot: Optional[float] = None,
     f: Optional[float] = None,
     n_sigma_steps: int = 100,
-    method: Literal["grid", "bisect"] = "bisect",
+    method: Literal["grid", "bisect"] = "grid",
 ) -> SigmaFitterResult:
     """Sweep sigma and pick the one matching ``growth_rate`` best.
 
-    Growth is monotone non-decreasing in sigma, so ``method="bisect"``
-    (default) finds the best sigma in about ``log2(n)`` solves; the
-    returned grids then contain only the sigmas actually evaluated.
-    ``method="grid"`` keeps the legacy ``[1/n, 2/n, ..., 1.0]`` sweep
-    for diagnostic plotting (every grid point evaluated).
+    ``method="grid"`` (default) is the sweep of GECKO's ``sigmaFitter``:
+    sigma ``i / n`` for ``i = 1..n`` (every grid point evaluated), and the
+    first grid point with the smallest error wins, so a target that growth
+    cannot reach gives the first sigma of the growth plateau.
+    ``method="bisect"`` exploits that growth is monotone non-decreasing in
+    sigma and finds the best sigma, to a resolution of 1e-6 and not on the
+    grid, in about ``log2(n)`` solves; the returned grids then contain only
+    the sigmas actually evaluated. For an unreachable target it finds where
+    the growth plateau starts.
 
-    The best sigma is re-applied to ``model`` before return.
+    The bounds of the objective reaction are set to ``[0, 1000]`` before the
+    scan, as ``sigmaFitter.m`` does, and stay so on ``model``. The best sigma
+    is re-applied to ``model`` before return.
 
     Ported from GECKO MATLAB:
     src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
@@ -103,8 +121,9 @@ def fit_sigma(
     model
         EcModel with the protein pool machinery installed and the
         objective set (typically the biomass reaction). Mutated in
-        place: the optimal sigma is applied via
-        ``set_prot_pool_size`` before return.
+        place: the objective reaction's bounds become ``[0, 1000]`` and
+        the optimal sigma is applied via ``set_prot_pool_size`` before
+        return.
     growth_rate
         Experimental growth rate to match. Defaults to
         ``model.adapter.params.gr_exp``.
@@ -120,9 +139,9 @@ def fit_sigma(
         it caps the number of bisection iterations (the default 100 is far
         more than the ~20 needed to converge). Default 100.
     method
-        ``"bisect"`` (default) finds the best sigma in ~``log2(n)``
-        solves using the monotonicity of growth in sigma; ``"grid"``
-        sweeps the full grid.
+        ``"grid"`` (default) sweeps the full grid as ``sigmaFitter.m``
+        does; ``"bisect"`` finds the best sigma in ~``log2(n)`` solves using
+        the monotonicity of growth in sigma.
 
     Returns
     -------
@@ -149,6 +168,11 @@ def fit_sigma(
         )
     params = model.adapter.params if model.adapter is not None else None
 
+    # sigmaFitter.m opens the bounds of the objective for good.
+    for rxn in model.reactions:
+        if rxn.objective_coefficient != 0:
+            rxn.bounds = (0.0, 1000.0)
+
     if growth_rate is None:
         growth_rate = float(params.gr_exp)
     if p_tot is None:
@@ -156,6 +180,7 @@ def fit_sigma(
     if f is None:
         f = float(params.f)
 
+    plateau_sigma: Optional[float] = None
     if method == "grid":
         sigma_grid = np.array(
             [(i + 1) / n_sigma_steps for i in range(n_sigma_steps)],
@@ -174,23 +199,29 @@ def fit_sigma(
                 evaluated[sigma] = _growth_at_sigma(model, p_tot, f, sigma)
             return evaluated[sigma]
 
-        if growth_at(1.0) < growth_rate:
-            # Target unreachable even at the full budget; closest is sigma=1.
-            best_sigma = 1.0
+        g_max = growth_at(1.0)
+        if g_max < growth_rate:
+            # Target unreachable even at the full budget: the closest growth
+            # is the plateau, so look for the smallest sigma that reaches it
+            # (to solver noise).
+            reach = g_max - _PLATEAU_RTOL * abs(g_max)
         else:
-            # Bisect for the smallest sigma reaching the target growth. The
-            # tolerance is fine (not 1/n) so a steep growth curve still
-            # resolves the crossing; n_sigma_steps just caps iterations.
-            lo, hi = 0.0, 1.0
-            for _ in range(n_sigma_steps):
-                if hi - lo <= _SIGMA_BISECT_TOL:
-                    break
-                mid = 0.5 * (lo + hi)
-                if growth_at(mid) >= growth_rate:
-                    hi = mid
-                else:
-                    lo = mid
-            best_sigma = hi
+            reach = growth_rate
+        # Bisect for the smallest sigma reaching ``reach``. The tolerance is
+        # fine (not 1/n) so a steep growth curve still resolves the
+        # crossing; n_sigma_steps just caps iterations.
+        lo, hi = 0.0, 1.0
+        for _ in range(n_sigma_steps):
+            if hi - lo <= _SIGMA_BISECT_TOL:
+                break
+            mid = 0.5 * (lo + hi)
+            if growth_at(mid) >= reach:
+                hi = mid
+            else:
+                lo = mid
+        best_sigma = hi
+        if g_max < growth_rate:
+            plateau_sigma = hi
         growth_at(best_sigma)
         sigma_grid = np.array(sorted(evaluated), dtype=float)
         growth_grid = np.array(
@@ -200,7 +231,10 @@ def fit_sigma(
     error_grid = np.array(
         [_sigma_error_pct(g, growth_rate) for g in growth_grid], dtype=float,
     )
-    best_sigma = float(sigma_grid[int(np.argmin(error_grid))])
+    if plateau_sigma is not None:
+        best_sigma = float(plateau_sigma)
+    else:
+        best_sigma = float(sigma_grid[int(np.argmin(error_grid))])
 
     # Apply the best sigma to the model permanently (geckopy divergence).
     set_prot_pool_size(model, p_tot=p_tot, f=f, sigma=best_sigma)

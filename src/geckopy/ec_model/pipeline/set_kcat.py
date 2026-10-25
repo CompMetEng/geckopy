@@ -9,14 +9,12 @@ from typing import TYPE_CHECKING, Sequence, Union
 
 
 from .apply_kcat import apply_kcat_constraints
-from .populate_ec import split_light_rxn_id
 
 if TYPE_CHECKING:
     from ..ec_model import EcModel
 
 
 _EXP_SUFFIX_PATTERN = re.compile(r"_EXP_\d+$")
-_LIGHT_PREFIX_PATTERN = re.compile(r"^\d{3}_")
 _SOURCE_TAG = "setKcatForReactions"
 
 
@@ -25,19 +23,22 @@ def set_kcat_for_reactions(
     rxn_ids: Sequence[str],
     kcat: Union[float, Sequence[float]],
     *,
-    apply: bool = True,
+    apply: bool = False,
 ) -> list[str]:
     """Set kcat values for one or more reactions in ec.kcat.
 
-    Each ID in ``rxn_ids`` is interpreted as follows:
+    As GECKO's ``setKcatForReactions``, each ID in ``rxn_ids`` is matched
+    against ``ec.rxns`` without regard to letter case:
 
-    - If the ID ends in ``_EXP_<n>`` (full layout) or starts with
-      ``###_`` (gecko-light), only that exact reaction is matched.
-    - Otherwise, the ID is treated as a base name and matches every
-      ec.rxns entry whose ID, after stripping the layout-specific
-      isozyme marker, equals the base name. So in a full model,
-      ``"R2"`` matches ``R2``, ``R2_EXP_1``, ``R2_EXP_2``; in a light
-      model, ``"R2"`` matches ``001_R2``, ``002_R2``.
+    - An ID that ends in ``_EXP_<n>`` matches the ec.rxns entry with
+      exactly that ID.
+    - Any other ID matches every ec.rxns entry whose ID, after removing a
+      trailing ``_EXP_<n>``, equals it. So in a full model ``"R2"``
+      matches ``R2``, ``R2_EXP_1`` and ``R2_EXP_2``. In a gecko-light
+      model the ec.rxns IDs carry a ``###_`` prefix (``001_R2``), which
+      is part of the ID: ``"R2"`` matches nothing there and
+      ``"001_R2"`` matches that one row.
+    - An ID that matches nothing is ignored.
 
     The ``kcat`` argument follows numpy-style broadcasting: a single
     float applies to every matched reaction; a sequence of length
@@ -69,10 +70,11 @@ def set_kcat_for_reactions(
     kcat
         New kcat value(s) in 1/s. Scalar or sequence (see above).
     apply
-        If True (default), call ``apply_kcat_constraints`` after
-        updating ec.kcat / ec.source so the change is reflected in the
-        S matrix immediately. If False, the caller must invoke
-        ``apply_kcat_constraints`` themselves.
+        If True, call ``apply_kcat_constraints`` for the changed
+        reactions after updating ec.kcat / ec.source so the change is
+        reflected in the S matrix immediately. If False (default, as in
+        MATLAB, which only changes ec.kcat and ec.source), the caller
+        invokes ``apply_kcat_constraints`` afterwards.
 
     Returns
     -------
@@ -83,37 +85,28 @@ def set_kcat_for_reactions(
     Raises
     ------
     ValueError
-        If any rxn_id matches zero reactions, or if kcat has a length
-        other than 1, ``len(rxn_ids)``, or the total number of resolved
-        matches.
+        If kcat has a length other than 1, ``len(rxn_ids)``, or the
+        total number of resolved matches.
     """
     rxn_ids = list(rxn_ids)
     if not rxn_ids:
         return []
 
     ec_rxns = model.ec.rxns
-    if model.ec.gecko_light:
-        # Light: strip the leading ``###_`` counter so the cobra reaction
-        # id is what the base-name lookup sees.
-        base_ec_rxns = [split_light_rxn_id(r)[1] for r in ec_rxns]
-        explicit_pattern = _LIGHT_PREFIX_PATTERN
-    else:
-        base_ec_rxns = [_EXP_SUFFIX_PATTERN.sub("", r) for r in ec_rxns]
-        explicit_pattern = _EXP_SUFFIX_PATTERN
+    ec_rxns_lower = [r.lower() for r in ec_rxns]
+    base_ec_rxns_lower = [_EXP_SUFFIX_PATTERN.sub("", r).lower() for r in ec_rxns]
 
     # Resolve every input ID to a list of ec-row indices.
     matches_per_input: list[list[int]] = []
     for rxn_id in rxn_ids:
-        if explicit_pattern.search(rxn_id):
-            indices = [i for i, r in enumerate(ec_rxns) if r == rxn_id]
+        key = rxn_id.lower()
+        if _EXP_SUFFIX_PATTERN.search(rxn_id):
+            indices = [i for i, r in enumerate(ec_rxns_lower) if r == key]
         else:
+            base_key = _EXP_SUFFIX_PATTERN.sub("", key)
             indices = [
-                i for i, r in enumerate(base_ec_rxns) if r == rxn_id
+                i for i, r in enumerate(base_ec_rxns_lower) if r == base_key
             ]
-        if not indices:
-            raise ValueError(
-                f"rxn_id '{rxn_id}' matched no entries in ec.rxns."
-            )
         matches_per_input.append(indices)
 
     total_matches = sum(len(m) for m in matches_per_input)
@@ -154,7 +147,7 @@ def set_kcat_for_reactions(
 
     updated_ids = [ec_rxns[i] for i in flat_indices]
 
-    if apply:
+    if apply and updated_ids:
         apply_kcat_constraints(model, update_rxns=updated_ids)
 
     return updated_ids

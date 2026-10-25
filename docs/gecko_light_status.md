@@ -38,7 +38,7 @@ smaller models (yeast, *E. coli*), full is usually fine.
 
 ```python
 ec_model = make_ec_model(model, adapter, gecko_light=True)
-set_kcat_for_reactions(ec_model, ["R2"], 5.0)   # broadcasts to all isozyme rows
+set_kcat_for_reactions(ec_model, ["001_R2", "002_R2"], 5.0)   # one row per isozyme
 apply_kcat_constraints(ec_model)                 # picks cheapest isozyme per cobra rxn
 set_prot_pool_size(ec_model)
 ec_model.optimize()

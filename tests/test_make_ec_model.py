@@ -273,6 +273,7 @@ def test_make_ec_model_missing_uniprot_tsv_raises(tmp_path):
     adapter = ModelAdapter.from_folder(tmp_path)
 
     model = cobra.Model("m")
+    model.compartments = {"c": "c"}
     m = cobra.Metabolite("A", compartment="c")
     model.add_metabolites([m])
     r = cobra.Reaction("r1")
@@ -306,6 +307,7 @@ def test_make_ec_model_unmatched_genes_logged_and_annotated(tmp_path, caplog):
     adapter = ModelAdapter.from_folder(tmp_path)
 
     model = cobra.Model("m")
+    model.compartments = {"c": "c"}
     m_a = cobra.Metabolite("A", compartment="c")
     m_b = cobra.Metabolite("B", compartment="c")
     model.add_metabolites([m_a, m_b])

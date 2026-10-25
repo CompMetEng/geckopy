@@ -330,7 +330,8 @@ def screen_kcat_leverage(
     # scores its own copy instead, so this is a no-op there. Either
     # way, `model` must come out holding the prior it went in with.
     model.ec.kcat[tunable_idx] = kcat0
-    apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
+    if ec_rxn_ids_tunable:
+        apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
 
     base_rmse = rmses[0]
     rows = []
@@ -578,7 +579,8 @@ def cmaes_kcat_tuning(
                 break
 
     model.ec.kcat[tunable_idx] = best_vec
-    apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
+    if ec_rxn_ids_tunable:
+        apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
 
     return EvotuneResult(
         rxns=ec_rxn_ids_tunable, old_kcat=kcat0.copy(), new_kcat=best_vec,
@@ -832,7 +834,8 @@ def _score_kcat_vector(
     across every candidate it's asked to score.
     """
     model.ec.kcat[tunable_idx] = kcat_vec
-    apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
+    if ec_rxn_ids_tunable:
+        apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
     _reset_solver_basis(model)
 
     flux_sims = None

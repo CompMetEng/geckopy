@@ -154,7 +154,7 @@ def set_kcat_for_reactions(
 
     updated_ids = [ec_rxns[i] for i in flat_indices]
 
-    if apply:
+    if apply and updated_ids:
         apply_kcat_constraints(model, update_rxns=updated_ids)
 
     return updated_ids

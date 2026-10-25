@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* `apply_kcat_constraints` treats an empty `update_rxns` as all reactions, as MATLAB's
+  `applyKcatConstraints` does with an empty `updateRxns`; it used to do nothing. The callers
+  that build the list from a filter (`set_kcat_for_reactions`, the evotune scoring and reset)
+  skip the call when the list is empty.
+* `apply_custom_kcats` reads a reaction list in double quotes (`"R3,R5"`) without the quotes,
+  as MATLAB's `%q` does, so the quoted list matches R3 and R5 instead of nothing.
 * `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
   the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
   times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a

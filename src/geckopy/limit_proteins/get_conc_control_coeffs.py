@@ -31,9 +31,11 @@ _VERIFY_MIN_FRACTION = 0.5
 # two solves do not differ beyond solver noise.
 _VERIFY_GROWTH_FLOOR = 1e-12
 
-# Solvers we have explicitly confirmed do not expose LP duals via optlang.
-# Anything else is tried, and a failed or NaN dual read falls back as well.
-_NO_DUALS_SOLVER_TAGS = ("scipy",)
+# Solvers we have explicitly confirmed do not expose LP duals at all. Empty: optlang's scipy
+# backend raises on ``dual`` but keeps HiGHS's bound marginals (see
+# :func:`_scipy_upper_marginal`), and any solver whose dual read fails or returns NaN falls
+# back to the finite-difference loop anyway.
+_NO_DUALS_SOLVER_TAGS: tuple[str, ...] = ()
 
 # One-shot info reporting when the shadow-price path is unavailable.
 _FALLBACK_REPORTED: set[str] = set()
@@ -66,10 +68,13 @@ def get_conc_control_coeffs(
     at a degenerate vertex. The test is relative to the predicted rise,
     so a small coefficient on a small bound is kept as readily as a large
     one; the rise must also exceed 1e-12 times max(1, |optimum|). A zero
-    reduced cost needs no check. When the active solver does not expose variable duals
-    (optlang's scipy backend) or returns NaN duals, the function falls
-    back to the per-protein finite-difference loop and logs once that it
-    has done so. The fold-change probe size is only used in that fallback.
+    reduced cost needs no check. With optlang's scipy backend (HiGHS) the reduced cost is
+    read from the bound marginal of the last ``linprog`` result, since optlang does not
+    expose variable duals there. When the active solver gives no usable variable duals
+    (a missing or NaN value, or a scipy result without bound marginals) the function falls
+    back to the per-protein finite-difference loop, which needs one solve per protein
+    (several minutes on a genome-scale ecModel), and logs once that it has done so. The
+    fold-change probe size is only used in that fallback.
 
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/getConcControlCoeffs.m.
@@ -146,7 +151,7 @@ def _shadow_price_coeffs(
         if usage_flux / prev_ub <= limit:
             continue
         enz_mask[i] = True
-        rc = _forward_reduced_cost(rxn)
+        rc = _forward_reduced_cost(rxn, usage_flux)
         if rc is None:
             _report_finite_difference_fallback(model, "returns no usable variable duals")
             return _finite_difference_coeffs(model, proteins, fold_change, limit)
@@ -175,8 +180,11 @@ def _shadow_price_coeffs(
     return enz_mask, coeffs
 
 
-def _forward_reduced_cost(rxn) -> Optional[float]:
+def _forward_reduced_cost(rxn, flux: Optional[float] = None) -> Optional[float]:
     """|reduced cost| of the reaction's forward variable, or None if unavailable.
+
+    ``flux`` is the reaction's flux in the solution the reduced cost must belong to; the
+    scipy path needs it to confirm that the stored result is that solution.
 
     ``reaction.reduced_cost`` is the forward variable's value minus the reverse
     variable's, and the reverse variable of a usage reaction carries the opposite
@@ -185,11 +193,44 @@ def _forward_reduced_cost(rxn) -> Optional[float]:
     """
     try:
         value = float(rxn.forward_variable.dual)
-    except (NotImplementedError, AttributeError, TypeError, ValueError, RuntimeError):
+    except NotImplementedError:
+        value = _scipy_upper_marginal(rxn, flux)
+        if value is None:
+            return None
+    except (AttributeError, TypeError, ValueError, RuntimeError):
         return None
     if not np.isfinite(value):
         return None
     return abs(value)
+
+
+def _scipy_upper_marginal(rxn, flux: Optional[float]) -> Optional[float]:
+    """Marginal of the forward variable's upper bound in optlang's scipy backend, or None.
+
+    optlang raises ``NotImplementedError`` for ``Variable.dual`` with the scipy solver but
+    keeps the whole ``linprog`` result in ``problem._solution``. For HiGHS that result holds
+    ``upper.marginals``: d(objective)/d(upper bound) of the minimised problem, in the order
+    of the variables handed to ``linprog``. ``cobra.Model.optimize`` resets optlang's own copy
+    of the primal values after the solve (it restores the objective direction), so the stored
+    result is checked against ``flux``, the flux cobra returned for this reaction: the forward
+    minus the reverse variable of the stored result must equal it. Without ``flux``, or when
+    the values differ, the result is not used (None) and the finite-difference loop runs.
+    """
+    if flux is None:
+        return None
+    try:
+        problem = rxn.model.solver.problem
+        solution = problem._solution
+        marginals = solution.upper.marginals
+        names = list(problem.bounds)
+        forward = names.index(rxn.forward_variable.name)
+        reverse = names.index(rxn.reverse_variable.name)
+        stored = float(solution.x[forward]) - float(solution.x[reverse])
+        if abs(stored - flux) > 1e-9 * max(1.0, abs(flux)):
+            return None
+        return float(marginals[forward])
+    except (AttributeError, IndexError, ValueError, TypeError, KeyError):
+        return None
 
 
 def _finite_difference_coeffs(
@@ -258,12 +299,12 @@ def _solution_is_optimal(sol) -> bool:
 
 
 def _solver_supports_duals(model: "EcModel") -> bool:
-    """True iff the model's LP solver exposes constraint duals.
+    """True unless the solver is listed in ``_NO_DUALS_SOLVER_TAGS``.
 
-    optlang's scipy backend explicitly raises ``NotImplementedError`` on
-    ``constraint.dual``; glpk/glpk_exact/gurobi/cplex all expose duals
-    for LP optima. We detect by the solver module name (cheap; no probe
-    solve) and assume "supports duals" unless we know otherwise.
+    glpk/glpk_exact/gurobi/cplex expose variable duals for LP optima and optlang's scipy
+    backend exposes them through :func:`_scipy_upper_marginal`. A solver whose dual read
+    fails is detected per value in :func:`_forward_reduced_cost`, which sends the call to the
+    finite-difference loop.
     """
     module = type(model.solver).__module__.lower()
     return not any(tag in module for tag in _NO_DUALS_SOLVER_TAGS)

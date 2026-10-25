@@ -114,14 +114,14 @@ def test_unusable_duals_fall_back_to_the_finite_difference(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     expected = _finite_difference_coeffs(model, ["E"], 2.0, 0.0)
     module = sys.modules["geckopy.limit_proteins.get_conc_control_coeffs"]
-    monkeypatch.setattr(module, "_forward_reduced_cost", lambda rxn: None)
+    monkeypatch.setattr(module, "_forward_reduced_cost", lambda rxn, flux=None: None)
     enz, coeffs = get_conc_control_coeffs(model)
     assert enz.tolist() == expected[0].tolist()
     assert coeffs.tolist() == expected[1].tolist()
     assert coeffs[0] == pytest.approx(1.0, rel=1e-6)
 
 
-def test_solver_without_duals_uses_the_finite_difference():
+def test_scipy_reads_the_bound_marginal():
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), "scipy")
     _, coeffs = get_conc_control_coeffs(model, fold_change=2.0)
     assert coeffs[0] == pytest.approx(1.0, rel=1e-6)

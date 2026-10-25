@@ -32,7 +32,7 @@ _AGGREGATORS = {
 def fill_kcats_from_isozymes(
     model: "EcModel",
     *,
-    apply: bool = True,
+    apply: bool = False,
     aggregate: Optional[str] = None,
 ) -> None:
     """Fill in missing kcats by combining known kcats across sibling isozymes.
@@ -45,7 +45,9 @@ def fill_kcats_from_isozymes(
     For each reaction with no kcat assigned (``ec.kcat == 0``), find
     its siblings whose kcat is set (``> 0``). If any exist, take their
     mean and assign it. Set ``ec.source`` to ``"isozymes"`` for the
-    filled entries.
+    filled entries. A NaN kcat is not a missing kcat: it is left as it
+    is, as ``getKcatAcrossIsozymes`` does, and a NaN sibling does not
+    contribute to the mean.
 
     Reactions whose siblings all also lack a kcat stay at 0. Reactions
     with a single isozyme (no siblings beyond themselves) also stay at 0.
@@ -58,8 +60,9 @@ def fill_kcats_from_isozymes(
         An EcModel produced by ``make_ec_model``. Mutated in place.
         Must not be a gecko-light model.
     apply
-        If True (default), call ``apply_kcat_constraints`` after
-        updating ec.kcat so the new values reflect in the S matrix.
+        If True, call ``apply_kcat_constraints`` after updating ec.kcat
+        so the new values reflect in the S matrix. Default False, as
+        in ``getKcatAcrossIsozymes``, which only changes ``ec.kcat``.
     aggregate
         How to combine sibling kcats: ``"mean"`` (matches MATLAB GECKO),
         ``"median"`` (more robust for log-distributed rate constants), or
@@ -88,6 +91,7 @@ def fill_kcats_from_isozymes(
 
     kcat = model.ec.kcat
     known_mask = kcat > 0
+    missing_mask = kcat == 0
     if kcat.size == 0 or not known_mask.any():
         logger.warning(
             "fill_kcats_from_isozymes: ec.kcat has no known values to "
@@ -113,8 +117,8 @@ def fill_kcats_from_isozymes(
 
     # For each missing entry, look up its base group and average if available.
     filled_indices: list[int] = []
-    for i, (bid, known) in enumerate(zip(base_ids, known_mask)):
-        if known:
+    for i, (bid, missing) in enumerate(zip(base_ids, missing_mask)):
+        if not missing:
             continue
         siblings = known_by_base.get(bid)
         if not siblings:
@@ -140,7 +144,7 @@ def fill_kcats_from_isozymes(
         apply_kcat_constraints(model, update_rxns=filled_rxn_ids)
 
 
-def get_kcat_across_isozymes(model: "EcModel", *, apply: bool = True) -> None:
+def get_kcat_across_isozymes(model: "EcModel", *, apply: bool = False) -> None:
     """Deprecated alias for :func:`fill_kcats_from_isozymes`.
 
     Kept for backward compatibility with the original MATLAB name.

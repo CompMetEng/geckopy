@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* `truncate_values` rounds a value exactly halfway between two candidates away from
+  zero, as MATLAB's `round(x, n)` does: 100000.5 gives 100001 and 1234565 gives
+  1234570, where they gave 100000 and 1234560.
+* `save_kcat_source` writes the free text of the `detail` column as
+  `saveKcatSource` does: a tab or line break becomes a space, so a row can no longer
+  be split, and an empty part leaves no leading, trailing or repeated `; `.
+* `fill_kcats_from_isozymes` and `get_kcat_across_isozymes` default to `apply=False`,
+  as `getKcatAcrossIsozymes` only changes `ec.kcat`; pass `apply=True` to rewrite the
+  stoichiometry. Only a kcat of 0 is filled: a NaN kcat is left as it is, and a NaN
+  sibling does not enter the mean. `assign_kcats` passes `apply=True`, as before.
+
 * `get_conc_control_coeffs` reads the reduced cost of each usage reaction's forward
   variable and keeps it where a 0.01 percent rise of the bound raises the optimum,
   in place of the `prot_<id>` shadow price. An enzyme whose own bound does not

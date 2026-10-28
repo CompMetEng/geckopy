@@ -252,7 +252,7 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
             stage[i], candidates[i], spread[i] = "custom", 1, 0.0
     if config.isozymes and not ec.gecko_light:
         before = ec.kcat == 0
-        fill_kcats_from_isozymes(model)
+        fill_kcats_from_isozymes(model, apply=True)
         for i in np.flatnonzero(before & (ec.kcat > 0)):
             stage[i] = "isozymes"
     if config.standard:

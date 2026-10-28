@@ -167,16 +167,16 @@ def test_missing_rxn_in_fluxes_treated_as_zero():
 
 
 # --------------------------------------------------------------------------- #
-# Zero upper bound -> cap_usage = 0
+# Zero upper bound -> cap_usage = NaN
 # --------------------------------------------------------------------------- #
 
-def test_zero_ub_cap_usage_is_zero_not_inf():
+def test_zero_ub_cap_usage_is_nan():
     model = _build_toy(enzyme_ub=0.0)
     sol = model.optimize()
     result = enzyme_usage(model, sol.fluxes)
-    # ub=0 -> no growth -> abs_usage=0; cap_usage must be 0, not inf or NaN.
-    assert result.cap_usage[0] == 0.0
-    assert np.isfinite(result.cap_usage[0])
+    # ub=0 -> no growth -> abs_usage=0; the ratio is undefined, as for Enzyme.cap_usage.
+    assert result.abs_usage[0] == 0.0
+    assert np.isnan(result.cap_usage[0])
 
 
 # --------------------------------------------------------------------------- #

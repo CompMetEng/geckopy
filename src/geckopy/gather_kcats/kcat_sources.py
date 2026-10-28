@@ -207,6 +207,23 @@ def _clean(value) -> str:
     return re.sub(r"[\t\r\n]", " ", str(value))
 
 
+def _detail_text(wildcard_level, origin, extra) -> str:
+    """The detail column: ``wc=``, ``origin=`` and the free text, joined by ``; ``.
+
+    Tabs and line breaks of the free text become spaces, so a row can never be split. Empty
+    parts leave no ``; `` behind: a leading or trailing ``; `` is dropped and a repeated
+    ``; `` is written once, as ``saveKcatSource`` does.
+    """
+    parts = [
+        f"wc={int(wildcard_level)}" if wildcard_level is not None and pd.notna(wildcard_level) else "",
+        f"origin={int(origin)}" if origin is not None and pd.notna(origin) else "",
+        _clean(extra).strip(),
+    ]
+    text = "; ".join(parts)
+    text = re.sub(r"^(; )+|(; )+$", "", text)
+    return re.sub(r"(; ){2,}", "; ", text)
+
+
 def save_kcat_source(
     model: "EcModel",
     kcat_list: pd.DataFrame,
@@ -284,16 +301,9 @@ def save_kcat_source(
         if not enzymes[i]:
             no_enzymes += 1
             continue
-        detail = []
-        if wc is not None and pd.notna(wc):
-            detail.append(f"wc={int(wc)}")
-        if origin is not None and pd.notna(origin):
-            detail.append(f"origin={int(origin)}")
-        if extra is not None and not (isinstance(extra, float) and math.isnan(extra)) and str(extra).strip():
-            detail.append(str(extra).strip())
         rows.append([
             _clean(base[i]), _clean(enzymes[i]), _clean(subs), format_number(kcat),
-            format_number(sd), _clean(src), "; ".join(detail), _clean(ec_code), "",
+            format_number(sd), _clean(src), _detail_text(wc, origin, extra), _clean(ec_code), "",
         ])
     if no_enzymes:
         logger.info("%d kcats of reactions without enzymes are not written to %s.", no_enzymes, path)

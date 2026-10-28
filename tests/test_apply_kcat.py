@@ -182,14 +182,14 @@ def test_update_rxns_unknown_id_raises():
         apply_kcat_constraints(ec_model, update_rxns=["not_a_rxn"])
 
 
-def test_update_rxns_empty_list_is_noop():
+def test_update_rxns_empty_list_updates_all():
     ec_model = _ectestgem_ec_model()
     ec_model.ec.kcat[ec_model.ec.rxns.index("R3")] = 10.0
 
     apply_kcat_constraints(ec_model, update_rxns=[])
 
     r3_coef = _get_s_coef(ec_model.reactions.get_by_id("R3"), "prot_P4")
-    assert r3_coef == 0.0
+    assert r3_coef < 0.0
 
 
 def test_setting_kcat_to_zero_and_reapplying_clears_old_constraint():

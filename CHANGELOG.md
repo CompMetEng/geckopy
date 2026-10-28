@@ -2,6 +2,68 @@
 
 ## Unreleased
 
+* `apply_kcat_constraints` treats an empty `update_rxns` as all reactions, as MATLAB's
+  `applyKcatConstraints` does with an empty `updateRxns`; it used to do nothing. The callers
+  that build the list from a filter (`set_kcat_for_reactions`, the evotune scoring and reset)
+  skip the call when the list is empty.
+* `apply_custom_kcats` reads a reaction list in double quotes (`"R3,R5"`) without the quotes,
+  as MATLAB's `%q` does, so the quoted list matches R3 and R5 instead of nothing.
+* `make_ec_model` refuses what GECKO's `makeEcModel` refuses, with a `ValueError`: a reaction ID
+  that starts with `usage_prot_` or `prot_pool` or ends in `_REV` or `_EXP_<digits>`, a metabolite
+  ID that starts with `prot_`, an `enzyme_comp` that is not one of the compartment names of the
+  model (a compartment ID that differs from its name no longer passes), and a model without
+  genes. Only a reaction with `lb < 0 < ub` that is not an exchange reaction is split into a
+  `_REV` pair: a reaction with both bounds negative stays as it is instead of raising, and a
+  reaction that only consumes or only produces metabolites, such as `A + B <=>`, is an exchange
+  reaction, as in RAVEN's `getExchangeRxns`.
+* `set_kcat_for_reactions` follows `setKcatForReactions`. `apply` defaults to `False`, so only
+  `ec.kcat` and `ec.source` change; pass `apply=True` to write the S matrix. IDs match without
+  regard to letter case, an ID that matches nothing is ignored, and in a gecko-light model the
+  `###_` prefix is part of the ID, so `"R2"` no longer expands to `001_R2` and `002_R2`.
+  A kcat list with one value per matched row takes its values by position even when another
+  ID matches nothing, as in MATLAB: `["R2", "nonsense"]` with `[1.0, 2.0]` sets the two `R2` rows to 1.0 and 2.0.
+* `flexibilize_enz_concs` with a levelled complex scores a unit by its probes when the solver
+  returns no usable reduced costs (the scipy solver), where a NaN score could pick the first unit.
+* `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
+  the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
+  times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a
+  rise above 1e-10, which dropped any coefficient with a reduced cost times bound below 1e-6.
+* `fit_sigma(method="bisect")` gives the first grid sigma, `1 / n_sigma_steps`, for a model that
+  cannot grow even at sigma 1, as the grid does; it used to give about 1e-6.
+* `truncate_values` rounds a value exactly halfway between two candidates away from
+  zero, as MATLAB's `round(x, n)` does: 100000.5 gives 100001 and 1234565 gives
+  1234570, where they gave 100000 and 1234560.
+* `save_kcat_source` writes the free text of the `detail` column as
+  `saveKcatSource` does: a tab or line break becomes a space, so a row can no longer
+  be split, and an empty part leaves no leading, trailing or repeated `; `.
+* `fill_kcats_from_isozymes` and `get_kcat_across_isozymes` default to `apply=False`,
+  as `getKcatAcrossIsozymes` only changes `ec.kcat`; pass `apply=True` to rewrite the
+  stoichiometry. Only a kcat of 0 is filled: a NaN kcat is left as it is, and a NaN
+  sibling does not enter the mean. `assign_kcats` passes `apply=True`, as before.
+* `fit_sigma` scans the 0.01 grid of GECKO's `sigmaFitter` by default (`method="bisect"`
+  stays available and still gives a continuous sigma). A target that growth cannot
+  reach gives the first sigma of the growth plateau, where it used to give 1.0. The
+  bounds of the objective reaction are set to `[0, 1000]` before the scan and stay so on
+  the fitted model, and a solve that is not optimal counts as growth 0.
+* `sensitivity_tuning` follows `sensitivityTuning.m`. The result lists the tuned reactions
+  in model order, and reports the kcat and source of the input model, so a reaction an
+  earlier run had tuned no longer reports NaN. `ec.notes` prints the pre-tune kcat as
+  `num2str` does (`preTuneKcat=10`). A `prot_to_ignore` id is matched without regard to
+  case and raises `ValueError` when no usage reaction has it. A tuned kcat has no upper
+  limit. A gecko-light model is tuned, in place of raising `NotImplementedError`.
+* `get_conc_control_coeffs` also takes the one-solve path with the scipy solver. optlang does not expose
+  variable duals there, so the reduced cost is read from the HiGHS bound marginal of the last `linprog`
+  result, after checking that the stored result is the solution `model.optimize` returned. On the tutorial
+  yeast ecModel this takes seconds where the finite-difference loop took several minutes. A scipy result
+  without bound marginals still falls back to the finite-difference loop.
+* `get_conc_control_coeffs` reads the reduced cost of each usage reaction's forward
+  variable and keeps it where a 0.01 percent rise of the bound raises the optimum,
+  in place of the `prot_<id>` shadow price. An enzyme whose own bound does not
+  bind now gets 0 while the protein pool binds, where every used enzyme used to
+  get the pool's price, and a degenerate vertex no longer gives a spurious
+  coefficient. Every nonzero reduced cost is checked, however small, and a usage
+  reaction held at its lower bound gets 0 without a check. Where the solver exposes
+  no variable duals, or returns NaN, the finite-difference loop is used.
 * New: `save_ec_model` records the ecModel format (`gecko_format: "4"`) and
   the release that wrote the file (`generator: geckopy <version>`) in the
   `metaData`, the keys GECKO's `saveEcModel` writes, in place of

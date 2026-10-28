@@ -39,9 +39,9 @@ def _resolve_enzyme_compartment_id(model: "EcModel", requested: str) -> str:
     """Resolve ``adapter.params.enzyme_comp`` to a compartment ID.
 
     Matches ``requested`` first against compartment names (the typical
-    case, e.g. "cytoplasm"), then falls back to compartment IDs (e.g.
-    "c" when the model happens to use short IDs as names, as in
-    ecTestGEM).
+    case, e.g. "cytoplasm"), then falls back to compartment IDs. This
+    resolver accepts the ID fallback; ``make_ec_model`` itself requires
+    ``enzyme_comp`` to be a compartment name.
 
     Raises ValueError if neither matches.
     """

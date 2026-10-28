@@ -38,7 +38,7 @@ smaller models (yeast, *E. coli*), full is usually fine.
 
 ```python
 ec_model = make_ec_model(model, adapter, gecko_light=True)
-set_kcat_for_reactions(ec_model, ["R2"], 5.0)   # broadcasts to all isozyme rows
+set_kcat_for_reactions(ec_model, ["001_R2", "002_R2"], 5.0)   # one row per isozyme
 apply_kcat_constraints(ec_model)                 # picks cheapest isozyme per cobra rxn
 set_prot_pool_size(ec_model)
 ec_model.optimize()
@@ -67,7 +67,7 @@ isn't checked out next to geckopy.
 | `src/geckopy/ec_model/make_ec_model.py` | dispatches stage 5 (isozyme split) and stages 9/11 (per-enzyme prot mets + usage rxns) off; calls `allocate_ec_and_coupling_light` instead of the full stages 6/8 |
 | `src/geckopy/ec_model/pipeline/populate_ec.py` | `allocate_ec_and_coupling_light` builds `ec.rxns` (one row per isozyme with the `###_` prefix) and `ec.rxn_enz_mat` in one pass; `split_light_rxn_id` is the inverse |
 | `src/geckopy/ec_model/pipeline/apply_kcat.py` | `_apply_kcat_constraints_light` groups ec rows by cobra reaction, picks the lowest-cost isozyme, writes `-MW_sum / (kcat * 3600)` as the `prot_pool` coefficient; same clear-then-write idempotency contract as full |
-| `src/geckopy/ec_model/pipeline/set_kcat.py` | recognises the `###_` prefix as the light analogue of `_EXP_<N>`; bare base names broadcast to every isozyme row |
+| `src/geckopy/ec_model/pipeline/set_kcat.py` | the `###_` prefix is part of the id in a light model: `001_R2` matches that one row and a bare cobra id such as `R2` matches nothing |
 | `src/geckopy/ec_model/enzyme.py` | `Enzyme.reactions` strips the prefix and dedupes; `Enzyme.mw` setter passes ec.rxns ids (not cobra ids) to `apply_kcat_constraints`; `_repr_html_` catches the light NotImplementedError |
 | `src/geckopy/gather_kcats/fuzzy_kcat_matching.py` | strips the `###_` prefix for cobra lookups |
 | `src/geckopy/gather_kcats/get_standard_kcat.py` | `_ec_rxn_to_cobra_id` handles both forms |

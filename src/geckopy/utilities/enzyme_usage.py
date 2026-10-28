@@ -65,7 +65,8 @@ def enzyme_usage(
 
     * ``abs_usage = |fluxes[usage_prot_<enzyme>]|``  (mg/gDCW).
     * ``ub`` = the usage reaction's upper bound.
-    * ``cap_usage = abs_usage / ub`` (or 0 if ``ub == 0``).
+    * ``cap_usage = abs_usage / ub`` (NaN if ``ub == 0``, as
+      :attr:`Enzyme.cap_usage` and GECKO MATLAB's ``getEnzymeUsage`` give).
 
     Ported from GECKO MATLAB:
     src/geckomat/utilities/enzymeUsage.m.
@@ -111,7 +112,7 @@ def enzyme_usage(
     ub_arr = np.array(ub_list, dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
         cap_arr = np.where(
-            ub_arr > 0, abs_usage_arr / ub_arr, 0.0,
+            ub_arr != 0, abs_usage_arr / ub_arr, np.nan,
         )
 
     if not include_zero:

@@ -14,8 +14,8 @@ the per-complex options for all of them are described at the end.
 | aspect | `flexibilize_enz_concs` | `relax_proteomics_greedy` |
 |---|---|---|
 | Origin | GECKO MATLAB `flexibilizeEnzConcs.m` (faithful port) | legacy geckopy, Carrasco et al. 2023 |
-| Which enzyme to relax | largest **control coefficient** (finite-difference: how much each measured enzyme's bound limits growth, from `get_conc_control_coeffs`) | largest **\|shadow price\|** (LP dual of the usage upper bound) |
-| Solves per selection | re-solves the LP **once per candidate protein** (expensive) | a **single** `slim_optimize` exposes all duals (cheap) |
+| Which enzyme to relax | largest **control coefficient** (how much each measured enzyme's bound limits growth, from `get_conc_control_coeffs`: the reduced cost of its usage bound, or a finite difference where the solver exposes no duals) | largest **\|shadow price\|** (LP dual of the usage upper bound) |
+| Solves per selection | one LP solve plus one check solve per enzyme with a nonzero coefficient (one solve per candidate protein where the solver exposes no duals) | a **single** `slim_optimize` exposes all duals (cheap) |
 | Relaxation step | **gradual**: usage `ub ← conc·(1 + fold_change·k)`; the same enzyme can be picked repeatedly and loosened a bit more each time | **all-or-nothing**: usage `ub ← default_upper_bound` (≈ unconstrained) in one shot |
 | Tighten-back | yes — a refinement pass minimises the protein pool at `exp_growth` and **drops** enzymes whose true usage is below their original conc (un-relaxes over-relaxed ones) | none — each picked enzyme stays fully unconstrained |
 | Result stringency | **tight** (minimal, proteomics-faithful relaxation) | **loose** (tends to over-relax) |

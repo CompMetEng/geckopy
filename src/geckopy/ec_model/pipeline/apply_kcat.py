@@ -59,8 +59,10 @@ def apply_kcat_constraints(
         An EcModel produced by ``make_ec_model``, with at least some
         kcat values assigned to ``model.ec.kcat``. Mutated in place.
     update_rxns
-        Reaction IDs (from ``model.ec.rxns``) to update. If None,
-        updates all entries.
+        Reaction IDs (from ``model.ec.rxns``) to update. ``None`` or an
+        empty sequence updates all entries, as ``applyKcatConstraints``
+        does with an empty ``updateRxns``; a caller that builds the list
+        from a filter must skip the call when the filter finds nothing.
 
     Raises
     ------
@@ -80,7 +82,10 @@ def apply_kcat_constraints(
     ec_rxn_ids = model.ec.rxns
 
     # Resolve update_rxns to a numpy array of ec-row indices.
-    if update_rxns is None:
+    if update_rxns is not None:
+        update_rxns = list(update_rxns)
+
+    if not update_rxns:
         selected_idx = np.arange(len(ec_rxn_ids))
     else:
         id_to_idx = {rxn_id: i for i, rxn_id in enumerate(ec_rxn_ids)}
@@ -194,13 +199,17 @@ def _apply_kcat_constraints_light(
     model
         A gecko-light EcModel with ``ec.gecko_light is True``.
     update_rxns
-        ec.rxns IDs (with the ``###_`` prefix) to update. ``None``
-        means update every cobra reaction backed by at least one
-        ec.rxns row.
+        ec.rxns IDs (with the ``###_`` prefix) to update. ``None`` or an
+        empty sequence means update every cobra reaction backed by at
+        least one ec.rxns row. A reaction is updated as a whole: naming one of its
+        isozyme rows recomputes the cheapest cost over all its rows.
     """
     ec_rxn_ids = model.ec.rxns
 
-    if update_rxns is None:
+    if update_rxns is not None:
+        update_rxns = list(update_rxns)
+
+    if not update_rxns:
         selected_idx = np.arange(len(ec_rxn_ids))
     else:
         id_to_idx = {rxn_id: i for i, rxn_id in enumerate(ec_rxn_ids)}
@@ -217,12 +226,17 @@ def _apply_kcat_constraints_light(
     if selected_idx.size == 0:
         return
 
-    # Group the selected ec rows by the cobra reaction they belong to;
-    # the cobra reaction is what carries the LP constraint.
+    # The cobra reaction carries the LP constraint, so selecting one isozyme
+    # row updates the reaction as a whole: every ec row of that reaction
+    # competes for the cheapest cost, selected or not.
+    affected = {
+        split_light_rxn_id(ec_rxn_ids[idx])[1] for idx in selected_idx
+    }
     rows_by_cobra: dict[str, list[int]] = defaultdict(list)
-    for idx in selected_idx:
-        _, cobra_id = split_light_rxn_id(ec_rxn_ids[idx])
-        rows_by_cobra[cobra_id].append(int(idx))
+    for idx, ec_rxn_id in enumerate(ec_rxn_ids):
+        _, cobra_id = split_light_rxn_id(ec_rxn_id)
+        if cobra_id in affected:
+            rows_by_cobra[cobra_id].append(idx)
 
     pool_met = model.metabolites.get_by_id(POOL_ID)
     rxn_enz_mat_csr = model.ec.rxn_enz_mat.tocsr()

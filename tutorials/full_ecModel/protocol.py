@@ -302,7 +302,7 @@ enz_mw = ec_model.ec.mw[enz_idx]
 sa = 2.15  # umol/min/mg protein
 kcat_per_sec = sa / 1000 / 60 * enz_mw
 print(f"Computed kcat for r_0079: {kcat_per_sec:.4f} /sec")
-set_kcat_for_reactions(ec_model, ["r_0079"], kcat_per_sec)
+set_kcat_for_reactions(ec_model, ["r_0079"], kcat_per_sec, apply=True)
 
 # %%
 save_ec_model(ec_model, "ecYeastGEM_stage3.yml", adapter=adapter)

@@ -35,6 +35,11 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # swiglpk (a cobra/optlang dependency) publishes no Python 3.15 wheel, so pip
+      # builds it from source, which needs the GLPK headers and SWIG.
+      - name: Install GLPK build dependencies
+        if: matrix.python-version == '3.15'
+        run: sudo apt-get update && sudo apt-get install -y libglpk-dev swig
       - name: Install
         run: pip install -e ".[dev,evotune]"
 

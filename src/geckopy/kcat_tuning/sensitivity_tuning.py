@@ -228,12 +228,10 @@ def sensitivity_tuning(
         model.objective = bio_rxn_id
 
     initial_sol = model.optimize()
-    if (
-        initial_sol.objective_value is None
-        or np.isnan(initial_sol.objective_value)
-    ):
+    if initial_sol.status != "optimal":
         raise ValueError(
-            "FBA of the input model is infeasible. Reduce the protein "
+            "FBA of the input model is not optimal (status "
+            f"{initial_sol.status!r}). Reduce the protein "
             "pool constraint with set_prot_pool_size and/or check the "
             "exchange constraints."
         )
@@ -261,7 +259,13 @@ def sensitivity_tuning(
 
     while iteration <= max_iterations:
         sol = model.optimize()
-        growth = float(sol.objective_value or 0.0)
+        if sol.status != "optimal":
+            logger.warning(
+                "sensitivity_tuning: the model has no optimal solution with the "
+                "increased kcats (status %s); tuning stops.", sol.status,
+            )
+            break
+        growth = float(sol.objective_value)
 
         if not np.isnan(last_growth) and growth <= last_growth + _GROWTH_STALL_TOL:
             logger.warning(

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `flexibilize_enz_concs` and `sensitivity_tuning` decide that the starting LP is infeasible from the solver status, not from the objective value, so they behave the same on every solver. Before, an infeasible start raised on Gurobi (no objective value) but not on GLPK (a finite objective value). `flexibilize_enz_concs` now returns an empty result for it on all solvers, as MATLAB's `flexibilizeEnzConcs` does, instead of raising on Gurobi. `sensitivity_tuning` raises on all solvers and stops with a warning when a later solve is not optimal.
 * `apply_kcat_constraints` treats an empty `update_rxns` as all reactions, as MATLAB's
   `applyKcatConstraints` does with an empty `updateRxns`; it used to do nothing. The callers
   that build the list from a filter (`set_kcat_for_reactions`, the evotune scoring and reset)

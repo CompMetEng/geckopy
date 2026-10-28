@@ -168,6 +168,8 @@ def flexibilize_enz_concs(
     Returns
     -------
     FlexEnzResult
+        Empty when the LP of the input model is not optimal (for example
+        infeasible), as MATLAB's ``flexibilizeEnzConcs`` returns it.
 
     Raises
     ------
@@ -233,15 +235,14 @@ def flexibilize_enz_concs(
     unit_frequence = np.zeros(len(units), dtype=int)
 
     initial_sol = model.optimize()
-    if (
-        initial_sol.objective_value is None
-        or np.isnan(initial_sol.objective_value)
-    ):
-        raise ValueError(
-            "FBA of the input model is infeasible, so there is no growth to "
-            "flexibilize towards. Check the enzyme-concentration and exchange "
-            "constraints before calling flexibilize_enz_concs."
+    if initial_sol.status != "optimal":
+        logger.warning(
+            "flexibilize_enz_concs: FBA of the input model is %s, so there is "
+            "no growth to flexibilize towards; no enzyme is flexibilized. "
+            "Check the enzyme-concentration and exchange constraints.",
+            initial_sol.status,
         )
+        return FlexEnzResult()
     pred_growth = float(initial_sol.objective_value)
 
     flex_break = False
@@ -316,7 +317,7 @@ def flexibilize_enz_concs(
             )
 
         new_sol = model.optimize()
-        pred_growth = float(new_sol.objective_value or 0.0)
+        pred_growth = _optimal_growth(new_sol)
         if verbose:
             logger.info(
                 "flexibilize_enz_concs: protein %r relaxed; growth = %g",
@@ -334,6 +335,12 @@ def flexibilize_enz_concs(
 # Helpers
 # --------------------------------------------------------------------------- #
 
+def _optimal_growth(sol) -> float:
+    """Objective value of an optimal solution, 0 for any other status; solvers
+    differ in the objective value they report for an infeasible LP."""
+    return float(sol.objective_value) if sol.status == "optimal" else 0.0
+
+
 def _try_relax_pool(
     model: "EcModel",
     bio_rxn,
@@ -350,7 +357,7 @@ def _try_relax_pool(
         pool_rxn.upper_bound = 1000.0
         bio_rxn.upper_bound = exp_growth
         sol = model.optimize()
-        candidate_growth = float(sol.objective_value or 0.0)
+        candidate_growth = _optimal_growth(sol)
 
     if candidate_growth - pred_growth <= _GROWTH_DELTA_THRESHOLD:
         if verbose:
@@ -366,7 +373,7 @@ def _try_relax_pool(
         model.objective = POOL_EXCHANGE_ID
         model.objective_direction = "min"
         sol = model.optimize()
-        new_pool = float(sol.objective_value or 0.0)
+        new_pool = _optimal_growth(sol)
 
     pool_rxn.upper_bound = new_pool
 

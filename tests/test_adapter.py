@@ -251,3 +251,19 @@ def test_adapter_parameter_table_matches_schema():
         expected = tomllib.loads(f"x = {default_text}")["x"]
         default = field.get_default(call_default_factory=True)
         assert default == expected, key
+
+
+def test_uniprot_table_lookup_reads_quoted_cells_and_first_duplicate(tmp_path):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML)
+    data_dir = folder / "data"
+    data_dir.mkdir()
+    (data_dir / "uniprotConversion.tsv").write_text(
+        "gene_id\tuniprot_id\n"
+        '"YAL001C"\t"P12345"\n'
+        "YAL001C\tP00000\n"
+        'YAL002W\t"P67890"\r\n'
+    )
+
+    adapter = ModelAdapter.from_folder(folder)
+    result = adapter.get_uniprot_ids_from_table(["YAL001C", "YAL002W"])
+    assert result == ["P12345", "P67890"]

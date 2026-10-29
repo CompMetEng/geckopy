@@ -141,19 +141,22 @@ class ModelAdapter:
 
         If the conversion table is absent, returns the input unchanged.
         The table is a two-column TSV with header row: model gene ID,
-        UniProt ID.
+        UniProt ID. The cells are read as MATLAB's ``textscan`` with ``%q``
+        reads them (see :func:`geckopy.databases.uniprot_loader.read_quoted_tsv`),
+        so a cell in double quotes is given without the quotes.
         """
         table_path = self.params.path / "data" / "uniprotConversion.tsv"
         if not table_path.is_file():
             return list(model_genes)
 
+        from ..databases.uniprot_loader import read_quoted_tsv
+
+        with open(table_path, "r", encoding="utf-8", newline="") as f:
+            text = f.read()
+        # A gene listed twice takes its first row, as MATLAB's ismember does.
         mapping: dict[str, str] = {}
-        with open(table_path, "r", encoding="utf-8") as f:
-            next(f)  # skip header
-            for line in f:
-                parts = line.rstrip("\n").split("\t")
-                if len(parts) >= 2:
-                    mapping[parts[0]] = parts[1]
+        for gene, uniprot_id in read_quoted_tsv(text, 2, header_lines=1):
+            mapping.setdefault(gene, uniprot_id)
 
         return [mapping.get(g, g) for g in model_genes]
 

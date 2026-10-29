@@ -62,6 +62,8 @@ from scipy import sparse
 
 try:
     from optlang import scipy_interface as _scipy_interface
+    from optlang.util import SolverTolerances
+    from scipy.optimize import linprog
 except ImportError:  # pragma: no cover - optlang always ships the interface
     _scipy_interface = None
 
@@ -89,6 +91,34 @@ if _scipy_interface is not None:
         def __init__(self):
             super().__init__()
             self._init_sparse()
+
+        # Feasibility and optimality tolerance of HiGHS; None keeps its default (1e-7).
+        _feasibility = None
+        _optimality = None
+
+        def optimize(self, method="highs", verbosity=False, tolerance=1e-9, **kwargs):
+            """``linprog`` on the problem, with the tolerances that were set on the model."""
+            c = np.array([self.objective.get(name, 0) for name in self._variables], dtype=float)
+            if self.direction == "max":
+                c *= -1
+            options = {"maxiter": 10000, "disp": verbosity}
+            if self._feasibility is not None:
+                options["primal_feasibility_tolerance"] = self._feasibility
+            if self._optimality is not None:
+                options["dual_feasibility_tolerance"] = self._optimality
+            solution = linprog(
+                c, self.A, self.upper_bounds, bounds=list(self.bounds.values()), method=method,
+                options=options, **kwargs,
+            )
+            self._solution = solution
+            self._status = solution.status
+            if _scipy_interface.SCIPY_STATUS[self._status] == _scipy_interface.interface.OPTIMAL:
+                self._var_primals = solution.x
+                self._slacks = solution.slack
+            else:
+                self._var_primals = None
+                self._slacks = None
+            self._f = solution.fun
 
         def _init_sparse(self):
             # _rows[row name] = {variable name: coefficient}; _cols[variable name] = {row names}
@@ -217,13 +247,34 @@ if _scipy_interface is not None:
         def _initialize_problem(self):
             self.problem = _SparseProblem()
 
-        def __reduce__(self):
-            return (_restore_sparse_model, (self.to_json(),))
+        def _initialize_configuration(self):
+            super()._initialize_configuration()
+            _install_tolerances(self)
 
-    def _restore_sparse_model(state):
+        def __reduce__(self):
+            problem = self.problem
+            return (_restore_sparse_model, (self.to_json(), problem._feasibility, problem._optimality))
+
+    def _restore_sparse_model(state, feasibility, optimality):
         model = _SparseModel()
         model._init_from_json(state)
+        model.problem._feasibility = feasibility
+        model.problem._optimality = optimality
         return model
+
+    def _install_tolerances(solver):
+        """Let ``solver.configuration.tolerances`` (and so ``cobra.Model.tolerance``) set the
+        feasibility and optimality tolerance of HiGHS, which optlang's scipy interface ignores."""
+
+        def setter(attribute):
+            return lambda value: setattr(solver.problem, attribute, float(value))
+
+        solver.configuration.tolerances = SolverTolerances(
+            {
+                "feasibility": (lambda: solver.problem._feasibility or 1e-7, setter("_feasibility")),
+                "optimality": (lambda: solver.problem._optimality or 1e-7, setter("_optimality")),
+            }
+        )
 
 
 def is_scipy_interface(interface) -> bool:
@@ -308,6 +359,7 @@ def repair_scipy_problem(model) -> bool:
     stale = _map_is_stale(problem)
     problem.__class__ = _SparseProblem
     solver.__class__ = _SparseModel
+    _install_tolerances(solver)
     if stale:
         problem._init_sparse()
         problem._rows = {name: {} for name in problem._constraints}

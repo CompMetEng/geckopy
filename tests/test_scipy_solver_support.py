@@ -382,3 +382,28 @@ def test_a_scipy_ec_model_pickles_and_copies_into_the_sparse_problem(how):
     assert clone.solver.interface.__name__.endswith("scipy_interface")
     assert clone.slim_optimize() == pytest.approx(expected)
     assert clone.reactions.get_by_id("R3").flux == pytest.approx(model.reactions.get_by_id("R3").flux)
+
+
+def test_model_tolerance_reaches_highs_and_survives_a_copy(monkeypatch):
+    import pickle
+
+    from scipy import optimize
+
+    model, _ = _build("scipy")
+    model.tolerance = 1e-9
+    assert model.solver.configuration.tolerances.feasibility == 1e-9
+    assert model.solver.configuration.tolerances.optimality == 1e-9
+
+    seen = []
+    real = optimize.linprog
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs["options"])
+        return real(*args, **kwargs)
+
+    for m in (model, pickle.loads(pickle.dumps(model)), model.copy()):
+        monkeypatch.setattr("geckopy.solver_support.linprog", spy)
+        m.slim_optimize()
+    assert len(seen) == 3
+    assert all(o["primal_feasibility_tolerance"] == 1e-9 for o in seen)
+    assert all(o["dual_feasibility_tolerance"] == 1e-9 for o in seen)

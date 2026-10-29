@@ -336,3 +336,27 @@ def test_a_solve_without_optimum_returns_a_solution_with_its_status(status_case)
     assert solution.status == status_case
     assert np.isnan(solution.objective_value)
     assert solution.fluxes.isna().all()
+
+
+def test_setting_the_solver_of_an_ec_model_to_scipy_gives_the_sparse_problem():
+    from geckopy.solver_support import _SparseProblem
+
+    model, _ = _build("glpk")
+    expected = model.slim_optimize()
+    model.solver = "scipy"
+    assert isinstance(model._solver.problem, _SparseProblem)
+    assert model.slim_optimize() == pytest.approx(expected)
+
+
+def test_load_ec_model_ends_on_the_sparse_scipy_problem(scipy_default, tmp_path):
+    from geckopy import load_ec_model, save_ec_model
+    from geckopy.solver_support import _SparseProblem
+
+    model, _ = _build("glpk")
+    expected = model.slim_optimize()
+    save_ec_model(model, tmp_path / "ecModel.yml")
+    loaded = load_ec_model(tmp_path / "ecModel.yml")
+    assert isinstance(loaded._solver.problem, _SparseProblem)
+    assert cobra.Configuration().solver.__name__.endswith("scipy_interface")
+    loaded.objective = "R3"
+    assert loaded.slim_optimize() == pytest.approx(expected)

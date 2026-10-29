@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import cobra
 
-from ..solver_support import repair_scipy_problem
+from ..solver_support import is_scipy_interface, repair_scipy_problem, switch_to_scipy
 from .ec_data import EcData
 
 if TYPE_CHECKING:
@@ -82,7 +82,13 @@ class EcModel(cobra.Model):
 
     @solver.setter
     def solver(self, value) -> None:
-        cobra.Model.solver.fset(self, value)
+        """Set the solver. Moving a model to the scipy interface goes through
+        :func:`geckopy.solver_support.switch_to_scipy`: optlang's clone grows the dense
+        coefficient matrix row by row, which takes hours for a genome-scale model."""
+        if not self._contexts and is_scipy_interface(value) and not is_scipy_interface(self.problem):
+            switch_to_scipy(self)
+        else:
+            cobra.Model.solver.fset(self, value)
 
     @classmethod
     def from_cobra(

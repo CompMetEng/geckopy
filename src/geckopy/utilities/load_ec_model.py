@@ -54,6 +54,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from raven_toolbox.io import EcData, read_yaml_model
 
 from ..ec_model.ec_model import EcModel
+from ..solver_support import fast_solver_while_building, switch_to_scipy
 from ..upgrade import upgrade_ec_model
 
 if TYPE_CHECKING:
@@ -119,7 +120,11 @@ def load_ec_model(
     with _HOOK_LOCK, warnings.catch_warnings():
         warnings.filterwarnings("always", message=r"ecModel uses the older reverse-direction convention")
         warnings.showwarning = count_turned
-        cobra_model = _read_yaml(path)
+        # With the scipy solver as cobra's default the file is read on glpk and the
+        # ecModel is converted: optlang grows the scipy matrix densely, which takes
+        # hours for a genome-scale model.
+        with fast_solver_while_building() as on_fast_solver:
+            cobra_model = _read_yaml(path)
     meta = (cobra_model.notes or {}).get("metaData") or {}
     if _format_number(meta.get("gecko_format")) > 4:
         raise ValueError(
@@ -138,6 +143,8 @@ def load_ec_model(
         cobra_model, adapter=adapter, gecko_light=ec.gecko_light,
     )
     ec_model.ec = ec
+    if on_fast_solver:
+        switch_to_scipy(ec_model)
     # raven-toolbox turns the reactions with a negative lower bound; GECKO
     # turns those whose stoichiometry has the GECKO 3 sign, which also
     # covers a usage reaction fixed to zero.

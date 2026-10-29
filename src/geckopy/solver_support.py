@@ -69,6 +69,7 @@ __all__ = [
     "repair_scipy_problem",
     "switch_to_scipy",
     "fast_solver_while_building",
+    "is_scipy_interface",
     "constraint_shadow_prices",
 ]
 
@@ -199,6 +200,16 @@ if _scipy_interface is not None:
                 i += 1
 
 
+def is_scipy_interface(interface) -> bool:
+    """True if ``interface`` (a solver name, an optlang interface module or a model's
+    ``problem`` attribute) is optlang's scipy interface."""
+    if _scipy_interface is None:
+        return False
+    if isinstance(interface, str):
+        return interface.lower() == "scipy"
+    return interface is _scipy_interface
+
+
 def _is_scipy_problem(problem) -> bool:
     return _scipy_interface is not None and isinstance(problem, _scipy_interface.Problem)
 
@@ -289,7 +300,7 @@ def switch_to_scipy(model) -> None:
     the sparse class, so a genome-scale model switches in seconds. The objective and its
     direction are kept. A model whose solver holds anything besides one forward and one
     reverse variable per reaction and one constraint per metabolite (an extra constraint or
-    variable of your own) is switched with ``model.solver = "scipy"`` instead and then repaired.
+    variable of your own) is switched with optlang's clone instead and then repaired.
     """
     if repair_scipy_problem(model):
         return
@@ -298,7 +309,9 @@ def switch_to_scipy(model) -> None:
         model.reactions
     )
     if _scipy_interface is None or not plain:
-        model.solver = "scipy"
+        from cobra import Model
+
+        Model.solver.fset(model, "scipy")
         repair_scipy_problem(model)
         return
     from cobra.util.solver import linear_reaction_coefficients

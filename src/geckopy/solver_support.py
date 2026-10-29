@@ -38,6 +38,11 @@ Solution after a solve
     nothing. ``Reaction.flux`` and ``Solver.primal_values`` then find no values after
     ``model.optimize()``. The subclass discards the solution only when the direction changes.
 
+    After a solve that finds no optimum (infeasible, unbounded) the scipy interface returns
+    ``None`` for every primal value and raises for the objective, so ``cobra.Model.optimize``
+    fails with a ``TypeError`` instead of returning a solution with that status. The subclass
+    returns NaN for both, so the solution carries the status and NaN values.
+
 Duals
     The scipy interface raises for ``Constraint.dual`` and ``Variable.dual`` but keeps the
     whole ``linprog`` result in ``problem._solution``. :func:`constraint_shadow_prices` reads
@@ -117,6 +122,19 @@ if _scipy_interface is not None:
                         cols.append(columns[name])
                 self._matrix = sparse.csr_matrix((data, (rows, cols)), shape=(m, n), dtype=float)
             return self._matrix
+
+        def get_var_primal(self, name):
+            """The primal value; NaN after a solve that found no optimum, None before any solve."""
+            if self._var_primals is None:
+                return None if self._status is None else float("nan")
+            return self._var_primals[self._get_var_index(name)]
+
+        @property
+        def objective_value(self):
+            """The optimum; NaN after a solve that found none."""
+            if self._f is None and self._status is not None:
+                return float("nan")
+            return super().objective_value
 
         def add_variable(self, name):
             if name in self._variables:

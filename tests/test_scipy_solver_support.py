@@ -304,3 +304,35 @@ def test_shadow_prices_need_an_optimal_solution(scipy_default):
     model.reactions.get_by_id("R3").lower_bound = 1e6
     with pytest.raises(RuntimeError, match="optimal"):
         constraint_shadow_prices(model, [model.enzymes.get_by_id(model.ec.enzymes[0]).prot_metabolite_id])
+
+
+@pytest.mark.parametrize("status_case", ["infeasible", "unbounded"])
+def test_a_solve_without_optimum_returns_a_solution_with_its_status(status_case):
+    config = cobra.Configuration()
+    previous = config.solver
+    config.solver = "scipy"
+    try:
+        model = cobra.Model("chain")
+        met = cobra.Metabolite("m")
+        source, sink = cobra.Reaction("source"), cobra.Reaction("sink")
+        source.add_metabolites({met: 1.0})
+        sink.add_metabolites({met: -1.0})
+        source.bounds = (0, 10) if status_case == "infeasible" else (0, 1000.0)
+        sink.bounds = (20, 30) if status_case == "infeasible" else (0, 1000.0)
+        model.add_reactions([source, sink])
+    finally:
+        config.solver = previous
+    model.objective = "sink"
+    if status_case == "unbounded":
+        source.upper_bound = float("inf")
+        sink.upper_bound = float("inf")
+    assert repair_scipy_problem(model)
+    if status_case == "unbounded":
+        # cobra raises for this status on every solver
+        with pytest.raises(cobra.exceptions.OptimizationError, match="unbounded"):
+            model.optimize(raise_error=False)
+        return
+    solution = model.optimize(raise_error=False)
+    assert solution.status == status_case
+    assert np.isnan(solution.objective_value)
+    assert solution.fluxes.isna().all()

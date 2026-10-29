@@ -264,7 +264,9 @@ def solver(request):
     model = cobra.Model("probe")
     try:
         model.solver = request.param
-        model.add_metabolites([cobra.Metabolite("m")])
+        probe = cobra.Reaction("probe_rxn")
+        probe.bounds = (0, 1)
+        model.add_reactions([probe])
         model.optimize()
     except Exception as exc:
         pytest.skip(f"{request.param} unusable: {exc}")

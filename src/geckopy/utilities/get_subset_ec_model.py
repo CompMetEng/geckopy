@@ -60,7 +60,9 @@ def get_subset_ec_model(
     5. Remove reactions whose canonicalised id is not in
        ``small_gem.reactions``, except ``usage_prot_*`` and
        ``prot_pool_exchange`` which are always preserved.
-    6. Trim the corresponding rows of
+    6. Remove the metabolites and genes that no reaction uses, as
+       MATLAB's ``removeGenes`` and ``removeReactions`` do.
+    7. Trim the corresponding rows of
        ``model.ec.rxns/kcat/source/notes/eccodes/rxn_enz_mat``. In a
        gecko-light model the ec reaction ids carry a ``001_`` prefix that
        is not part of the reaction id.
@@ -134,8 +136,6 @@ def get_subset_ec_model(
     genes_to_remove = (
         big_gene_ids - small_gem_gene_ids - {_STANDARD_GENE}
     )
-    if not genes_to_remove and not _need_rxn_trim(small, small_gem):
-        return small  # nothing to do
 
     # --- 5. Remove the genes, and the reactions they block ---
     # A reaction that survives (an isozyme remains) loses the gene from its
@@ -205,6 +205,18 @@ def get_subset_ec_model(
             rxns_to_remove_for_subset, remove_orphans=True,
         )
 
+    # --- 8b. Remove the metabolites and genes no reaction uses ---
+    # getSubsetEcModel's removeGenes and removeReactions calls drop every
+    # metabolite without a reaction and every gene without a reaction, also
+    # those that were unused in the big model (such as the ``standard``
+    # pseudo-gene of a light model).
+    unused_mets = [m for m in small.metabolites if not m.reactions]
+    if unused_mets:
+        small.remove_metabolites(unused_mets, destructive=False)
+    unused_genes = [g for g in small.genes if not g.reactions]
+    if unused_genes:
+        remove_genes(small, unused_genes, remove_reactions=False)
+
     # --- 9. Trim ec per-rxn fields ---
     cobra_rxn_ids = {r.id for r in small.reactions}
     keep_rxn_mask = np.array(
@@ -246,15 +258,3 @@ def get_subset_ec_model(
 def _canonical(rxn_id: str) -> str:
     """Strip ``_REV`` and ``_EXP_<N>`` suffixes."""
     return canonicalize_rxn_id(rxn_id)[0]
-
-
-def _need_rxn_trim(big: "EcModel", small_gem: "cobra.Model") -> bool:
-    """True if there's at least one reaction in big that's not in
-    small_gem and not part of the protein machinery."""
-    small_gem_rxn_ids = {r.id for r in small_gem.reactions}
-    for rxn in big.reactions:
-        if rxn.id.startswith(USAGE_PREFIX) or rxn.id == POOL_EXCHANGE_ID:
-            continue
-        if _canonical(rxn.id) not in small_gem_rxn_ids:
-            return True
-    return False

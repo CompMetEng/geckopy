@@ -540,3 +540,28 @@ def test_light_model_ec_rows_without_gene_removal(tmp_path):
     assert [r.id for r in result.reactions if r.id.startswith("R")] == ["R1"]
     assert result.ec.rxns == ["001_R1"]
     assert result.ec.rxn_enz_mat.shape == (1, 3)
+
+
+# --------------------------------------------------------------------------- #
+# Metabolites and genes that no reaction uses
+# --------------------------------------------------------------------------- #
+
+def test_unused_metabolites_and_genes_are_removed(tmp_path):
+    """MATLAB's removeGenes and removeReactions drop every metabolite and gene
+    without a reaction, also those that were unused in the big model."""
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    big.add_metabolites([cobra.Metabolite("X_c", compartment="c")])
+    big.genes.append(cobra.Gene("standard"))
+    small = cobra.Model("small")
+    for rid, rule in (("R1", "g1"), ("R2", "g1 and g2 or g3")):
+        rxn = cobra.Reaction(rid)
+        rxn.gene_reaction_rule = rule
+        small.add_reactions([rxn])
+    result = get_subset_ec_model(big, small)
+
+    assert not result.metabolites.has_id("X_c")
+    assert not result.genes.has_id("standard")
+    assert {g.id for g in result.genes} == {"g1", "g2", "g3"}
+    assert all(m.reactions for m in result.metabolites)
+    assert big.metabolites.has_id("X_c")
+    assert big.genes.has_id("standard")

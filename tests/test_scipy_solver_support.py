@@ -407,3 +407,29 @@ def test_model_tolerance_reaches_highs_and_survives_a_copy(monkeypatch):
     assert len(seen) == 3
     assert all(o["primal_feasibility_tolerance"] == 1e-9 for o in seen)
     assert all(o["dual_feasibility_tolerance"] == 1e-9 for o in seen)
+
+
+def test_a_solve_with_numerical_difficulties_is_repeated_at_the_default_tolerance(monkeypatch):
+    from scipy import optimize
+
+    model, _ = _build("scipy")
+    expected = model.slim_optimize()
+    model.tolerance = 1e-9
+    real = optimize.linprog
+    calls = []
+
+    def numerical_trouble_when_tight(*args, **kwargs):
+        calls.append(kwargs["options"])
+        if "primal_feasibility_tolerance" in kwargs["options"]:
+            return optimize.OptimizeResult(status=4, fun=None, x=None, slack=None)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr("geckopy.solver_support.linprog", numerical_trouble_when_tight)
+    assert model.slim_optimize() == pytest.approx(expected)
+    assert len(calls) == 2
+
+    def always_numerical_trouble(*args, **kwargs):
+        return optimize.OptimizeResult(status=4, fun=None, x=None, slack=None)
+
+    monkeypatch.setattr("geckopy.solver_support.linprog", always_numerical_trouble)
+    assert model.optimize(raise_error=False).status == "numeric"

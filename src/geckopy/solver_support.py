@@ -102,23 +102,37 @@ if _scipy_interface is not None:
             if self.direction == "max":
                 c *= -1
             options = {"maxiter": 10000, "disp": verbosity}
+            bounds = list(self.bounds.values())
+
+            def solve(options):
+                return linprog(c, self.A, self.upper_bounds, bounds=bounds, method=method, options=options, **kwargs)
+
+            tight = dict(options)
             if self._feasibility is not None:
-                options["primal_feasibility_tolerance"] = self._feasibility
+                tight["primal_feasibility_tolerance"] = self._feasibility
             if self._optimality is not None:
-                options["dual_feasibility_tolerance"] = self._optimality
-            solution = linprog(
-                c, self.A, self.upper_bounds, bounds=list(self.bounds.values()), method=method,
-                options=options, **kwargs,
-            )
+                tight["dual_feasibility_tolerance"] = self._optimality
+            solution = solve(tight)
+            # HiGHS reports numerical difficulties (status 4) on some LPs at a tolerance
+            # below its default; those are solved again at the default.
+            if solution.status == 4 and tight != options:
+                solution = solve(options)
             self._solution = solution
             self._status = solution.status
-            if _scipy_interface.SCIPY_STATUS[self._status] == _scipy_interface.interface.OPTIMAL:
+            if self._status == 0:
                 self._var_primals = solution.x
                 self._slacks = solution.slack
             else:
                 self._var_primals = None
                 self._slacks = None
             self._f = solution.fun
+
+        @property
+        def status(self):
+            """The solver status; a solve that ended with numerical difficulties is ``numeric``."""
+            if self._status is None:
+                raise RuntimeError("Problem has not been optimized yet")
+            return _scipy_interface.SCIPY_STATUS.get(self._status, _scipy_interface.interface.NUMERIC)
 
         def _init_sparse(self):
             # _rows[row name] = {variable name: coefficient}; _cols[variable name] = {row names}

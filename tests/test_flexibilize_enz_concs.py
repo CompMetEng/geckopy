@@ -249,7 +249,7 @@ def test_flex_concs_greater_than_old_for_returned_enzymes(tmp_path):
 
 def _usable_solvers():
     solvers = []
-    for name in ("glpk", "glpk_exact", "gurobi"):
+    for name in ("glpk", "glpk_exact", "gurobi", "scipy"):
         try:
             cobra.Model("probe").solver = name
         except Exception:

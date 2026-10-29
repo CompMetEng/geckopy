@@ -30,6 +30,7 @@ import cobra
 from raven_toolbox.utils.sort import sort_identifiers
 
 from ..databases import UniprotDB, load_uniprot_tsv
+from ..solver_support import repair_scipy_problem, switch_to_scipy
 from .ec_model import EcModel
 from .pipeline import (
     add_protein_pool_exchange_reaction,
@@ -203,6 +204,15 @@ def make_ec_model(
     # (splitting reactions, adding pseudometabolites, ...), but the caller's
     # input GEM must be left untouched.
     model = model.copy()
+    # On the scipy solver the pipeline runs on glpk and the result is converted at the end:
+    # optlang grows the scipy matrix densely, so the thousands of edits of a genome-scale
+    # build take hours there (see geckopy.solver_support).
+    on_scipy = repair_scipy_problem(model)
+    if on_scipy:
+        try:
+            model.solver = "glpk"
+        except Exception:  # glpk unavailable: build on scipy
+            on_scipy = False
 
     # Stages 1-4: preprocess on a plain cobra.Model. Stage 5 (isozyme
     # expansion) is full-only; light keeps isozymes singular and tracks
@@ -278,6 +288,9 @@ def make_ec_model(
             preview,
             more,
         )
+
+    if on_scipy:
+        switch_to_scipy(ec_model)
 
     # Catch any internal length/shape drift in the ec arrays before the
     # model is handed back (cheap, and surfaces build bugs early).

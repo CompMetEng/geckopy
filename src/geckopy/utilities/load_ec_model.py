@@ -20,7 +20,16 @@ geckopy keeps three application-level concerns:
    clear message if the YAML lacks the ec sections, and attach the
    adapter to ``model.adapter`` so downstream geckopy code finds it.
 
-4. **ecModel format** — a file whose protein usage and pool reactions
+4. **Tolerated input** — a file that the YAML reader rejects is read again
+   after the two forms that GECKO's ``loadEcModel`` (through RAVEN's
+   ``readYAMLmodel``) accepts are rewritten as valid YAML: ``enzymes: !!omap``
+   with no entries, as GECKO writes it for a reaction without enzymes, and a
+   value in double quotes that holds unescaped double quotes, such as
+   ``""text""``, which RAVEN 2 wrote for a value that has quotes of its own.
+   The value loaded is the one MATLAB loads: the outer pair of quotes is
+   removed and the quotes inside stay.
+
+5. **ecModel format** — a file whose protein usage and pool reactions
    raven-toolbox turned forward from the GECKO 3 direction gives a
    warning that names :func:`~geckopy.upgrade_project`; an ecModel
    format (``gecko_format`` in the file's ``metaData``, see
@@ -34,7 +43,9 @@ Ported from GECKO MATLAB: src/geckomat/utilities/loadEcModel.m.
 """
 from __future__ import annotations
 
+import json
 import re
+import tempfile
 import threading
 import warnings
 from pathlib import Path
@@ -108,7 +119,7 @@ def load_ec_model(
     with _HOOK_LOCK, warnings.catch_warnings():
         warnings.filterwarnings("always", message=r"ecModel uses the older reverse-direction convention")
         warnings.showwarning = count_turned
-        cobra_model = read_yaml_model(path)
+        cobra_model = _read_yaml(path)
     meta = (cobra_model.notes or {}).get("metaData") or {}
     if _format_number(meta.get("gecko_format")) > 4:
         raise ValueError(
@@ -139,6 +150,70 @@ def load_ec_model(
             stacklevel=2,
         )
     return ec_model
+
+
+_EMPTY_OMAP = re.compile(
+    # A key whose value is the tag `!!omap` and nothing else, when the next
+    # non-blank line is not indented deeper than the line of the key.
+    r"^( *)((?:- )?[^\n:]*: )!!omap[ \t]*$(?!\n(?:[ \t]*\n)*\1 +\S)",
+    re.MULTILINE,
+)
+_QUOTED_VALUE = re.compile(
+    r'^( *-(?: +[^\s":][^":\n]*:)? +)"(.*)"[ \t]*$',
+    re.MULTILINE,
+)
+
+
+def _read_yaml(path: Path):
+    """``read_yaml_model``; a file it rejects is read again after
+    :func:`_repair_yaml_text`, and the first error is raised when that
+    changes nothing."""
+    try:
+        return read_yaml_model(path)
+    except Exception:
+        text = path.read_text(encoding="utf-8")
+        repaired = _repair_yaml_text(text)
+        if repaired == text:
+            raise
+    with tempfile.TemporaryDirectory() as folder:
+        fixed = Path(folder) / "ecModel.yml"
+        fixed.write_text(repaired, encoding="utf-8")
+        return read_yaml_model(fixed)
+
+
+def _repair_yaml_text(text: str) -> str:
+    """Write the two forms that MATLAB reads and YAML does not as YAML.
+
+    ``key: !!omap`` without entries becomes ``key: !!omap []``. A value in
+    double quotes that holds a double quote which is not escaped is read as
+    RAVEN's ``readYAMLmodel`` reads it: without its outer pair of quotes and
+    with an escaped backslash or quote as the character itself, and written
+    back as a YAML string.
+    """
+    text = _EMPTY_OMAP.sub(r"\1\2!!omap []", text)
+
+    def requote(match: re.Match) -> str:
+        inner = match.group(2)
+        if not _has_unescaped_quote(inner):
+            return match.group(0)
+        value = inner.replace("\\\\", "\0").replace('\\"', '"').replace("\0", "\\")
+        return match.group(1) + json.dumps(value, ensure_ascii=False)
+
+    return _QUOTED_VALUE.sub(requote, text)
+
+
+def _has_unescaped_quote(inner: str) -> bool:
+    """Whether ``inner``, the text between the outer quotes of a value, has a
+    double quote that no backslash escapes."""
+    i = 0
+    while i < len(inner):
+        if inner[i] == "\\":
+            i += 2
+            continue
+        if inner[i] == '"':
+            return True
+        i += 1
+    return False
 
 
 def _format_number(value) -> float:

@@ -200,6 +200,32 @@ if _scipy_interface is not None:
                 i += 1
 
 
+if _scipy_interface is not None:
+
+    class _SparseModel(_scipy_interface.Model):
+        """``scipy_interface.Model`` on a `_SparseProblem` that copies and pickles sparsely.
+
+        optlang pickles a model as JSON and restores it by adding the variables and
+        constraints to a fresh dense problem, which takes tens of minutes for a genome-scale
+        model. This class restores into a `_SparseProblem`, so ``copy.deepcopy``,
+        ``cobra.Model.copy`` and the worker processes of a pool get their copy in seconds.
+        """
+
+        # optlang finds its interface module (the scipy one) through this attribute.
+        __module__ = _scipy_interface.__name__
+
+        def _initialize_problem(self):
+            self.problem = _SparseProblem()
+
+        def __reduce__(self):
+            return (_restore_sparse_model, (self.to_json(),))
+
+    def _restore_sparse_model(state):
+        model = _SparseModel()
+        model._init_from_json(state)
+        return model
+
+
 def is_scipy_interface(interface) -> bool:
     """True if ``interface`` (a solver name, an optlang interface module or a model's
     ``problem`` attribute) is optlang's scipy interface."""
@@ -281,6 +307,7 @@ def repair_scipy_problem(model) -> bool:
         return True
     stale = _map_is_stale(problem)
     problem.__class__ = _SparseProblem
+    solver.__class__ = _SparseModel
     if stale:
         problem._init_sparse()
         problem._rows = {name: {} for name in problem._constraints}
@@ -319,9 +346,7 @@ def switch_to_scipy(model) -> None:
 
     coefficients = linear_reaction_coefficients(model)
     direction = model.objective.direction
-    new = _scipy_interface.Model()
-    new.problem.__class__ = _SparseProblem
-    new.problem._init_sparse()
+    new = _SparseModel()
     new.objective = _scipy_interface.Objective(Zero)
     model._solver = new
     model._populate_solver(model.reactions, model.metabolites)

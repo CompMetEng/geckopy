@@ -360,3 +360,25 @@ def test_load_ec_model_ends_on_the_sparse_scipy_problem(scipy_default, tmp_path)
     assert cobra.Configuration().solver.__name__.endswith("scipy_interface")
     loaded.objective = "R3"
     assert loaded.slim_optimize() == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("how", ["pickle", "deepcopy", "copy"])
+def test_a_scipy_ec_model_pickles_and_copies_into_the_sparse_problem(how):
+    import copy
+    import pickle
+
+    from geckopy.solver_support import _SparseProblem
+
+    model, _ = _build("glpk")
+    expected = model.slim_optimize()
+    model.solver = "scipy"
+    model.slim_optimize()
+    clone = {
+        "pickle": lambda: pickle.loads(pickle.dumps(model)),
+        "deepcopy": lambda: copy.deepcopy(model),
+        "copy": model.copy,
+    }[how]()
+    assert isinstance(clone._solver.problem, _SparseProblem)
+    assert clone.solver.interface.__name__.endswith("scipy_interface")
+    assert clone.slim_optimize() == pytest.approx(expected)
+    assert clone.reactions.get_by_id("R3").flux == pytest.approx(model.reactions.get_by_id("R3").flux)

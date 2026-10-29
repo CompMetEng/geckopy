@@ -359,3 +359,59 @@ def test_knockout_slice_works(tmp_path):
     ko = result.knockout  # raven calls this slice "knockout" but it includes knockdown
     assert isinstance(ko, pd.DataFrame)
     assert "R_BIO" in list(ko["reaction"])
+
+
+# --------------------------------------------------------------------------- #
+# ecFSEOF.m's target order and fixed target flux
+# --------------------------------------------------------------------------- #
+
+def test_targets_list_reaction_targets_before_transport_targets():
+    """A reaction whose metabolite names repeat (not counting prot_*) is a transport target;
+    the score order is kept inside each group."""
+    import importlib
+
+    import pandas as pd
+
+    module = importlib.import_module("geckopy.utilities.ec_fseof")
+    model = cobra.Model("m")
+    mets = {
+        "a_c": cobra.Metabolite("a_c", name="a", compartment="c"),
+        "a_e": cobra.Metabolite("a_e", name="a", compartment="e"),
+        "b_c": cobra.Metabolite("b_c", name="b", compartment="c"),
+        "p1": cobra.Metabolite("prot_E1", name="prot_E1", compartment="c"),
+        "p2": cobra.Metabolite("prot_E2", name="prot_E2", compartment="c"),
+    }
+    transport = cobra.Reaction("TRANSPORT")
+    transport.add_metabolites({mets["a_e"]: -1.0, mets["a_c"]: 1.0, mets["p1"]: -0.1})
+    first = cobra.Reaction("FIRST")
+    first.add_metabolites({mets["a_c"]: -1.0, mets["b_c"]: 1.0, mets["p2"]: -0.1})
+    second = cobra.Reaction("SECOND")
+    second.add_metabolites({mets["b_c"]: -1.0, mets["p1"]: -0.1, mets["p2"]: -0.1})
+    model.add_reactions([transport, first, second])
+    result = FSEOFResult(
+        scan=pd.DataFrame(),
+        enforced=[1.0],
+        targets=pd.DataFrame({"reaction": ["TRANSPORT", "FIRST", "SECOND"], "score": [3.0, 2.0, 1.0]}),
+    )
+
+    grouped = module._group_transport_targets(result, model).targets
+
+    assert list(grouped["reaction"]) == ["FIRST", "SECOND", "TRANSPORT"]
+    assert list(grouped["transport"]) == [False, False, True]
+
+
+def test_ec_fseof_fixes_the_target_flux_at_each_level(tmp_path, monkeypatch):
+    import importlib
+
+    module = importlib.import_module("geckopy.utilities.ec_fseof")
+    seen = {}
+    real = module.fseof
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, "fseof", spy)
+    result = ec_fseof(_build_fseof_model(_adapter(tmp_path)), "EX_PROD", n_steps=4)
+    assert seen["equality"] is True
+    assert "transport" in result.targets.columns

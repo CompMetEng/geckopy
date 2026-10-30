@@ -234,16 +234,17 @@ def flexibilize_enz_concs(
         units.append(members)
     unit_frequence = np.zeros(len(units), dtype=int)
 
-    initial_sol = model.optimize()
-    if initial_sol.status != "optimal":
+    # slim_optimize does not read the primal values, which Gurobi does not hold
+    # for an infeasible LP that it presolved (reading them raises GurobiError).
+    pred_growth = float(model.slim_optimize(error_value=float("nan")))
+    if model.solver.status != "optimal":
         logger.warning(
             "flexibilize_enz_concs: FBA of the input model is %s, so there is "
             "no growth to flexibilize towards; no enzyme is flexibilized. "
             "Check the enzyme-concentration and exchange constraints.",
-            initial_sol.status,
+            model.solver.status,
         )
         return FlexEnzResult()
-    pred_growth = float(initial_sol.objective_value)
 
     flex_break = False
     pool_old: Optional[float] = None

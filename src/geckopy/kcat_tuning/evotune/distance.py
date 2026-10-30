@@ -1,31 +1,18 @@
 """Carbon- and condition-weighted RMSE distance for evotune kcat tuning.
 
-Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/Bayesian/abc_max.m (the
-``rmsecal`` helper's RMSE half; verified against ``develop4``'s
-current source). :mod:`.simulate` does the FBA half -- this module is
-pure numpy (plus one small model-reading helper for the carbon
-weights) so the RMSE math is directly testable against hand-computed
-expected values, no ``EcModel``/FBA involved.
+:mod:`.simulate` does the FBA half; this module is pure numpy (plus one
+small model-reading helper for the carbon weights) so the RMSE math is
+directly testable against hand-computed expected values, no
+``EcModel``/FBA involved.
 
-Two MATLAB behaviours are intentionally *not* ported, per
-``REVIEW.md``'s findings against ``develop4``:
+The biomass reaction is passed explicitly as ``bio_rxn_id``
+(``adapter.params.bio_rxn``) rather than matched by a literal name, and
+:func:`dataset_rmse` builds its reaction-id-to-column lookup once.
 
-- ``addCarbonNum.m`` matches the biomass reaction by the literal name
-  ``'growth'`` (REVIEW.md #4) -- silently a no-op for any adapter that
-  doesn't use that exact name. Here the caller passes the real
-  ``bio_rxn_id`` explicitly (``adapter.params.bio_rxn``) instead.
-- ``rmsecal`` recomputes ``ismember(data.conds, data.exchMets)`` (and
-  its validation) on every inner-loop iteration despite it not
-  depending on the loop variable (REVIEW.md, low severity) --
-  :func:`dataset_rmse` builds its reaction-id-to-column lookup once.
-
-One quirk *is* ported deliberately, because it changes what the RMSE
-actually measures: MATLAB's ``ecModel.excarbon(ecModel.excarbon == 0)
-= 1`` clamps *every* zero-carbon exchange metabolite (O2, water, ...)
-up to a carbon weight of 1, not 0 -- so those reactions' flux
-mismatches still count toward the RMSE at unit weight rather than
-being silently zeroed out of it. See :func:`compute_excarbon`.
+Every zero-carbon exchange metabolite (O2, water, ...) is clamped up to
+a carbon weight of 1, not 0, so those reactions' flux mismatches still
+count toward the RMSE at unit weight rather than being zeroed out of it.
+See :func:`compute_excarbon`.
 """
 from __future__ import annotations
 
@@ -193,7 +180,7 @@ def evotune_distance(
     penalty: float = INFEASIBLE_PENALTY,
     max_growth_weight: float = 1.0,
 ) -> tuple[float, dict[str, np.ndarray]]:
-    """Combine both datasets' RMSE into one score, per ``abc_max.m``.
+    """Combine both datasets' RMSE into one score.
 
     ``flux_sims`` must be given (non-``None``) iff ``evotune_data.flux_data``
     is not ``None``, and likewise for ``max_grate_sims`` /
@@ -211,11 +198,6 @@ def evotune_distance(
         the max-growth set is where the carbon-source diversity lives,
         while 30 of the 33 flux conditions are glucose.
 
-        This is deliberately not MATLAB's convention. ``abc_max.m``
-        applies ``weights = [maxGrowthWeight, 1]`` to
-        ``[rmse_flux, rmse_maxGrate]``, so there the same field scales
-        the *flux* term. **A run reproducing MATLAB must pass 0.5
-        here** to match its ``maxGrowthWeight = 2``.
 
     Returns
     -------

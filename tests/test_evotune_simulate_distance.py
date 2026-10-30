@@ -398,10 +398,7 @@ def test_evotune_distance_combines_both_datasets(tmp_path):
 
 def test_evotune_distance_max_growth_weight_scales_the_max_growth_term(tmp_path):
     """``max_growth_weight`` scales the max-growth term, so 2 makes the
-    eight max-growth conditions count double against the 33 flux ones.
-
-    MATLAB's ``abc_max.m`` weights the flux term with the same field,
-    so reproducing its ``maxGrowthWeight = 2`` needs 0.5 here."""
+    eight max-growth conditions count double against the 33 flux ones."""
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     flux_data = _flux_data(ethanol_grrate=20.0)

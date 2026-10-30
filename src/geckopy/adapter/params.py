@@ -2,8 +2,8 @@
 
 ``KeggParams``, ``UniprotParams``, ``ComplexParams``, and the core fields
 of ``ModelParameters`` mirror the ``obj.params.*`` fields set in GECKO
-MATLAB's adapter template. ``BayesianParams`` and ``OkpParams`` are
-geckopy-only extensions with no MATLAB equivalent.
+MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings; ``OkpParams`` is a
+geckopy-only extension with no MATLAB equivalent.
 
 Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
 """

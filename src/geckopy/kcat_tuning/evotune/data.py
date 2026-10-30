@@ -1,28 +1,15 @@
 """Load experimental data for evotune (CMA-ES) kcat tuning.
 
-Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/Bayesian/loadBayesianData.m.
+The flux and max-growth files, ``evotuneFluxData.tsv`` and
+``evotuneMaxGrowth.tsv``, share the column layout
+``Condition Ptot grRate <met> (<rxn>) ... evotuneRMSEweight source`` with
+regular flux data, so both reuse
+:func:`~geckopy.databases.flux_data.load_flux_data` unchanged; only
+``evotuneZeroExch.tsv`` (a single ``Rxns`` id column) needs a loader of
+its own.
 
-MATLAB's ``loadBayesianData`` loads ``bayesianFluxData.tsv`` and
-``bayesianMaxGrowth.tsv`` (renamed here to ``evotuneFluxData.tsv`` and
-``evotuneMaxGrowth.tsv``) through the *same* ``loadFluxData`` parser used
-for regular flux data (verified against ``develop4``'s current source,
-not assumed) -- both files share the identical
-``Condition Ptot grRate <met> (<rxn>) ... evotuneRMSEweight source``
-column layout. geckopy already has that parser as
-:func:`~geckopy.databases.flux_data.load_flux_data`, so both files reuse
-it unchanged; only ``evotuneZeroExch.tsv`` (a single ``Rxns`` id column)
-needs a loader of its own.
-
-Unlike MATLAB -- which treats a missing/unreadable file as `[]` via a
-try/catch inside ``loadFluxData`` -- all three files are treated
-uniformly here as optional: a missing file yields ``None`` (or an empty
-list for ``zero_flux``), never an exception. This also sidesteps a bug
-flagged in the MATLAB review (``REVIEW.md`` #3): there, only the
-``fluxData`` field was null-guarded before ``.biomass`` was attached,
-while ``maxGrate`` wasn't, so a missing ``evotuneMaxGrowth.tsv`` there
-silently produced a struct with just a ``.biomass`` field instead of a
-clean "absent" signal.
+All three files are optional: a missing file yields ``None`` (or an empty
+list for ``zero_flux``), never an exception.
 """
 from __future__ import annotations
 

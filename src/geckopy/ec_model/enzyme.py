@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Iterator
 
 import cobra
 
+from ..solver_support import constraint_shadow_prices
 from .constants import PROT_PREFIX, USAGE_PREFIX
 from .pipeline.populate_ec import split_light_rxn_id
 
@@ -186,9 +187,9 @@ class Enzyme:
 
     @property
     def shadow_price(self) -> float:
-        """Dual of the prot_<id> mass-balance constraint."""
+        """Dual of the prot_<id> mass-balance constraint, on every solver (scipy included)."""
         self._require_full_model("shadow_price")
-        return float(self._model.constraints[self.prot_metabolite_id].dual)
+        return float(constraint_shadow_prices(self._model, [self.prot_metabolite_id])[0])
 
     @property
     def reactions(self) -> frozenset:

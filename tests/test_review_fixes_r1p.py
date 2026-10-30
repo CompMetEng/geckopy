@@ -9,7 +9,7 @@ from geckopy.limit_proteins.get_conc_control_coeffs import _finite_difference_co
 from test_get_conc_control_coeffs import _build_toy_ec_model
 from test_sigma_fitter import _adapter, _build_pool_only_model
 
-SOLVERS = ["glpk", "glpk_exact", "gurobi"]
+SOLVERS = ["glpk", "glpk_exact", "gurobi", "scipy"]
 
 
 def _with_solver(model, solver):

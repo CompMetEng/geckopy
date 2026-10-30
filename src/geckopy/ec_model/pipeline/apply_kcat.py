@@ -9,6 +9,7 @@ single ``prot_pool`` coefficient there.
 """
 from __future__ import annotations
 
+import contextlib
 import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
@@ -19,8 +20,13 @@ if TYPE_CHECKING:
     from ..ec_model import EcModel
 
 
+from ...solver_support import edit_on_fast_solver
 from ..constants import POOL_ID, PROT_PREFIX
 from .populate_ec import split_light_rxn_id
+
+
+# Number of updated ec reactions from which a scipy model is edited on glpk.
+_BULK_UPDATE = 100
 
 
 def apply_kcat_constraints(
@@ -75,6 +81,17 @@ def apply_kcat_constraints(
         If every kcat to be applied is 0 or NaN. Old coefficients are
         still cleared in this case; nothing is written afterward.
     """
+    # A scipy model is edited on glpk when many reactions change: the scipy interface
+    # rewrites the rows of a constraint for every changed coefficient.
+    many = update_rxns is None or len(update_rxns) == 0 or len(update_rxns) >= _BULK_UPDATE
+    with edit_on_fast_solver(model) if many else contextlib.nullcontext():
+        _apply_kcat_constraints(model, update_rxns)
+
+
+def _apply_kcat_constraints(
+    model: "EcModel",
+    update_rxns: list[str] | None,
+) -> None:
     if model.ec.gecko_light:
         _apply_kcat_constraints_light(model, update_rxns)
         return

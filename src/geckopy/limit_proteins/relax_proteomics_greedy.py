@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
+from ..solver_support import constraint_shadow_prices
+
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
 
@@ -113,15 +115,15 @@ def relax_proteomics_greedy(
                 final_growth=float(growth), converged=False,
             )
 
-        ranked = sorted(
-            candidates,
-            key=lambda u: abs(model.enzymes.get_by_id(u).shadow_price),
-            reverse=True,
-        )
-        target = ranked[0]
+        ordered = sorted(candidates)
+        prices = dict(zip(
+            ordered,
+            constraint_shadow_prices(model, [model.enzymes.get_by_id(u).prot_metabolite_id for u in ordered]),
+        ))
+        target = max(ordered, key=lambda u: abs(prices[u]))
         enz = model.enzymes.get_by_id(target)
         original_conc = enz.concentration
-        sp = enz.shadow_price
+        sp = prices[target]
 
         enz.upper_bound = default_upper_bound
         relaxed[target] = original_conc

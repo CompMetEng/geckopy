@@ -548,3 +548,110 @@ def test_other_reader_warnings_pass_through(tmp_path, monkeypatch):
     monkeypatch.setattr(lem, "read_yaml_model", read_with_warning)
     with pytest.warns(UserWarning, match="unrelated reader warning"):
         load_ec_model("ecModel.yml", adapter=adapter)
+
+
+# --------------------------------------------------------------------------- #
+# Input that MATLAB's readYAMLmodel reads and a YAML parser rejects
+# --------------------------------------------------------------------------- #
+
+# The ec reactions as GECKO writes them: R1_EXP_1 has no enzymes (`enzymes: !!omap`
+# with no entries, as for a `standard` row), R3 is the last row before the next section.
+# The notes of R1_EXP_1 and R3 hold quotes that RAVEN 2 did not escape.
+_GECKO_FORM = """\
+!!omap
+- metaData: !!omap
+  - id: "t"
+  - name: "t"
+- metabolites:
+  - !!omap
+    - id: "A_c"
+    - name: "A"
+    - compartment: "c"
+- reactions:
+  - !!omap
+    - id: "R1"
+    - name: "r"
+    - metabolites: !!omap
+      - A_c: -1
+    - lower_bound: 0
+    - upper_bound: 1000
+    - gene_reaction_rule: "g1"
+- genes:
+  - !!omap
+    - id: "g1"
+- compartments: !!omap
+  - c: "cyto"
+- gecko_light: false
+- ec-rxns:
+  - !!omap
+    - id: "R1_EXP_1"
+    - kcat: 1.5
+    - source: "standard"
+    - notes: ""Putative x. And y.""
+    - enzymes: !!omap
+  - !!omap
+    - id: "R2"
+    - kcat: 2
+    - notes: "say \\"hi\\" now"
+    - enzymes: !!omap
+        - P1: 1
+  - !!omap
+    - id: "R3"
+    - kcat: 3
+    - notes: "say "hi" now \\\\ ok"
+    - enzymes: !!omap
+- ec-enzymes:
+  - !!omap
+    - genes: "g1"
+    - enzymes: "P1"
+    - mw: 10
+    - sequence: "ABC"
+"""
+
+
+def test_enzymes_omap_without_entries_and_unescaped_quotes_load(tmp_path):
+    """The values are those MATLAB's readYAMLmodel gives: no enzymes for the rows
+    without entries, the outer pair of quotes of a note removed and the inner ones kept."""
+    path = tmp_path / "gecko.yml"
+    path.write_text(_GECKO_FORM, encoding="utf-8")
+    model = load_ec_model(path)
+
+    assert model.ec.rxns == ["R1_EXP_1", "R2", "R3"]
+    np.testing.assert_array_equal(model.ec.kcat, [1.5, 2.0, 3.0])
+    assert model.ec.source == ["standard", "", ""]
+    assert model.ec.notes == ['"Putative x. And y."', 'say "hi" now', 'say "hi" now \\ ok']
+    assert model.ec.enzymes == ["P1"]
+    np.testing.assert_array_equal(model.ec.rxn_enz_mat.toarray(), [[0.0], [1.0], [0.0]])
+
+
+def test_valid_file_is_not_rewritten(tmp_path):
+    """A quoted value with escaped quotes stays as it is."""
+    from geckopy.utilities.load_ec_model import _repair_yaml_text
+
+    text = '    - notes: "say \\"hi\\" now"\n    - enzymes: !!omap\n        - P1: 1\n    - notes: ""\n'
+    assert _repair_yaml_text(text) == text
+
+
+def test_file_that_stays_invalid_raises_its_first_error(tmp_path):
+    from raven_toolbox.io import read_yaml_model
+
+    path = tmp_path / "bad.yml"
+    path.write_text("!!omap\n- id: [unclosed\n", encoding="utf-8")
+    with pytest.raises(Exception) as direct:
+        read_yaml_model(path)
+    with pytest.raises(type(direct.value)):
+        load_ec_model(path)
+
+
+def test_enzymes_omap_without_entries_loads(tmp_path):
+    text = "".join(
+        line for line in _GECKO_FORM.splitlines(keepends=True)
+        if "Putative" not in line and "ok" not in line
+    )
+    path = tmp_path / "gecko.yml"
+    path.write_text(text, encoding="utf-8")
+    model = load_ec_model(path)
+
+    assert model.ec.rxns == ["R1_EXP_1", "R2", "R3"]
+    assert model.ec.notes == ["", 'say "hi" now', ""]
+    np.testing.assert_array_equal(model.ec.rxn_enz_mat.toarray(), [[0.0], [1.0], [0.0]])

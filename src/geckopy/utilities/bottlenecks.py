@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from ..solver_support import constraint_shadow_prices
+
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
 
@@ -63,12 +65,14 @@ def get_enzyme_bottlenecks(model: "EcModel", *, top: int = 10) -> pd.DataFrame:
             f"Solver status {sol.status!r}; cannot rank bottlenecks"
         )
 
+    enzymes = list(model.enzymes)
+    prices = constraint_shadow_prices(model, [enz.prot_metabolite_id for enz in enzymes])
     rows = []
-    for enz in model.enzymes:
+    for enz, price in zip(enzymes, prices):
         rows.append({
             "uniprot": enz.id,
             "gene": enz.gene,
-            "shadow_price": enz.shadow_price,
+            "shadow_price": float(price),
             "flux": enz.flux,
             "cap_usage": enz.cap_usage,
             "upper_bound": enz.upper_bound,

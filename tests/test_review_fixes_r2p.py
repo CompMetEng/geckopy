@@ -15,7 +15,7 @@ from geckopy.limit_proteins import get_conc_control_coeffs
 
 from test_get_conc_control_coeffs import _build_toy_ec_model
 
-SOLVERS = ["glpk", "glpk_exact", "gurobi"]
+SOLVERS = ["glpk", "glpk_exact", "gurobi", "scipy"]
 MODULE = "geckopy.limit_proteins.get_conc_control_coeffs"
 
 

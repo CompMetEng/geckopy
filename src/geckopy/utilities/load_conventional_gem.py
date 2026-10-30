@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 import cobra
 from raven_toolbox.io import read_yaml_model
 
+from ..solver_support import fast_solver_while_building, switch_to_scipy
+
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter
 
@@ -58,10 +60,17 @@ def load_conventional_gem(adapter: "ModelAdapter") -> cobra.Model:
     if not path.is_file():
         raise FileNotFoundError(f"conv_gem file not found: {path}")
     suffix = path.suffix.lower()
-    if suffix in _YAML_SUFFIXES:
-        return read_yaml_model(path)
-    if suffix in _JSON_SUFFIXES:
-        return cobra.io.load_json_model(str(path))
-    if suffix in _MAT_SUFFIXES:
-        return cobra.io.load_matlab_model(str(path))
-    return cobra.io.read_sbml_model(str(path))
+    # With the scipy solver as cobra's default the model is read on glpk and converted: optlang
+    # grows the scipy matrix densely, which takes hours for a genome-scale model.
+    with fast_solver_while_building() as on_fast_solver:
+        if suffix in _YAML_SUFFIXES:
+            model = read_yaml_model(path)
+        elif suffix in _JSON_SUFFIXES:
+            model = cobra.io.load_json_model(str(path))
+        elif suffix in _MAT_SUFFIXES:
+            model = cobra.io.load_matlab_model(str(path))
+        else:
+            model = cobra.io.read_sbml_model(str(path))
+    if on_fast_solver:
+        switch_to_scipy(model)
+    return model

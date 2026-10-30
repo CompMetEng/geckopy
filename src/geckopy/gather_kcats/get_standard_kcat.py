@@ -49,7 +49,9 @@ def assign_standard_kcat(
     ``threshold`` reactions with a real kcat) are computed. Reactions
     that lack a GPR rule, or have a GPR but no entry in
     ``model.ec.rxns``, are added to ``model.ec`` with this standard
-    pseudoenzyme.
+    pseudoenzyme. Only the first subsystem of a reaction counts, and
+    subsystem names that differ only in letter case are one subsystem.
+    A reaction with an empty subsystem has none.
 
     The function is idempotent: previous "standard" entries
     (identified by ``model.ec.source == "standard"``) are stripped
@@ -172,6 +174,13 @@ def _first_subsystem(rxn: cobra.Reaction) -> str:
     return sub.split(";")[0].strip()
 
 
+def _subsystem_key(rxn: cobra.Reaction) -> str:
+    """The first subsystem of ``rxn`` without regard to letter case, as
+    MATLAB's ``strcmpi`` compares subsystem names; empty for a reaction
+    without a subsystem."""
+    return _first_subsystem(rxn).lower()
+
+
 def _ec_rxn_to_cobra_id(model: "EcModel", ec_rxn_id: str) -> str:
     return ec_rxn_id[4:] if model.ec.gecko_light else ec_rxn_id
 
@@ -197,7 +206,7 @@ def _compute_subsystem_kcats(
             rxn = model.reactions.get_by_id(cobra_rxn_id)
         except KeyError:
             continue
-        sub = _first_subsystem(rxn)
+        sub = _subsystem_key(rxn)
         if not sub:
             continue
         sub_kcats[sub].append(float(kcat))
@@ -379,7 +388,7 @@ def _assign_standard_kcat_to_missing(
     kcats_to_add: list[float] = []
     for rxn_id in rxn_ids:
         rxn = model.reactions.get_by_id(rxn_id)
-        sub = _first_subsystem(rxn)
+        sub = _subsystem_key(rxn)
         kcat = (
             subsystem_kcats.get(sub, standard_kcat)
             if sub

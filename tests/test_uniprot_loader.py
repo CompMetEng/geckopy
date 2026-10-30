@@ -234,3 +234,79 @@ def test_find_by_id_returns_index(tmp_path):
     db = load_uniprot_tsv(path)
     assert db.find_by_id("P2") == 1
     assert db.find_by_id("Pxxx") is None
+
+
+# --------------------------------------------------------------------------- #
+# Quoted cells, read as MATLAB's textscan with %q reads them
+# --------------------------------------------------------------------------- #
+
+T = "\t"
+
+
+def test_quoted_cell_is_given_without_its_quotes(tmp_path):
+    path = _write_tsv(tmp_path / "u.tsv", [
+        'P1\tG1\t"1.1.1.25; 2.5.1.19"\t10000\tMKAL',
+    ])
+    db = load_uniprot_tsv(path)
+    assert db.eccodes == ["1.1.1.25; 2.5.1.19"]
+    assert db.genes == ["G1"]
+    assert db.sequences == ["MKAL"]
+
+
+def test_quoted_gene_cell_is_split_without_quotes(tmp_path):
+    path = _write_tsv(tmp_path / "u.tsv", [
+        'P1\t"G1 G2"\t\t10000\tMKAL',
+    ])
+    db = load_uniprot_tsv(path, split_gene_cells=True)
+    assert db.genes == ["G1", "G2"]
+
+
+def test_quoted_entry_ids_count_as_duplicates(tmp_path):
+    path = _write_tsv(tmp_path / "u.tsv", [
+        'P1\tG1\t\t10000\tMKAL',
+        '"P1"\tG2\t\t10000\tMKAL',
+    ])
+    with pytest.raises(ValueError, match="Duplicate"):
+        load_uniprot_tsv(path)
+
+
+# The expected rows are what MATLAB's textscan(fid, '%q %q %q %q %q', 'Delimiter', '\t',
+# 'HeaderLines', 1) returns for the same text (MATLAB R2024b).
+@pytest.mark.parametrize(
+    "text, rows",
+    [
+        (f'P1{T}g1{T}"1.1.1.25; 2.5.1.19"{T}100{T}SEQ\n', [["P1", "g1", "1.1.1.25; 2.5.1.19", "100", "SEQ"]]),
+        (f'P2{T}"a ""b"" c"{T}{T}10{T}S\n', [["P2", 'a "b" c', "", "10", "S"]]),
+        (f'P3{T}"has{T}tab"{T}"x"{T}5{T}S\n', [["P3", f"has{T}tab", "x", "5", "S"]]),
+        (f'P4{T}ab"cd"{T}"x"y{T}7{T}S\n', [["P4", 'ab"cd"', "xy", "7", "S"]]),
+        (f'P6{T}" spaced "{T}  lead  {T}4{T}S\n', [["P6", " spaced ", "lead  ", "4", "S"]]),
+        (f"P7{T}g\n", [["P7", "g", "", "", ""]]),
+        (f'P12{T}"""a"""{T}x{T}1{T}S\n', [["P12", '"a"', "x", "1", "S"]]),
+        (f'P13{T}a""b{T}"x\ny"{T}1{T}S\n', [["P13", 'a""b', "x\ny", "1", "S"]]),
+        (f'P10{T}"unterminated{T}x{T}1{T}S\n', [["P10", f"unterminated{T}x{T}1{T}S\n", "", "", ""]]),
+        (f'A{T}g{T}e{T}5{T}S\nB{T}h\nC{T}i{T}f{T}6{T}T\n',
+         [["A", "g", "e", "5", "S"], ["B", "h", "", "", ""], ["C", "i", "f", "6", "T"]]),
+        (f"A{T}g{T}e{T}5{T}S{T}extra{T}more\nB{T}h{T}e{T}6{T}T\n",
+         [["A", "g", "e", "5", "S"], ["extra", "more", "", "", ""], ["B", "h", "e", "6", "T"]]),
+        (f'A{T}"x y"{T}e{T}5{T}S\r\nB{T}h{T}e{T}6{T}T\r\n',
+         [["A", "x y", "e", "5", "S"], ["B", "h", "e", "6", "T"]]),
+        (f"A{T}g{T}{T}{T}\nB{T}h{T}{T}6{T}\n",
+         [["A", "g", "", "", ""], ["B", "h", "", "6", ""]]),
+        (f"A{T}g{T}e{T}5{T}S\n   \nB{T}h{T}e{T}6{T}T\n",
+         [["A", "g", "e", "5", "S"], ["B", "h", "e", "6", "T"]]),
+        (f'A{T}"x"  {T}e{T}5{T}S\n', [["A", "x  ", "e", "5", "S"]]),
+        (f'A{T}  "x y"{T}e{T}5{T}S\n', [["A", "x y", "e", "5", "S"]]),
+        (f"A{T}g{T}e{T}5{T}S", [["A", "g", "e", "5", "S"]]),
+        (f"A{T}'x y'{T}e{T}5{T}S\n", [["A", "'x y'", "e", "5", "S"]]),
+    ],
+)
+def test_read_quoted_tsv_matches_matlab_textscan(text, rows):
+    from geckopy.databases.uniprot_loader import read_quoted_tsv
+
+    assert read_quoted_tsv(text, 5) == rows
+
+
+def test_read_quoted_tsv_skips_header_lines():
+    from geckopy.databases.uniprot_loader import read_quoted_tsv
+
+    assert read_quoted_tsv(f"a{T}b\r\nx{T}y\n", 2, header_lines=1) == [["x", "y"]]

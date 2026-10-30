@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import cobra
 
+from ..solver_support import is_scipy_interface, repair_scipy_problem, switch_to_scipy
 from .ec_data import EcData
 
 if TYPE_CHECKING:
@@ -70,6 +71,24 @@ class EcModel(cobra.Model):
         # but EnzymeView(self) needs the class at runtime.
         from .enzyme import EnzymeView
         self.enzymes = EnzymeView(self)
+
+    @property
+    def solver(self):
+        """The optlang model. With the scipy interface, reading it also repairs the
+        problem's variable index map (see :mod:`geckopy.solver_support`), so values read
+        after any removal of variables come from the right columns."""
+        repair_scipy_problem(self)
+        return cobra.Model.solver.fget(self)
+
+    @solver.setter
+    def solver(self, value) -> None:
+        """Set the solver. Moving a model to the scipy interface goes through
+        :func:`geckopy.solver_support.switch_to_scipy`: optlang's clone grows the dense
+        coefficient matrix row by row, which takes hours for a genome-scale model."""
+        if not self._contexts and is_scipy_interface(value) and not is_scipy_interface(self.problem):
+            switch_to_scipy(self)
+        else:
+            cobra.Model.solver.fset(self, value)
 
     @classmethod
     def from_cobra(

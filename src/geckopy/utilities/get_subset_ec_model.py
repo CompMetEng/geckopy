@@ -5,12 +5,15 @@ src/geckomat/utilities/getSubsetEcModel.m.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
 import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
+from cobra.manipulation import remove_genes
 
+from ..solver_support import edit_on_fast_solver
 from ..ec_model.constants import (
     POOL_EXCHANGE_ID,
     PROT_PREFIX,
@@ -51,16 +54,20 @@ def get_subset_ec_model(
     2. Compute genes to remove (`big.genes` minus `small_gem.genes`,
        preserving the ``standard`` pseudo-gene from
        ``assign_standard_kcat``).
-    3. Remove reactions blocked by that gene removal (cobra's
-       ``GPR.eval(knockouts=...)``).
-    4. Remove the genes from `model.genes`.
-    5. Trim the corresponding columns of
+    3. Remove the genes with ``cobra.manipulation.remove_genes``: the
+       reactions the removal blocks go, and the genes leave the rule of
+       every reaction that survives (an isozyme remains).
+    4. Trim the corresponding columns of
        ``model.ec.genes/enzymes/mw/sequence/concs/rxn_enz_mat``.
-    6. Remove reactions whose canonicalised id is not in
+    5. Remove reactions whose canonicalised id is not in
        ``small_gem.reactions``, except ``usage_prot_*`` and
        ``prot_pool_exchange`` which are always preserved.
+    6. Remove the metabolites and genes that no reaction uses, as
+       MATLAB's ``removeGenes`` and ``removeReactions`` do.
     7. Trim the corresponding rows of
-       ``model.ec.rxns/kcat/source/notes/eccodes/rxn_enz_mat``.
+       ``model.ec.rxns/kcat/source/notes/eccodes/rxn_enz_mat``. In a
+       gecko-light model the ec reaction ids carry a ``001_`` prefix that
+       is not part of the reaction id.
 
     Ported from GECKO MATLAB:
     src/geckomat/utilities/getSubsetEcModel.m.
@@ -124,6 +131,11 @@ def get_subset_ec_model(
     # deep-copy it explicitly to avoid mutating the input model.
     small = big_ec_model.copy()
     small.ec = copy.deepcopy(big_ec_model.ec)
+    # The removals below run on glpk when the model is on scipy and the model is
+    # converted back at the end (the scipy interface rewrites every constraint
+    # expression for a removed variable).
+    solver_edit = contextlib.ExitStack()
+    solver_edit.enter_context(edit_on_fast_solver(small))
 
     # --- 4. Compute genes to remove ---
     small_gem_gene_ids = {g.id for g in small_gem.genes}
@@ -131,26 +143,13 @@ def get_subset_ec_model(
     genes_to_remove = (
         big_gene_ids - small_gem_gene_ids - {_STANDARD_GENE}
     )
-    if not genes_to_remove and not _need_rxn_trim(small, small_gem):
-        return small  # nothing to do
 
-    # --- 5. Remove reactions blocked by the gene removal ---
-    rxns_to_remove_for_genes = []
-    for rxn in list(small.reactions):
-        if not rxn.gene_reaction_rule:
-            continue
-        rxn_gene_ids = {g.id for g in rxn.genes}
-        if not (rxn_gene_ids & genes_to_remove):
-            continue
-        if not rxn.gpr.eval(knockouts=genes_to_remove):
-            rxns_to_remove_for_genes.append(rxn)
-    if rxns_to_remove_for_genes:
-        small.remove_reactions(rxns_to_remove_for_genes, remove_orphans=False)
-
-    # --- 6. Remove the genes from model.genes ---
-    for gene_id in list(genes_to_remove):
-        if gene_id in {g.id for g in small.genes}:
-            small.genes.remove(small.genes.get_by_id(gene_id))
+    # --- 5. Remove the genes, and the reactions they block ---
+    # A reaction that survives (an isozyme remains) loses the gene from its
+    # rule, so no kept reaction refers to a gene that is no longer in
+    # model.genes. A complex that loses a subunit is dropped whole.
+    if genes_to_remove:
+        remove_genes(small, sorted(genes_to_remove), remove_reactions=True)
 
     # --- 7. Trim ec per-enzyme fields ---
     if genes_to_remove:
@@ -213,10 +212,28 @@ def get_subset_ec_model(
             rxns_to_remove_for_subset, remove_orphans=True,
         )
 
+    # --- 8b. Remove the metabolites and genes no reaction uses ---
+    # getSubsetEcModel's removeGenes and removeReactions calls drop every
+    # metabolite without a reaction and every gene without a reaction, also
+    # those that were unused in the big model (such as the ``standard``
+    # pseudo-gene of a light model).
+    unused_mets = [m for m in small.metabolites if not m.reactions]
+    if unused_mets:
+        small.remove_metabolites(unused_mets, destructive=False)
+    unused_genes = [g for g in small.genes if not g.reactions]
+    if unused_genes:
+        remove_genes(small, unused_genes, remove_reactions=False)
+
+    solver_edit.close()
+
     # --- 9. Trim ec per-rxn fields ---
     cobra_rxn_ids = {r.id for r in small.reactions}
     keep_rxn_mask = np.array(
-        [rid in cobra_rxn_ids for rid in small.ec.rxns], dtype=bool,
+        [
+            (rid[4:] if small.ec.gecko_light else rid) in cobra_rxn_ids
+            for rid in small.ec.rxns
+        ],
+        dtype=bool,
     )
     if not keep_rxn_mask.all():
         small.ec.rxns = [
@@ -250,15 +267,3 @@ def get_subset_ec_model(
 def _canonical(rxn_id: str) -> str:
     """Strip ``_REV`` and ``_EXP_<N>`` suffixes."""
     return canonicalize_rxn_id(rxn_id)[0]
-
-
-def _need_rxn_trim(big: "EcModel", small_gem: "cobra.Model") -> bool:
-    """True if there's at least one reaction in big that's not in
-    small_gem and not part of the protein machinery."""
-    small_gem_rxn_ids = {r.id for r in small_gem.reactions}
-    for rxn in big.reactions:
-        if rxn.id.startswith(USAGE_PREFIX) or rxn.id == POOL_EXCHANGE_ID:
-            continue
-        if _canonical(rxn.id) not in small_gem_rxn_ids:
-            return True
-    return False

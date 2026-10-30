@@ -33,12 +33,17 @@ if TYPE_CHECKING:
 
 _PFBA_OBJ_NAME = "_pfba_enzymes_objective"
 
+# RAVEN's solveLP fixes the objective at this fraction of its optimum in the flux-minimising
+# stage (getPfbaEnzymes calls it with minFlux 1). A solver reports the optimum to within its
+# feasibility tolerance, so a second solve that demands the full value can be infeasible.
+_PFBA_FRACTION = 0.999999
+
 
 def pfba_enzymes(
     model: "EcModel",
     objective: Union[cobra.Reaction, str, None] = None,
     *,
-    fraction_of_optimum: float = 1.0,
+    fraction_of_optimum: float = _PFBA_FRACTION,
 ) -> cobra.Solution:
     """Parsimonious FBA minimising the L1 norm of ``usage_prot_*`` fluxes.
 
@@ -64,9 +69,10 @@ def pfba_enzymes(
         used as-is.
     fraction_of_optimum
         Fraction of the objective's optimal value to fix as a
-        constraint before minimising enzyme usage. ``1.0`` (default)
-        requires the biomass-optimal solution; a lower value trades
-        some objective value for potentially lower enzyme usage.
+        constraint before minimising enzyme usage. The default,
+        0.999999, is the fraction MATLAB's ``getPfbaEnzymes`` uses
+        (RAVEN's ``solveLP``); a lower value trades some objective
+        value for potentially lower enzyme usage.
 
     Returns
     -------

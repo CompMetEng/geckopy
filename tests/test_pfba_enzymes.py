@@ -48,8 +48,17 @@ def test_returns_solution():
 def test_objective_preserved_at_full_fraction():
     model = _ectestgem_ec_model_with_kcats()
     fba_optimum = model.slim_optimize()
-    sol = pfba_enzymes(model)
+    sol = pfba_enzymes(model, fraction_of_optimum=1.0)
     assert sol.fluxes["R3"] == pytest.approx(fba_optimum, abs=1e-6)
+
+
+def test_default_fixes_the_objective_at_0_999999_of_the_optimum():
+    """MATLAB's getPfbaEnzymes (RAVEN's solveLP) keeps 0.999999 of the optimum."""
+    model = _ectestgem_ec_model_with_kcats()
+    fba_optimum = model.slim_optimize()
+    sol = pfba_enzymes(model)
+    ratio = sol.fluxes["R3"] / fba_optimum
+    assert ratio == pytest.approx(0.999999, abs=2e-7)
 
 
 def test_objective_preserved_at_partial_fraction():

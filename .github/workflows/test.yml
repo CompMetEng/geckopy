@@ -38,5 +38,11 @@ jobs:
       - name: Install
         run: pip install -e ".[dev,evotune]"
 
+      # ec_fseof needs the `equality` option of raven_toolbox.analysis.fseof,
+      # which is not in a release yet. Remove this step once geckopy requires
+      # a raven-toolbox release that has it.
+      - name: Install raven-toolbox from develop
+        run: pip install --upgrade --force-reinstall --no-deps "raven-toolbox @ git+https://github.com/CompMetEng/raven-toolbox.git@develop"
+
       - name: Run pytest
         run: pytest -q

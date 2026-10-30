@@ -258,12 +258,8 @@ print(f"Tuned {len(tuning_result.rxns)} kcats; "
       f"final growth rate: {final_growth:.4f}")
 
 # %% [markdown]
-# Note: `bayesianSensitivityTuning` (the ABC-SMC variant introduced
-# in GECKO 3.3.0) is not ported; geckopy fits kcats to experimental
-# data with CMA-ES instead (see docs/evotune_kcat_tuning.md),
-# not wired into this protocol walkthrough. The MATLAB tutorial also
-# skips it here; the maintained ecYeastGEM in the yeast-GEM repository
-# uses it instead.
+# Note: fitting kcats to experimental data with CMA-ES (see
+# docs/evotune_kcat_tuning.md) is not part of this protocol walkthrough.
 
 # %% [markdown]
 # **STEP 45-51** Curate kcat values based on the tuning result.

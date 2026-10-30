@@ -20,7 +20,7 @@ geckopy keeps three application-level concerns:
    clear message if the YAML lacks the ec sections, and attach the
    adapter to ``model.adapter`` so downstream geckopy code finds it.
 
-4. **Tolerated input** — a file that the YAML reader rejects is read again
+4. **Tolerated input**: a file that the YAML reader rejects is read again
    after the two forms that GECKO's ``loadEcModel`` (through RAVEN's
    ``readYAMLmodel``) accepts are rewritten as valid YAML: ``enzymes: !!omap``
    with no entries, as GECKO writes it for a reaction without enzymes, and a
@@ -29,7 +29,7 @@ geckopy keeps three application-level concerns:
    The value loaded is the one MATLAB loads: the outer pair of quotes is
    removed and the quotes inside stay.
 
-5. **ecModel format** — a file whose protein usage and pool reactions
+5. **ecModel format**: a file whose protein usage and pool reactions
    raven-toolbox turned forward from the GECKO 3 direction gives a
    warning that names :func:`~geckopy.upgrade_project`; an ecModel
    format (``gecko_format`` in the file's ``metaData``, see

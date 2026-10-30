@@ -139,7 +139,7 @@ template generator, organism metadata) carrying an ec-specific *payload*.
   `org_name`, `c_source`, `bio_rxn`, and the data-source sub-schemas `KeggParams`,
   `UniprotParams`, `ComplexParams`.
 - **ec-specific → geckopy**: `sigma`, `p_tot`, `f`, `gr_exp`, `enzyme_comp`, and the
-  `BayesianParams` / `OkpParams` (kcat tuning / prediction) sub-schemas.
+  `EvotuneParams` / `OkpParams` (kcat tuning / prediction) sub-schemas.
 
 Cleanest design: a `ravenpy` base adapter/params, subclassed in geckopy to add the
 enzyme parameters. This also fixes a coupling smell flagged in the code review — many

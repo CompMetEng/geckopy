@@ -148,16 +148,13 @@ justifying a jump to 4.x. This is the first release published to PyPI.
 
 * New: `kcat_tuning.evotune` fits `ec.kcat` to measured growth rates and
   exchange fluxes with CMA-ES (`screen_kcat_leverage`, `select_tunable_mask`,
-  `cmaes_kcat_tuning`, `tune_prior_penalty_weight`), replacing the earlier
-  ABC-SMC approach. `EvotuneResult.corrections()` reports a tuning run as a
+  `cmaes_kcat_tuning`, `tune_prior_penalty_weight`). `EvotuneResult.corrections()` reports a tuning run as a
   ranked table of what changed and why, rather than a raw kcat vector. Gated
   behind the new `evotune` extra.
 * New: `gather_kcats.review.review_assignment` flags kcat-assignment
   problems (repeated values, EC-maximum fallback, implausible magnitude)
   worth curating before a tuning run.
-* `kcat_sensitivity_analysis` renamed to `kcat_tuning`, with the CMA-ES
-  subpackage named `evotune` rather than `bayesian` — the shipped method is
-  CMA-ES, not Bayesian inference.
+* `kcat_sensitivity_analysis` renamed to `kcat_tuning`.
 * `flexibilize_enz_concs`: the post-loop refinement now uses MATLAB's soft
   ±0.25% growth band instead of pinning to `exp_growth` exactly, matching
   `flexibilizeEnzConcs.m`.
@@ -452,7 +449,7 @@ ecModel build is ported; the yeast-GEM tutorial runs end-to-end.
   dedup, Complex Portal sub-complex classification, downloader hardening,
   NaN-aware kcat overwrite, non-fatal DLKcat unknown-substrate handling,
   `ec_fseof`/`pfba_enzymes` feasibility checks, OKP GET retries, current
-  PubChem SMILES property, perf hoists, BayesianParams length validation,
+  PubChem SMILES property, perf hoists, tuning-parameter length validation,
   robust BRENDA protein lookup.
 * Code review hardening — adapter decoupling: adapter-free read/inspect of
   ecModels; per-parameter overrides decouple analysis functions from the

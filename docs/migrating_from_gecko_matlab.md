@@ -288,8 +288,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `sigmaFitter`                         | `fit_sigma`                                                        | **`[3→4]`** Returns the model fitted to the **optimal** sigma (GECKO 3 returned the last trial value, sigma = 1.0). **`[Py]`** Renamed; `sigma_fitter` kept as deprecated alias. Returns a `SigmaFitterResult`.                  |
 | `findMaxValue`                        | `find_max_value`                                                   | **`[3→4]`** Wildcard EC branch matches real codes.                                                                                                                                                                                |
 | `truncateValues`                      | `truncate_values`                                                  | —                                                                                                                                                                                                                                |
-| *(none)*                              | `kcat_tuning.evotune.cmaes_kcat_tuning` + helpers      | **`[Py]`** Fits kcats to experimental flux/growth data with CMA-ES rather than MATLAB's ABC-SMC `bayesianSensitivityTuning`; see [evotune_kcat_tuning.md](evotune_kcat_tuning.md) and [cmaes_vs_abc_smc.md](cmaes_vs_abc_smc.md). |
-| `bayesianSensitivityTuning` + helpers | *(not ported)*                                                     | MATLAB's ABC-SMC sampler itself is not ported; geckopy uses CMA-ES instead (see above).                                                                                                                                          |
+| `cmaesKcatTuning` + helpers           | `kcat_tuning.evotune.cmaes_kcat_tuning` + helpers      | Fits kcats to experimental flux/growth data with CMA-ES; see [evotune_kcat_tuning.md](evotune_kcat_tuning.md). |
 
 ### 5.5 Limit proteins (`src/geckomat/limit_proteins`)
 
@@ -471,10 +470,6 @@ for the MATLAB-side items the port surfaced.
 
 ### Not yet in geckopy
 
-- **ABC-SMC kcat tuning** (`bayesianSensitivityTuning` + helpers).
-  geckopy fits kcats to experimental data with CMA-ES instead; see
-  [evotune_kcat_tuning.md](evotune_kcat_tuning.md) and
-  [cmaes_vs_abc_smc.md](cmaes_vs_abc_smc.md).
 - **`plotEcFVA`** — Python users plot from the `ec_fva` DataFrame
   with matplotlib / seaborn directly.
 

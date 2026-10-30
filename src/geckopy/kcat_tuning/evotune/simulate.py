@@ -1,11 +1,5 @@
 """FBA simulation half of the evotune kcat tuning distance function.
 
-Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/Bayesian/abc_max.m (the
-``rmsecal`` helper's simulate-and-measure loop). Verified against
-``develop4``'s current source, not the (superseded, per its own
-``REVIEW.md``) ``fix/bayesianTuning`` branch.
-
 This module only does the FBA half: given an already kcat-constrained
 ``EcModel`` and one :class:`~geckopy.databases.flux_data.FluxData`
 dataset (either ``evotune_data.flux_data`` or ``evotune_data.max_grate``),
@@ -54,7 +48,7 @@ def simulate_evotune_dataset(
 ) -> list[ConditionSimResult]:
     """Simulate every condition in one tuning dataset.
 
-    Mirrors ``abc_max.m``'s ``rmsecal`` FBA half:
+    The steps are:
 
     1. Every exchange reaction that appears as a *condition name*
        anywhere in ``flux_data.conds`` (matched by name against

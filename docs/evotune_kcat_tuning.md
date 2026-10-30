@@ -335,8 +335,3 @@ climbing rather than reading every row. This is the tuning-time
 counterpart to `review_assignment` in Step 4: that flags kcats worth
 curating *before* a run; this reports which ones the run actually
 changed, and how much each change is worth trusting.
-
-## Where to go from here
-
-- `docs/cmaes_vs_abc_smc.md` -- why this method is CMA-ES rather than
-  the ABC-SMC sampler used elsewhere for the same problem.

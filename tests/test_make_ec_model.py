@@ -342,6 +342,7 @@ def _toy_with_missing_gene(tmp_path):
     )
     adapter = ModelAdapter.from_folder(tmp_path)
     model = cobra.Model("m")
+    model.compartments = {"c": "c"}
     m_a = cobra.Metabolite("A", compartment="c")
     m_b = cobra.Metabolite("B", compartment="c")
     model.add_metabolites([m_a, m_b])

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import cobra
 from raven_toolbox.io import read_yaml_model
+from raven_toolbox.utils.solver import set_raven_tolerance
 
 from ..solver_support import fast_solver_while_building, switch_to_scipy
 
@@ -48,8 +49,8 @@ def load_conventional_gem(adapter: "ModelAdapter") -> cobra.Model:
     Returns
     -------
     cobra.Model
-        The loaded model. Use it as the input to
-        ``make_ec_model``.
+        The loaded model, with the solver tolerance set to RAVEN's 1e-9.
+        Use it as the input to ``make_ec_model``.
 
     Raises
     ------
@@ -73,4 +74,4 @@ def load_conventional_gem(adapter: "ModelAdapter") -> cobra.Model:
             model = cobra.io.read_sbml_model(str(path))
     if on_fast_solver:
         switch_to_scipy(model)
-    return model
+    return set_raven_tolerance(model)

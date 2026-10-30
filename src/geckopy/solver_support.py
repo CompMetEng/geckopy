@@ -71,6 +71,7 @@ __all__ = [
     "repair_scipy_problem",
     "switch_to_scipy",
     "fast_solver_while_building",
+    "edit_on_fast_solver",
     "is_scipy_interface",
     "constraint_shadow_prices",
 ]
@@ -261,6 +262,17 @@ if _scipy_interface is not None:
         def _initialize_problem(self):
             self.problem = _SparseProblem()
 
+        def _remove_constraints(self, constraints):
+            # optlang's scipy interface calls the generic removal inside its loop, once per
+            # constraint with the whole list, so removing two or more constraints at once
+            # (up to 350) raises ``LookupError: Constraint ... not in solver``.
+            for constraint in constraints:
+                if constraint.lb is not None:
+                    self.problem.remove_constraint(constraint.lower_constraint_name)
+                if constraint.ub is not None:
+                    self.problem.remove_constraint(constraint.upper_constraint_name)
+            _scipy_interface.interface.Model._remove_constraints(self, constraints)
+
         def _initialize_configuration(self):
             super()._initialize_configuration()
             _install_tolerances(self)
@@ -415,7 +427,7 @@ def switch_to_scipy(model) -> None:
     new = _SparseModel()
     new.objective = _scipy_interface.Objective(Zero)
     model._solver = new
-    model._populate_solver(model.reactions, model.metabolites)
+    _populate_sparse(model, new)
     model.objective = coefficients
     model.objective.direction = direction
     if getattr(model, "_tolerance", None) is not None:
@@ -423,6 +435,67 @@ def switch_to_scipy(model) -> None:
             model.tolerance = model._tolerance
         except Exception:  # the scipy interface has no tolerance settings to receive it
             pass
+
+
+def _populate_sparse(model, solver) -> None:
+    """Give ``solver`` one forward and one reverse variable per reaction of ``model`` and one
+    constraint per metabolite, as ``cobra.Model._populate_solver`` does.
+
+    ``_populate_solver`` sets the coefficients of a constraint one at a time, and the scipy
+    interface removes and adds the rows of a constraint for each call, which takes hours for a
+    genome-scale model. Here every constraint is created with its whole expression and added
+    once.
+    """
+    from optlang.symbolics import Zero, add
+
+    problem = solver.interface
+    variables = {}
+    for reaction in model.reactions:
+        variables[reaction.id] = (problem.Variable(reaction.id), problem.Variable(reaction.reverse_id))
+    solver.add([v for pair in variables.values() for v in pair])
+    terms = {metabolite.id: [] for metabolite in model.metabolites}
+    for reaction in model.reactions:
+        forward, reverse = variables[reaction.id]
+        for metabolite, coefficient in reaction.metabolites.items():
+            terms[metabolite.id].append(coefficient * forward)
+            terms[metabolite.id].append(-coefficient * reverse)
+    solver.add(
+        [
+            problem.Constraint(add(*expressions) if expressions else Zero, name=name, lb=0, ub=0)
+            for name, expressions in terms.items()
+        ]
+    )
+    for reaction in model.reactions:
+        reaction.update_variable_bounds()
+
+
+@contextlib.contextmanager
+def edit_on_fast_solver(model):
+    """Run structural edits of ``model`` on glpk when it is on the scipy solver.
+
+    Removing reactions and metabolites, or rewriting the coefficients of thousands of
+    reactions, is quick on glpk and slow on the scipy interface, where optlang rewrites the
+    constraint expressions (and the rows) for each edit. Inside the block a scipy model is on
+    glpk; on exit it is converted back with :func:`switch_to_scipy`. The block changes nothing
+    for a model on another solver, for a model inside a ``with model:`` context (its
+    rollbacks hold the solver objects) and when glpk is unavailable. The optlang solver of
+    the model is a different object inside the block and after it.
+    """
+    from cobra import Model
+
+    solver = getattr(model, "_solver", None)
+    if not _is_scipy_problem(getattr(solver, "problem", None)) or getattr(model, "_contexts", None):
+        yield False
+        return
+    try:
+        Model.solver.fset(model, "glpk")
+    except Exception:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        switch_to_scipy(model)
 
 
 @contextlib.contextmanager

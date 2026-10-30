@@ -13,8 +13,13 @@ import pytest
 from geckopy import ModelAdapter, make_ec_model
 from geckopy.ec_model.pipeline import apply_kcat_constraints
 from geckopy.limit_proteins import constrain_enz_concs, relax_proteomics_greedy
-from geckopy.solver_support import constraint_shadow_prices, repair_scipy_problem, switch_to_scipy
-from geckopy.utilities import ec_fva, get_enzyme_bottlenecks
+from geckopy.solver_support import (
+    constraint_shadow_prices,
+    edit_on_fast_solver,
+    repair_scipy_problem,
+    switch_to_scipy,
+)
+from geckopy.utilities import ec_fva, get_enzyme_bottlenecks, get_subset_ec_model
 
 EXAMPLE_DIR = Path(__file__).parents[1] / "examples" / "ecTestGEM"
 REFERENCE_SOLVERS = ["glpk", "gurobi"]
@@ -433,3 +438,70 @@ def test_a_solve_with_numerical_difficulties_is_repeated_at_the_default_toleranc
 
     monkeypatch.setattr("geckopy.solver_support.linprog", always_numerical_trouble)
     assert model.optimize(raise_error=False).status == "numeric"
+
+
+def _subset(solver, light):
+    config = cobra.Configuration()
+    adapter = ModelAdapter.from_folder(EXAMPLE_DIR)
+    try:
+        config.solver = solver
+    except Exception as exc:
+        pytest.skip(f"solver {solver} unavailable: {exc}")
+    try:
+        conv = cobra.io.read_sbml_model(str(adapter.params.conv_gem))
+        big = make_ec_model(conv, adapter, gecko_light=light)
+        small = conv.copy()
+        small.remove_reactions(["R2"], remove_orphans=True)
+        sub = get_subset_ec_model(big, small)
+    finally:
+        config.solver = "glpk"
+    big.ec.kcat[:] = 10.0
+    sub.ec.kcat[:] = 10.0
+    apply_kcat_constraints(sub)
+    sub.objective = "R3"
+    return sub
+
+
+@pytest.mark.parametrize("light", [False, True])
+def test_get_subset_ec_model_on_scipy_equals_glpk(light):
+    on_scipy, on_glpk = _subset("scipy", light), _subset("glpk", light)
+    assert on_scipy.solver.interface.__name__.endswith("scipy_interface")
+    assert {r.id for r in on_scipy.reactions} == {r.id for r in on_glpk.reactions}
+    assert {m.id for m in on_scipy.metabolites} == {m.id for m in on_glpk.metabolites}
+    assert {g.id for g in on_scipy.genes} == {g.id for g in on_glpk.genes}
+    assert len(on_scipy.solver.constraints) == len(on_scipy.metabolites)
+    assert on_scipy.slim_optimize() == pytest.approx(on_glpk.slim_optimize())
+    assert on_scipy.slim_optimize() > 0
+
+
+def test_removing_several_constraints_at_once_on_the_sparse_problem():
+    model = _columns_ring("scipy")
+    repair_scipy_problem(model)
+    ids = [m.id for m in list(model.metabolites)[:3]]
+    model.remove_cons_vars([model.constraints[i] for i in ids])
+    model.solver.update()
+    assert len(model.solver.problem._constraints) == 2 * len(model.constraints)
+    assert not set(ids) & set(model.constraints)
+
+
+def test_edit_on_fast_solver_returns_to_scipy_with_the_same_problem():
+    model = _columns_ring("scipy")
+    repair_scipy_problem(model)
+    before = model.slim_optimize()
+    with edit_on_fast_solver(model) as fast:
+        assert fast
+        assert model.solver.interface.__name__.endswith("glpk_interface")
+        model.reactions.get_by_id("r1").bounds = (0.0, 5.0)
+    assert model.solver.interface.__name__.endswith("scipy_interface")
+    assert model.reactions.get_by_id("r1").upper_bound == 5.0
+    assert model.slim_optimize() <= before
+    reference = _columns_ring("glpk")
+    reference.reactions.get_by_id("r1").bounds = (0.0, 5.0)
+    assert model.slim_optimize() == pytest.approx(reference.slim_optimize())
+
+
+def test_edit_on_fast_solver_changes_nothing_on_glpk():
+    model = _columns_ring("glpk")
+    with edit_on_fast_solver(model) as fast:
+        assert not fast
+    assert model.solver.interface.__name__.endswith("glpk_interface")

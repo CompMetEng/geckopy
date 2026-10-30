@@ -5,6 +5,7 @@ src/geckomat/utilities/getSubsetEcModel.m.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
 import logging
 from typing import TYPE_CHECKING
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from cobra.manipulation import remove_genes
 
+from ..solver_support import edit_on_fast_solver
 from ..ec_model.constants import (
     POOL_EXCHANGE_ID,
     PROT_PREFIX,
@@ -129,6 +131,11 @@ def get_subset_ec_model(
     # deep-copy it explicitly to avoid mutating the input model.
     small = big_ec_model.copy()
     small.ec = copy.deepcopy(big_ec_model.ec)
+    # The removals below run on glpk when the model is on scipy and the model is
+    # converted back at the end (the scipy interface rewrites every constraint
+    # expression for a removed variable).
+    solver_edit = contextlib.ExitStack()
+    solver_edit.enter_context(edit_on_fast_solver(small))
 
     # --- 4. Compute genes to remove ---
     small_gem_gene_ids = {g.id for g in small_gem.genes}
@@ -216,6 +223,8 @@ def get_subset_ec_model(
     unused_genes = [g for g in small.genes if not g.reactions]
     if unused_genes:
         remove_genes(small, unused_genes, remove_reactions=False)
+
+    solver_edit.close()
 
     # --- 9. Trim ec per-rxn fields ---
     cobra_rxn_ids = {r.id for r in small.reactions}

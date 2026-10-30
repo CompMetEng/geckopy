@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Optional
 import cobra
 from raven_toolbox.utils.sort import sort_identifiers
 
-from ..databases import UniprotDB, load_uniprot_tsv
+from ..databases import UniprotDB, load_kegg_tsv, load_uniprot_tsv
 from ..solver_support import repair_scipy_problem, switch_to_scipy
 from .ec_model import EcModel
 from .pipeline import (
@@ -162,8 +162,9 @@ def make_ec_model(
         UniProt accession carried in the KEGG row, or to the KEGG
         gene id when that accession is empty), and the EC-number
         lookup (``fill_eccodes_from_database``) consults KEGG when
-        the UniProt result is empty or ends with ``-``. If None,
-        KEGG is not used.
+        the UniProt result is empty or ends with ``-``. If None, the
+        function loads ``adapter.params.path / "data" / "kegg.tsv"``
+        when that file exists, and uses no KEGG data otherwise.
 
     Returns
     -------
@@ -245,6 +246,11 @@ def make_ec_model(
     if uniprot_db is None:
         uniprot_path = adapter.params.path / "data" / "uniprot.tsv"
         uniprot_db = load_uniprot_tsv(uniprot_path)
+
+    if kegg_db is None:
+        kegg_path = adapter.params.path / "data" / "kegg.tsv"
+        if kegg_path.is_file():
+            kegg_db = load_kegg_tsv(kegg_path, auto_download=False)
 
     if gecko_light:
         # Light: stage 7 (per-enzyme data) runs first so the coupling

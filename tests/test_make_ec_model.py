@@ -332,3 +332,47 @@ def test_make_ec_model_unmatched_genes_logged_and_annotated(tmp_path, caplog):
     warned = ec_model.reactions.get_by_id("r1")
     assert "geckopy_warning" in warned.notes
     assert "g_missing" in warned.notes["geckopy_warning"]
+
+
+def _toy_with_missing_gene(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text(
+        'conv_gem = "dummy.xml"\n'
+        'org_name = "test"\n'
+        'enzyme_comp = "c"\n'
+    )
+    adapter = ModelAdapter.from_folder(tmp_path)
+    model = cobra.Model("m")
+    m_a = cobra.Metabolite("A", compartment="c")
+    m_b = cobra.Metabolite("B", compartment="c")
+    model.add_metabolites([m_a, m_b])
+    r = cobra.Reaction("r1")
+    r.add_metabolites({m_a: -1, m_b: 1})
+    r.lower_bound, r.upper_bound = 0.0, 1000.0
+    r.gene_reaction_rule = "g_known and g_kegg"
+    model.add_reactions([r])
+    db = UniprotDB(
+        ids=["P1"],
+        genes=["g_known"],
+        eccodes=[""],
+        mw=np.array([10.0]),
+        sequences=["S"],
+    )
+    return model, adapter, db
+
+
+def test_make_ec_model_reads_kegg_tsv_of_the_data_folder(tmp_path):
+    """A gene UniProt does not know is matched through data/kegg.tsv when
+    that file exists, without passing kegg_db."""
+    model, adapter, db = _toy_with_missing_gene(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "kegg.tsv").write_text(
+        'P2,g_kegg,g_kegg,1.1.1.1,20000,"",MSEQ\n'
+    )
+    ec_model = make_ec_model(model, adapter, uniprot_db=db)
+    assert sorted(ec_model.ec.enzymes) == ["P1", "P2"]
+
+
+def test_make_ec_model_without_kegg_tsv_leaves_the_gene_unmatched(tmp_path):
+    model, adapter, db = _toy_with_missing_gene(tmp_path)
+    ec_model = make_ec_model(model, adapter, uniprot_db=db)
+    assert sorted(ec_model.ec.enzymes) == ["P1"]

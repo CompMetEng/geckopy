@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 from cobra.util import ProcessPool
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import canonicalize_rxn_id
 
 try:
@@ -258,7 +259,7 @@ def _solve_for_conv_rxn(
         objective.update({rxns[i]: -1.0 for i in reverse_neg})
         ec_model.objective = objective
         ec_model.objective_direction = sense
-        sol = ec_model.optimize()
+        sol = optimize_model(ec_model)
         if sol.status != "optimal":
             return out
         for i, rxn in enumerate(rxns):

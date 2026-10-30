@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import (
     POOL_ID,
     PROT_PREFIX,
@@ -260,7 +261,7 @@ def sensitivity_tuning(
     iteration = 1
 
     while iteration <= max_iterations:
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             logger.warning(
                 "sensitivity_tuning: the model has no optimal solution with the "

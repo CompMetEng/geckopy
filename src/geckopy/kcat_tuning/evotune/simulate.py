@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
 import numpy as np
+from ...solver_support import optimize_model
 
 if TYPE_CHECKING:
     from ...databases.flux_data import FluxData
@@ -146,7 +147,7 @@ def simulate_evotune_dataset(
                 if change_protein_biomass is not None:
                     change_protein_biomass(model, ptot)
 
-            sol = model.optimize()
+            sol = optimize_model(model)
             if (
                 sol.status != "optimal"
                 or sol.objective_value is None

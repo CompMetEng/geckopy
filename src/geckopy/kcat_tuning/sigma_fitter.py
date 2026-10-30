@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 
+from ..solver_support import optimize_model
 from ..ec_model.pipeline.protein_pool import set_prot_pool_size
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ def _growth_at_sigma(
     """
     with model:
         set_prot_pool_size(model, p_tot=p_tot, f=f, sigma=float(sigma))
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal" or sol.objective_value is None:
             return 0.0
         value = float(sol.objective_value)

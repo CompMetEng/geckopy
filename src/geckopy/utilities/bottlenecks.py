@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from ..solver_support import constraint_shadow_prices
+from ..solver_support import constraint_shadow_prices, optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -59,7 +59,7 @@ def get_enzyme_bottlenecks(model: "EcModel", *, top: int = 10) -> pd.DataFrame:
     RuntimeError
         If the solve status is not optimal.
     """
-    sol = model.optimize()
+    sol = optimize_model(model)
     if sol.status != "optimal":
         raise RuntimeError(
             f"Solver status {sol.status!r}; cannot rank bottlenecks"

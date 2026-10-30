@@ -70,17 +70,17 @@ def test_subset_match_yields_correct_ratio():
     assert calculate_f_factor(model, pd) == pytest.approx(0.25)
 
 
-def test_empty_proteome_yields_zero():
+def test_empty_proteome_yields_nan():
     model = _ec_model(["P1"])
     pd = _prot_data([])
-    assert calculate_f_factor(model, pd) == 0.0
+    assert np.isnan(calculate_f_factor(model, pd))
 
 
-def test_zero_total_proteome_yields_zero():
-    """All abundances are zero -> f = 0 (defensive)."""
+def test_zero_total_proteome_yields_nan():
+    """All abundances are zero -> the factor is 0/0, NaN as in MATLAB."""
     model = _ec_model(["P1"])
     pd = _prot_data([("P1", 0.0), ("P2", 0.0)])
-    assert calculate_f_factor(model, pd) == 0.0
+    assert np.isnan(calculate_f_factor(model, pd))
 
 
 # --------------------------------------------------------------------------- #

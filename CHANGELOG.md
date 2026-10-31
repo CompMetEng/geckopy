@@ -8,6 +8,8 @@
 * `ECTree` raises `ValueError` for `k = NaN`, as GECKO's `ecTreeEstimate` does; it returned NaN estimates.
 * `kcats_from_ec_tree` with an empty `ec_rxns` returns no kcats instead of raising, as an empty selection means no reaction, and counts a reaction named twice once in the `ec_rxns` parameter of the source file.
 * `assign_standard_kcat` leaves out every reaction without a substrate or without a product (RAVEN's `getExchangeRxns`), such as `A + B =>`; it left out single-metabolite boundary reactions only.
+* `review_assignment` recognises the source labels `custom` and `standard` without regard to letter case, as MATLAB's `reviewKcatAssignment` does: a source `Custom` is checked for a duplicate of a database value and `STANDARD` is the fallback.
+* `find_met_smiles` skips a metabolite without a name with a logged warning and gives it no SMILES; it used to look the metabolite up by its id. When the cache file holds a name more than once, the last row is used (as before, now stated in the docstring).
 * `review_assignment`, `EcStats` and `ec_stats_from_brenda` are exported from `geckopy.gather_kcats` and `geckopy`, and listed in `__all__`.
 * `fill_enz_concs` raises a `ValueError` for a negative abundance of a protein that is an enzyme of the model, as GECKO's `fillEnzConcs` does with the error `fillEnzConcs:negativeAbundance`; it used to skip the value with a warning.
 * `constrain_enz_concs` raises a `ValueError` for a negative concentration in `model.ec.concs` before it changes any bound, as GECKO's `constrainEnzConcs` does with the error `constrainEnzConcs:negativeConcentration`; it used to skip the enzyme with a warning. `remove_constraints=True` does not read the concentrations.

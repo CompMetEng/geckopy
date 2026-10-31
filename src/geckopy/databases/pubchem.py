@@ -73,9 +73,11 @@ def find_met_smiles(
     For every metabolite in the model:
 
     1. Skip if the name starts with ``prot_`` (enzyme pseudometabolite).
-    2. Skip if ``annotation['smiles']`` is already set.
-    3. Look up the metabolite name in the local TSV cache.
-    4. If still not found, query PubChem; cache the result.
+    2. Skip, with a warning, if the metabolite has no name.
+    3. Skip if ``annotation['smiles']`` is already set.
+    4. Look up the metabolite name in the local TSV cache. When the cache
+       holds a name more than once, the last row is used.
+    5. If still not found, query PubChem; cache the result.
 
     The same metabolite name may appear on many ``cobra.Metabolite``
     instances (different compartments). Lookup is done once per unique
@@ -105,13 +107,23 @@ def find_met_smiles(
 
     # Build map: metabolite name -> list of metabolite objects sharing it.
     name_to_mets: dict[str, list] = {}
+    unnamed = []
     for met in model.metabolites:
-        name = met.name or met.id
-        if not name or _PROT_PATTERN.match(name):
+        name = met.name
+        if not name:
+            unnamed.append(met.id)
+            continue
+        if _PROT_PATTERN.match(name):
             continue
         if met.annotation.get("smiles"):
             continue
         name_to_mets.setdefault(name, []).append(met)
+
+    if unnamed:
+        logger.warning(
+            "find_met_smiles: %d metabolite(s) have no name and get no SMILES: %s",
+            len(unnamed), ", ".join(unnamed),
+        )
 
     if not name_to_mets:
         logger.info("find_met_smiles: nothing to look up.")

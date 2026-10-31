@@ -5,6 +5,7 @@ src/geckomat/utilities/enzymeUsage.m.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Mapping, Union
 
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
 
 
 from ..ec_model.constants import USAGE_PREFIX
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -83,6 +86,9 @@ def enzyme_usage(
         When False, enzymes with zero absolute usage are dropped
         from the result.
 
+    An enzyme without a ``usage_prot_<enzyme>`` reaction in the model is
+    left out of the result, with a logged warning.
+
     Raises
     ------
     NotImplementedError
@@ -98,15 +104,23 @@ def enzyme_usage(
     abs_usage_list: list[float] = []
     ub_list: list[float] = []
 
+    left_out: list[str] = []
     for enzyme in model.ec.enzymes:
         rxn_id = f"{USAGE_PREFIX}{enzyme}"
         if rxn_id not in cobra_rxn_ids:
+            left_out.append(enzyme)
             continue
         flux = float(_lookup_flux(fluxes, rxn_id))
         rxn_ub = float(model.reactions.get_by_id(rxn_id).upper_bound)
         prot_ids.append(enzyme)
         abs_usage_list.append(abs(flux))
         ub_list.append(rxn_ub)
+
+    if left_out:
+        logger.warning(
+            "enzyme_usage: the model has no usage reaction for the enzymes "
+            "%s; they are left out.", ", ".join(left_out),
+        )
 
     abs_usage_arr = np.array(abs_usage_list, dtype=float)
     ub_arr = np.array(ub_list, dtype=float)

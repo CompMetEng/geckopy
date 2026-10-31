@@ -108,7 +108,16 @@ def report_enzyme_usage(
     Returns
     -------
     EnzymeUsageReport
+
+    Raises
+    ------
+    ValueError
+        If ``top_abs_usage`` is negative or NaN.
     """
+    if not top_abs_usage >= 0:
+        raise ValueError(
+            f"top_abs_usage must be a non-negative number, got {top_abs_usage!r}."
+        )
     pool_rxn = model.reactions.get_by_id(POOL_EXCHANGE_ID)
     total_pool = float(pool_rxn.upper_bound)
 

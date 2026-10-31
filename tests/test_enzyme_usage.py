@@ -189,3 +189,16 @@ def test_fluxes_carried_through_to_result():
     result = enzyme_usage(model, sol.fluxes)
     # Same Series object (or equivalent values).
     assert result.fluxes is sol.fluxes
+
+
+# --------------------------------------------------------------------------- #
+# Enzyme without a usage reaction
+# --------------------------------------------------------------------------- #
+
+def test_enzyme_without_usage_reaction_is_left_out_with_a_warning(caplog):
+    model = _build_toy(enzyme_ub=5.0)
+    model.ec.enzymes.append("F")
+    with caplog.at_level("WARNING"):
+        result = enzyme_usage(model, {"usage_prot_E": 3.0})
+    assert result.prot_id == ["E"]
+    assert "no usage reaction for the enzymes F" in caplog.text

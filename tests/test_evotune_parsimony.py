@@ -72,6 +72,20 @@ def test_best_parsimonious_prefers_fewer_changes_within_tolerance():
     assert best_parsimonious(pts, tolerance=0.0).n_changed == 4000
 
 
+def test_best_parsimonious_skips_nan_rmse():
+    from geckopy.kcat_tuning.evotune.parsimony import FrontierPoint
+
+    pts = [
+        FrontierPoint(0.0, np.array([1.0]), 4000, 7.0, float("nan")),
+        FrontierPoint(3.0, np.array([1.0]), 3000, 6.0, 0.905),
+        FrontierPoint(6.0, np.array([1.0]), 1000, 3.0, 1.400),
+    ]
+    assert best_parsimonious(pts).n_changed == 3000
+    nan_only = [FrontierPoint(0.0, np.array([1.0]), 1, 1.0, float("nan"))]
+    with pytest.raises(ValueError):
+        best_parsimonious(nan_only)
+
+
 def test_fold_change_is_symmetric_and_at_least_one():
     from geckopy.kcat_tuning.evotune.parsimony import fold_change
 

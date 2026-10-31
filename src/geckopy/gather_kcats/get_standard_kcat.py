@@ -57,9 +57,10 @@ def assign_standard_kcat(
     (identified by ``model.ec.source == "standard"``) are stripped
     before re-applying.
 
-    Filtering: exchange, transport (same metabolite name across
-    compartments), pseudo (name contains "pseudoreaction"), SLIME
-    (name contains "SLIME rxn"), spontaneous (via
+    Filtering: exchange (a reaction without a substrate or without a
+    product), transport (same metabolite name across compartments), pseudo
+    (name contains "pseudoreaction", in any letter case), SLIME (name
+    contains "SLIME rxn", in any letter case), spontaneous (via
     ``adapter.get_spontaneous_reactions(model)``), and reactions
     listed in ``adapter.params.path/data/pseudoRxns.tsv`` are
     excluded from receiving the standard pseudoenzyme.
@@ -237,6 +238,14 @@ def _find_reactions_missing_enzyme(model: "EcModel") -> list[str]:
     return no_gpr + has_gpr_no_ec
 
 
+def _is_exchange(rxn: cobra.Reaction) -> bool:
+    """Whether a reaction only consumes or only produces metabolites, as
+    RAVEN's ``getExchangeRxns`` counts it: ``A + B <=>`` is an exchange
+    reaction as well as ``A <=>``."""
+    coefficients = list(rxn.metabolites.values())
+    return all(c <= 0 for c in coefficients) or all(c >= 0 for c in coefficients)
+
+
 def _detect_transport_reactions(model: "EcModel") -> set[str]:
     """A transport reaction has the same metabolite name appearing in
     different compartments."""
@@ -257,7 +266,7 @@ def _classify_reactions_to_ignore(
     ignore: set[str] = set(custom_rxns)
 
     for rxn in model.reactions:
-        if rxn.boundary:
+        if _is_exchange(rxn):
             ignore.add(rxn.id)
         name_lower = (rxn.name or "").lower()
         if "pseudoreaction" in name_lower or "slime rxn" in name_lower:

@@ -129,3 +129,15 @@ def test_kcats_from_ec_tree_subset(tmp_path):
     twice = kcats_from_ec_tree(model, measurements=table, adapter=adapter, save=False,
                                ec_rxns=[with_ec[0], with_ec[1], with_ec[1]])
     assert list(twice["rxn_id"]) == with_ec[:2]
+
+
+def test_standard_kcat_exchange_and_pseudoreactions(tmp_path):
+    """R7 consumes two metabolites and produces none: an exchange reaction. R8 is
+    named like a pseudoreaction in another letter case. R6 is an ordinary reaction
+    without a GPR."""
+    model, _, _ = _project(tmp_path, extra_reactions=True)
+    model.ec.kcat[:] = 10.0
+    assign_standard_kcat(model, _uniprot())
+    assert "R6" in model.ec.rxns
+    assert "R7" not in model.ec.rxns
+    assert "R8" not in model.ec.rxns

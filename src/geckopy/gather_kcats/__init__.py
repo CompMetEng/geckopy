@@ -18,6 +18,7 @@ from .open_kinetics_predictor import (
 )
 from .read_dlkcat_output import read_dlkcat_output
 from .remove_standard_kcat import remove_standard_kcat
+from .review import EcStats, ec_stats_from_brenda, review_assignment
 from .run_dlkcat import run_dlkcat
 from .select_kcat_value import (
     apply_kcat_list,
@@ -27,6 +28,7 @@ from .select_kcat_value import (
 from .write_dlkcat_input import extract_enzyme_substrate_pairs, write_dlkcat_input
 
 __all__ = [
+    "EcStats",
     "OKPClient",
     "OKPError",
     "apply_kcat_list",
@@ -34,6 +36,7 @@ __all__ = [
     "assign_standard_kcat",
     "collect_kcats",
     "ec_rxn_keys",
+    "ec_stats_from_brenda",
     "extract_enzyme_substrate_pairs",
     "fetch_open_kinetics_predictor",
     "format_kcat_source",
@@ -51,6 +54,7 @@ __all__ = [
     "read_kcat_source",
     "read_dlkcat_output",
     "remove_standard_kcat",
+    "review_assignment",
     "run_dlkcat",
     "save_kcat_source",
     "select_kcat_value",  # deprecated; alias of apply_kcat_list

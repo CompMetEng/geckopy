@@ -106,3 +106,26 @@ def test_write_dlkcat_input_selection(tmp_path):
                             only_with_smiles=False)
     wanted = [r for r in model.ec.rxns if r in {"R3", "R5"}]
     assert list(dict.fromkeys(df["rxn_id"])) == wanted
+
+
+def test_ec_tree_rejects_nan_k():
+    table = pd.DataFrame({"ec": ["1.1.1.1", "1.1.1.1"], "log10_kcat": [1.0, 2.0]})
+    with pytest.raises(ValueError, match="positive"):
+        ECTree(table, k=float("nan"))
+
+
+def test_kcats_from_ec_tree_subset(tmp_path):
+    """An empty ec_rxns selects no reaction; a reaction named twice gives one row."""
+    model, adapter, _ = _project(tmp_path)
+    ecs = sorted({e.strip() for c in model.ec.eccodes for e in str(c or "").split(";") if e.strip()})
+    table = pd.DataFrame([(ec, float(i + 1)) for i, ec in enumerate(ecs) for _ in range(2)],
+                         columns=["ec", "log10_kcat"])
+    table["kcat"] = 10.0 ** table["log10_kcat"]
+    table.attrs["release"] = "BRENDA release test"
+    with_ec = [r for r, c in zip(model.ec.rxns, model.ec.eccodes) if str(c or "").strip()]
+    assert len(with_ec) >= 2
+    none = kcats_from_ec_tree(model, measurements=table, adapter=adapter, ec_rxns=[], save=False)
+    assert none.empty
+    twice = kcats_from_ec_tree(model, measurements=table, adapter=adapter, save=False,
+                               ec_rxns=[with_ec[0], with_ec[1], with_ec[1]])
+    assert list(twice["rxn_id"]) == with_ec[:2]

@@ -191,8 +191,9 @@ def kcats_from_ec_tree(
         Shrinkage constant: the number of measurements at which an EC's own
         median and its class count equally.
     ec_rxns
-        ``model.ec.rxns`` to estimate kcats for (default: all). With the
-        default ``save_as`` the file then only holds those reactions.
+        ``model.ec.rxns`` to estimate kcats for (default: all). An empty
+        list selects no reaction. With the default ``save_as`` the file then
+        only holds those reactions.
     measurements
         BRENDA measurement table (default: ``measurements.tsv`` of the
         adapter's BRENDA folder, see
@@ -209,7 +210,7 @@ def kcats_from_ec_tree(
         (``n``) and the deepest EC level with measurements (``depth``).
     """
     adapter = _adapter(model, adapter, "kcats_from_ec_tree needs the BRENDA folder and project folder")
-    ec_rxns = _rxn_subset(ec_rxns)
+    ec_rxns = None if ec_rxns is None else list(ec_rxns)
     if save:
         path = kcat_source_file(save_as, model=model, adapter=adapter)  # fails before estimating
         _warn_subset(ec_rxns, model, path)
@@ -232,7 +233,7 @@ def kcats_from_ec_tree(
     if save:
         parameters = {"k": k}
         if ec_rxns is not None:
-            parameters["ec_rxns"] = len(ec_rxns)
+            parameters["ec_rxns"] = len(set(ec_rxns))
         path = save_kcat_source(
             model, kcat_list, save_as, adapter=adapter, generator="kcats_from_ec_tree",
             parameters=parameters, data=measurements.attrs.get("release", ""),

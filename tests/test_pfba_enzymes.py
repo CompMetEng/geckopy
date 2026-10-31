@@ -45,11 +45,18 @@ def test_returns_solution():
     assert sol.status == "optimal"
 
 
-def test_objective_preserved_at_full_fraction():
+def test_full_fraction_keeps_0_999999_of_the_optimum():
     model = _ectestgem_ec_model_with_kcats()
     fba_optimum = model.slim_optimize()
     sol = pfba_enzymes(model, fraction_of_optimum=1.0)
-    assert sol.fluxes["R3"] == pytest.approx(fba_optimum, abs=1e-6)
+    assert sol.fluxes["R3"] / fba_optimum == pytest.approx(0.999999, abs=2e-7)
+
+
+def test_given_fraction_is_multiplied_by_the_margin():
+    model = _ectestgem_ec_model_with_kcats()
+    fba_optimum = model.slim_optimize()
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.fluxes["R3"] / fba_optimum == pytest.approx(0.9 * 0.999999, abs=2e-7)
 
 
 def test_default_fixes_the_objective_at_0_999999_of_the_optimum():
@@ -65,7 +72,7 @@ def test_objective_preserved_at_partial_fraction():
     model = _ectestgem_ec_model_with_kcats()
     fba_optimum = model.slim_optimize()
     sol = pfba_enzymes(model, fraction_of_optimum=0.5)
-    assert sol.fluxes["R3"] >= 0.5 * fba_optimum - 1e-6
+    assert sol.fluxes["R3"] >= 0.5 * 0.999999 * fba_optimum - 1e-6
 
 
 def test_total_usage_le_plain_fba():

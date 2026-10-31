@@ -456,7 +456,7 @@ for the MATLAB-side items the port surfaced.
 ### geckopy-only (no MATLAB counterpart)
 
 - `pfba_enzymes` — enzyme-pool-minimising pFBA.
-- `get_enzyme_bottlenecks` — bottleneck ranking by the re-solved change of the objective.
+- `get_enzyme_bottlenecks`: bottleneck ranking by the re-solved change of the objective.
 - `relax_proteomics_greedy` — greedy alternative to
   `flexibilize_enz_concs`.
 - `merge_kcats` — generalised n-source kcat merge (replaces the

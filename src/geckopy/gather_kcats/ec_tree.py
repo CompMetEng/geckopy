@@ -21,8 +21,8 @@ class ECTree:
     """EC-tree estimates from a BRENDA measurement table (``ec``, ``log10_kcat``)."""
 
     def __init__(self, measurements: pd.DataFrame, k: float = 5.0):
-        if k <= 0:
-            raise ValueError("k must be positive")
+        if not k > 0:
+            raise ValueError("k must be a positive number")
         self.k = float(k)
         ec = measurements["ec"].astype(str)
         logk = measurements["log10_kcat"].to_numpy(dtype=float)

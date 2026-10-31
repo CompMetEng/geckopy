@@ -62,7 +62,9 @@ def constrain_enz_concs(
     Raises
     ------
     ValueError
-        If the ``prot_pool`` metabolite is missing, or if any
+        If ``model.ec.concs`` holds a negative concentration for a
+        processed enzyme (unless ``remove_constraints`` is set), if the
+        ``prot_pool`` metabolite is missing, or if any
         ``usage_prot_<enzyme>`` reaction is missing for an enzyme
         in ``model.ec.enzymes`` (e.g. because the model is
         gecko-light, which has no usage reactions).
@@ -94,20 +96,23 @@ def constrain_enz_concs(
             if enz in restrict_set
         )
 
-    for i, enz in index_iter:
+    index_list = list(index_iter)
+    if not remove_constraints:
+        negative = [
+            enz for i, enz in index_list if model.ec.concs[i] < 0
+        ]
+        if negative:
+            raise ValueError(
+                "model.ec.concs has a negative concentration for "
+                + ", ".join(negative) + "."
+            )
+
+    for i, enz in index_list:
         rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{enz}")
         rxn.upper_bound = 1000.0
         if remove_constraints:
             continue
         conc = model.ec.concs[i]
         if np.isnan(conc):
-            continue
-        if conc < 0:
-            # A negative bound would make the usage reaction infeasible
-            # (ub < lb == 0). Skip it and leave the enzyme unconstrained.
-            logger.warning(
-                "constrain_enz_concs: negative concentration %g for %r; "
-                "leaving it unconstrained.", float(conc), enz,
-            )
             continue
         rxn.upper_bound = float(conc)

@@ -191,3 +191,22 @@ def test_integration_with_load_pax_db(tmp_path):
     fill_enz_concs(model, prot)
     # P2 -> index 0 (60), P1 -> index 1 (20).
     np.testing.assert_array_equal(model.ec.concs, [60.0, 20.0])
+
+
+# --------------------------------------------------------------------------- #
+# Negative abundance
+# --------------------------------------------------------------------------- #
+
+def test_negative_abundance_of_an_enzyme_raises():
+    model = _ec_model(["P1", "P2"], initial_concs=[1.0, 2.0])
+    pd = _prot_data([("P1", 5.0), ("P2", -0.5)])
+    with pytest.raises(ValueError, match="negative abundance"):
+        fill_enz_concs(model, pd)
+    np.testing.assert_array_equal(model.ec.concs, [1.0, 2.0])
+
+
+def test_negative_abundance_of_a_protein_outside_the_model_is_not_read():
+    model = _ec_model(["P1"])
+    pd = _prot_data([("P1", 5.0), ("X1", -1.0)])
+    fill_enz_concs(model, pd)
+    np.testing.assert_array_equal(model.ec.concs, [5.0])

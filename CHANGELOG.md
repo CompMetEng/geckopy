@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `save_ec_model` keeps the description of a model that has one (`metaData` of the file it was loaded from) and writes `Enzyme-constrained model of <id>` only when there is none; it used to overwrite it. GECKO's `saveEcModel` does the same.
 * `best_parsimonious` skips points with a NaN `rmse`, as MATLAB's `bestParsimonious` does with `min(rmses)`: a NaN at the first point of the frontier made every comparison false and raised `ValueError`. It still raises when every `rmse` is NaN.
 * `screen_kcat_leverage` keeps rows of equal rank in the order of the tie groups (a stable sort), as MATLAB's `screenKcatLeverage` does, and `compute_excarbon` warns when no metabolite of the model has a formula (every exchange then gets the carbon weight 1).
 * `cmaes_kcat_tuning` runs `max_generations` generations on a flat objective instead of stopping after the first (the flat-fitness criteria of `cma` do not end the search), as MATLAB's `cmaesKcatTuning` does.

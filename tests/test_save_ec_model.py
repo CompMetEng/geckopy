@@ -201,6 +201,14 @@ def test_doc_top_level_keys(tmp_path):
     }.issubset(doc.keys())
 
 
+def test_existing_description_is_kept(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_full_ec_model(adapter)
+    model.notes["metaData"] = {"description": "my own description"}
+    path = save_ec_model(model)
+    assert _read_yaml(path)["metaData"]["description"] == "my own description"
+
+
 def test_metadata_includes_date_version_description(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_full_ec_model(adapter)

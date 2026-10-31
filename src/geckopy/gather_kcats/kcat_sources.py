@@ -344,8 +344,10 @@ def read_kcat_source(path: str | Path) -> tuple[pd.DataFrame, dict[str, str]]:
 
     The file is read as UTF-8 (a leading byte-order mark is ignored). The
     ``#`` lines before the column header are the header; ``#`` lines and
-    blank lines further down are skipped. Fields wrapped in double quotes,
-    as a spreadsheet may save them, are unwrapped. ``kcat`` and
+    blank lines further down are skipped, as are rows without a filled field
+    (a row of empty quoted fields included). Fields wrapped in double quotes,
+    as a spreadsheet may save them, are unwrapped; a field that opens a
+    double quote and does not close it raises ``ValueError``. ``kcat`` and
     ``log10_sd`` must be plain numbers (``12``, ``0.5``, ``1e-05``); other
     text, such as ``5,5`` with a decimal comma, is read as NaN, which
     :func:`load_kcat_source` reports. A row with more filled fields than
@@ -389,9 +391,16 @@ def read_kcat_source(path: str | Path) -> tuple[pd.DataFrame, dict[str, str]]:
                 raise ValueError(f"{path}, line {j + 1} has more fields than the {len(columns)} columns.")
             fields = fields[: len(columns)]
         fields += [""] * (len(columns) - len(fields))
-        if not any(f.strip() for f in fields):
-            continue  # a row of tabs only
-        rows.append([_unquote(f) for f in fields])
+        for f in fields:
+            t = f.strip()
+            if t.startswith('"') and not (len(t) >= 2 and t.endswith('"')):
+                raise ValueError(
+                    f"{path}, line {j + 1} has a field with an opening double quote and no closing one."
+                )
+        values = [_unquote(f) for f in fields]
+        if not any(values):
+            continue  # a row without a filled field
+        rows.append(values)
         line_numbers.append(j + 1)
     keep = [i for i, c in enumerate(columns) if c]
     records = pd.DataFrame([[r[i] for i in keep] for r in rows], columns=[columns[i] for i in keep], dtype=object)

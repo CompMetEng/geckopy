@@ -16,6 +16,7 @@ See :func:`compute_excarbon`.
 """
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
@@ -49,7 +50,9 @@ def compute_excarbon(
     hand-rolled formula parser). A missing/unparseable formula, or a
     computed carbon count of exactly 0 (e.g. O2, water), both fall
     back to 1 -- matching MATLAB's ``Ematrix(isnan(Ematrix)) = 1`` and
-    ``excarbon(excarbon == 0) = 1`` respectively.
+    ``excarbon(excarbon == 0) = 1`` respectively. A model in which no
+    metabolite has a formula gives every exchange the weight 1 and
+    emits a warning.
 
     Parameters
     ----------
@@ -67,6 +70,12 @@ def compute_excarbon(
     dict[str, float]
     """
     excarbon: dict[str, float] = {}
+    if not any(m.formula for m in model.metabolites):
+        warnings.warn(
+            "The model has no metabolite formulas; every exchange "
+            "reaction gets the carbon weight 1.",
+            UserWarning, stacklevel=2,
+        )
     for rxn_id in rxn_ids:
         if rxn_id == bio_rxn_id:
             excarbon[rxn_id] = BIOMASS_CARBON_EQUIV

@@ -47,6 +47,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from raven_toolbox.analysis.fseof import FSEOFResult, fseof
+from ..solver_support import optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -162,7 +163,7 @@ def _check_cs_consistency(
     cs_rxn_obj = model.reactions.get_by_id(cs_rxn_id)
     with model:
         model.objective = bio_rxn_id
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             return
         cs_flux = float(sol.fluxes.get(cs_rxn_id, 0.0))
@@ -187,7 +188,7 @@ def _biomass_optimal_target_flux(
     """
     with model:
         model.objective = bio_rxn_id
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             return 0.0
         return float(sol.fluxes.get(prod_target_rxn_id, 0.0))

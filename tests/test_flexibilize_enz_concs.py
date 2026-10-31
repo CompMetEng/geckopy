@@ -278,8 +278,22 @@ def test_infeasible_start_returns_empty_result_on_every_solver(tmp_path, solver)
     model = _build_toy(adapter, enzyme_ub=1.0, measured_conc=1.0)
     model.solver = solver
     model.reactions.get_by_id("R_AB").lower_bound = 50.0
-    assert model.optimize().status == "infeasible"
+    model.slim_optimize(error_value=float("nan"))
+    assert model.solver.status == "infeasible"
     result = flexibilize_enz_concs(model)
     assert result.uniprot_ids == []
     assert model.reactions.get_by_id("usage_prot_E").upper_bound == 1.0
     assert model.reactions.get_by_id("R_AB").lower_bound == 50.0
+
+
+def test_infeasible_start_returns_empty_result_when_gurobi_presolves_it(tmp_path):
+    """Gurobi holds no primal values for an infeasible LP it presolved; the start check must not read them."""
+    adapter = _adapter(tmp_path, gr_exp=500.0, bio_rxn="biomass")
+    model = _build_toy(adapter, enzyme_ub=1.0, measured_conc=1.0)
+    try:
+        model.solver = "gurobi"
+    except Exception as exc:
+        pytest.skip(f"gurobi unusable: {exc}")
+    model.solver.problem.Params.Presolve = 2
+    model.reactions.get_by_id("R_AB").lower_bound = 50.0
+    assert flexibilize_enz_concs(model).uniprot_ids == []

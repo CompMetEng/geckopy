@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import POOL_EXCHANGE_ID, USAGE_PREFIX
 from .flexibilize_enz_concs import (
     FlexEnzResult,
@@ -161,7 +162,7 @@ def relax_enz_concs(
         terms = [(1.0 if weight == "relative" else sum(max(base[i], floor) for i in unit)) * x for x, unit in folds]
         terms.append(pool_weight * (1.0 if weight == "relative" else pool_cap) * pool_x)
         model.objective = model.problem.Objective(add(terms), direction="min")
-        solution = model.optimize()
+        solution = optimize_model(model)
         feasible = solution.status == "optimal"
         values = model.solver.primal_values if feasible else {}
     finally:

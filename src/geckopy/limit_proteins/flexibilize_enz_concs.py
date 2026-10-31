@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import (
     POOL_EXCHANGE_ID,
     USAGE_PREFIX,
@@ -234,16 +235,17 @@ def flexibilize_enz_concs(
         units.append(members)
     unit_frequence = np.zeros(len(units), dtype=int)
 
-    initial_sol = model.optimize()
-    if initial_sol.status != "optimal":
+    # slim_optimize does not read the primal values, which Gurobi does not hold
+    # for an infeasible LP that it presolved (reading them raises GurobiError).
+    pred_growth = float(model.slim_optimize(error_value=float("nan")))
+    if model.solver.status != "optimal":
         logger.warning(
             "flexibilize_enz_concs: FBA of the input model is %s, so there is "
             "no growth to flexibilize towards; no enzyme is flexibilized. "
             "Check the enzyme-concentration and exchange constraints.",
-            initial_sol.status,
+            model.solver.status,
         )
         return FlexEnzResult()
-    pred_growth = float(initial_sol.objective_value)
 
     flex_break = False
     pool_old: Optional[float] = None
@@ -316,7 +318,7 @@ def flexibilize_enz_concs(
                 float(model.ec.concs[measured_idx[i]]) * (1.0 + increase),
             )
 
-        new_sol = model.optimize()
+        new_sol = optimize_model(model)
         pred_growth = _optimal_growth(new_sol)
         if verbose:
             logger.info(
@@ -356,7 +358,7 @@ def _try_relax_pool(
     with model:
         pool_rxn.upper_bound = 1000.0
         bio_rxn.upper_bound = exp_growth
-        sol = model.optimize()
+        sol = optimize_model(model)
         candidate_growth = _optimal_growth(sol)
 
     if candidate_growth - pred_growth <= _GROWTH_DELTA_THRESHOLD:
@@ -372,7 +374,7 @@ def _try_relax_pool(
         bio_rxn.lower_bound = candidate_growth
         model.objective = POOL_EXCHANGE_ID
         model.objective_direction = "min"
-        sol = model.optimize()
+        sol = optimize_model(model)
         new_pool = _optimal_growth(sol)
 
     pool_rxn.upper_bound = new_pool
@@ -427,7 +429,7 @@ def _build_result(
             rxn.upper_bound = exp_growth * (1 + band)
             model.objective = POOL_EXCHANGE_ID
             model.objective_direction = "min"
-            sol = model.optimize()
+            sol = optimize_model(model)
             new_concs = np.array(
                 [float(sol.fluxes[rid]) for rid in usage_rxn_ids],
                 dtype=float,
@@ -492,7 +494,7 @@ def _unit_scores(
     from .get_conc_control_coeffs import _solution_is_optimal, _solver_supports_duals
 
     scores = np.zeros(len(units))
-    sol = model.optimize()
+    sol = optimize_model(model)
     if not _solution_is_optimal(sol):
         return scores
     candidates = []
@@ -518,7 +520,7 @@ def _unit_scores(
     pool_rxn = model.reactions.get_by_id(POOL_EXCHANGE_ID)
     with model:
         pool_rxn.upper_bound = max(pool_rxn.upper_bound, 1000.0)
-        base = model.optimize()
+        base = optimize_model(model)
         if not _solution_is_optimal(base):
             return scores
         baseline = float(base.objective_value)
@@ -526,7 +528,7 @@ def _unit_scores(
             with model:
                 for r in reactions:
                     r.upper_bound = r.upper_bound * fold_change
-                probe = model.optimize()
+                probe = optimize_model(model)
             if _solution_is_optimal(probe):
                 gain = float(probe.objective_value) - baseline
                 scores[k] = gain / (fold_change - 1.0) if gain > _GROWTH_DELTA_THRESHOLD else 0.0

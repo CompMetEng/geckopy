@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import (
     POOL_ID,
     PROT_PREFIX,
@@ -227,11 +228,13 @@ def sensitivity_tuning(
     if bio_rxn_id:
         model.objective = bio_rxn_id
 
-    initial_sol = model.optimize()
-    if initial_sol.status != "optimal":
+    # slim_optimize does not read the primal values, which Gurobi does not hold
+    # for an infeasible LP that it presolved (reading them raises GurobiError).
+    model.slim_optimize(error_value=float("nan"))
+    if model.solver.status != "optimal":
         raise ValueError(
             "FBA of the input model is not optimal (status "
-            f"{initial_sol.status!r}). Reduce the protein "
+            f"{model.solver.status!r}). Reduce the protein "
             "pool constraint with set_prot_pool_size and/or check the "
             "exchange constraints."
         )
@@ -258,7 +261,7 @@ def sensitivity_tuning(
     iteration = 1
 
     while iteration <= max_iterations:
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             logger.warning(
                 "sensitivity_tuning: the model has no optimal solution with the "

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
 
 
+from ..solver_support import optimize_model
 from ..ec_model.constants import USAGE_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -130,7 +131,7 @@ def _shadow_price_coeffs(
     enz_mask = np.zeros(n, dtype=bool)
     coeffs = np.zeros(n, dtype=float)
 
-    sol = model.optimize()
+    sol = optimize_model(model)
     if not _solution_is_optimal(sol):
         return enz_mask, coeffs
     initial_growth = sol.objective_value
@@ -167,7 +168,7 @@ def _shadow_price_coeffs(
         predicted_gain = rc * rxn.upper_bound * _VERIFY_STEP
         with model:
             rxn.upper_bound = rxn.upper_bound * (1.0 + _VERIFY_STEP)
-            new_sol = model.optimize()
+            new_sol = optimize_model(model)
         if not _solution_is_optimal(new_sol):
             continue
         gain = new_sol.objective_value - initial_growth
@@ -248,7 +249,7 @@ def _finite_difference_coeffs(
     enz_mask = np.zeros(n, dtype=bool)
     coeffs = np.zeros(n, dtype=float)
 
-    initial_sol = model.optimize()
+    initial_sol = optimize_model(model)
     if not _solution_is_optimal(initial_sol):
         return enz_mask, coeffs
     initial_growth = initial_sol.objective_value
@@ -270,7 +271,7 @@ def _finite_difference_coeffs(
         new_ub = prev_ub * fold_change
         with model:
             rxn.upper_bound = new_ub
-            new_sol = model.optimize()
+            new_sol = optimize_model(model)
         if not _solution_is_optimal(new_sol):
             continue
         new_growth = new_sol.objective_value

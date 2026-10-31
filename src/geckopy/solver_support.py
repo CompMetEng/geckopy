@@ -74,7 +74,32 @@ __all__ = [
     "edit_on_fast_solver",
     "is_scipy_interface",
     "constraint_shadow_prices",
+    "optimize_model",
 ]
+
+def optimize_model(model, **kwargs):
+    """``model.optimize()`` that returns the solution of an infeasible LP on every solver.
+
+    Gurobi holds no primal values for an LP that it presolved as infeasible and optlang's
+    scipy interface returns ``None`` for them, and cobra reads them while it builds the
+    solution, so ``model.optimize()`` raises ``GurobiError`` or ``TypeError`` there. When
+    the solver status is not optimal this function returns a ``Solution`` with that status,
+    a NaN objective and NaN fluxes instead; with an optimal status every error is raised.
+    """
+    try:
+        return model.optimize(**kwargs)
+    except Exception:
+        if model.solver.status == "optimal":
+            raise
+        import pandas as pd
+        from cobra.core import Solution
+
+        return Solution(
+            objective_value=float("nan"),
+            status=model.solver.status,
+            fluxes=pd.Series(float("nan"), index=[r.id for r in model.reactions]),
+        )
+
 
 # Relative tolerance of the optimality certificate, scaled by the size of the quantity checked.
 _CERTIFICATE_TOL = 1e-6

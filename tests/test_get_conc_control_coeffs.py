@@ -438,13 +438,13 @@ def test_finite_diff_underestimates_when_step_crosses_breakpoint():
 # finite-difference where the solver gives no usable variable duals.
 # --------------------------------------------------------------------------- #
 
-def test_dispatcher_uses_shadow_price_on_default_solver():
-    """On glpk (cobra default), the public function takes the shadow-price
-    path. Verified by matching the shadow-price helper exactly (the
+def test_dispatcher_uses_shadow_price_when_asked():
+    """With method="shadow_price" on glpk (cobra default), the public function takes the
+    shadow-price path. Verified by matching the shadow-price helper exactly (the
     finite-difference would diverge on a breakpoint scenario)."""
     model = _build_toy_ec_model(enzyme_ub=8.0)
     model.reactions.get_by_id("EX_A").lower_bound = -10.0  # breakpoint setup
-    pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+    pm, pc = get_conc_control_coeffs(model, fold_change=2.0, method="shadow_price")
     sm, sc = _shadow_helper(model)
     np.testing.assert_array_equal(pm, sm)
     np.testing.assert_allclose(pc, sc, rtol=1e-6, atol=1e-12)
@@ -477,8 +477,37 @@ def test_dispatcher_falls_back_to_finite_diff_without_usable_duals(caplog, monke
     model.solver = "scipy"
 
     with caplog.at_level(logging.INFO, logger=mod_ccc.__name__):
-        pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+        pm, pc = get_conc_control_coeffs(model, fold_change=2.0, method="shadow_price")
     fm, fc = _fd_helper(model, fold_change=2.0)
     np.testing.assert_array_equal(pm, fm)
     np.testing.assert_allclose(pc, fc, rtol=1e-6, atol=1e-12)
     assert "returns no usable variable duals" in caplog.text
+
+
+def test_default_method_is_the_finite_difference_and_matches_the_helper():
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    model.reactions.get_by_id("EX_A").lower_bound = -10.0  # breakpoint setup
+    pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+    fm, fc = _fd_helper(model, fold_change=2.0)
+    np.testing.assert_array_equal(pm, fm)
+    np.testing.assert_allclose(pc, fc, rtol=1e-12, atol=1e-14)
+
+
+def test_default_method_needs_no_duals(monkeypatch):
+    import importlib
+
+    mod_ccc = importlib.import_module("geckopy.limit_proteins.get_conc_control_coeffs")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("the shadow-price path ran")
+
+    monkeypatch.setattr(mod_ccc, "_shadow_price_coeffs", fail)
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    enz, coeffs = get_conc_control_coeffs(model)
+    assert enz.any()
+
+
+def test_unknown_method_raises():
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    with pytest.raises(ValueError, match="method must be"):
+        get_conc_control_coeffs(model, method="dual")

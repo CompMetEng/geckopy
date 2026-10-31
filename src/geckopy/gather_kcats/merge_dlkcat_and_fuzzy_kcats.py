@@ -51,6 +51,7 @@ def merge_dlkcat_and_fuzzy_kcats(
         DataFrame produced by ``fuzzy_kcat_matching``.
     top_origin_limit
         Origin upper bound for database_top. Must be in ``[1, 6]``.
+        Default 4.
     bottom_origin_limit
         Origin upper bound for database_bottom. Must be in ``[1, 6]``.
     wildcard_limit

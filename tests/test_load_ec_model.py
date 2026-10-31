@@ -655,3 +655,10 @@ def test_enzymes_omap_without_entries_loads(tmp_path):
     assert model.ec.rxns == ["R1_EXP_1", "R2", "R3"]
     assert model.ec.notes == ["", 'say "hi" now', ""]
     np.testing.assert_array_equal(model.ec.rxn_enz_mat.toarray(), [[0.0], [1.0], [0.0]])
+
+
+def test_loaded_ec_model_has_raven_solver_tolerance(tmp_path):
+    adapter = _adapter(tmp_path)
+    _write_canonical(tmp_path / "models" / "ecModel.yml")
+    model = load_ec_model("ecModel.yml", adapter=adapter)
+    assert model.tolerance == 1e-9

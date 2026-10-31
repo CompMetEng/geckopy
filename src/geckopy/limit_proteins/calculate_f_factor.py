@@ -73,9 +73,9 @@ def calculate_f_factor(
     Returns
     -------
     float
-        The f-factor in [0, 1]. Returns 0.0 if the total proteome
-        abundance is zero, or if none of the proteomics UniProt IDs
-        match a model enzyme.
+        The f-factor in [0, 1]. Returns NaN, as MATLAB does, if the total
+        proteome abundance is zero (the factor is 0/0), and 0.0 if none of
+        the proteomics UniProt IDs match a model enzyme.
     """
     if enzymes is None:
         enzymes = model.ec.enzymes
@@ -90,9 +90,9 @@ def calculate_f_factor(
     if total_prot == 0.0:
         logger.warning(
             "calculate_f_factor: total proteome abundance is zero; "
-            "returning f = 0."
+            "returning f = NaN."
         )
-        return 0.0
+        return float("nan")
 
     enzyme_set = set(enzymes)
     in_model = np.array(

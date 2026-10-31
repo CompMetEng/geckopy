@@ -95,3 +95,11 @@ def test_missing_file_raises(tmp_path):
     adapter = _adapter_with_conv_gem(tmp_path, "absent.yml")
     with pytest.raises(FileNotFoundError, match="conv_gem"):
         load_conventional_gem(adapter)
+
+
+def test_loaded_gem_has_raven_solver_tolerance(tmp_path):
+    """The model carries RAVEN's solver tolerance whichever reader was used."""
+    json_path = tmp_path / "tiny.json"
+    cobra.io.save_json_model(cobra.Model("tiny"), str(json_path))
+    adapter = _adapter_with_conv_gem(tmp_path, "tiny.json")
+    assert load_conventional_gem(adapter).tolerance == 1e-9

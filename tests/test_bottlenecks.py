@@ -221,3 +221,28 @@ def test_raises_on_infeasible():
     r3.lower_bound = 1e9
     with pytest.raises(RuntimeError, match="Solver status"):
         get_enzyme_bottlenecks(model, top=3)
+
+
+def test_warns_when_no_enzyme_is_at_its_bound(caplog):
+    model = _toy(ubs=(1e5, 1e5, 1e5, 1e5))
+    with caplog.at_level("WARNING", logger="geckopy.utilities.bottlenecks"):
+        df = get_enzyme_bottlenecks(model)
+    assert df.attrs["n_resolved"] == 0
+    assert (df["objective_gain"] == 0).all()
+    assert "no enzyme is at its usage bound" in caplog.text
+    assert "no capacity constraint is active" in caplog.text
+
+
+def test_warning_names_the_protein_pool_when_it_is_the_active_constraint(caplog):
+    model = _toy(ubs=(1e5, 1e5, 1e5, 1e5), pool_ub=6.0)
+    with caplog.at_level("WARNING", logger="geckopy.utilities.bottlenecks"):
+        df = get_enzyme_bottlenecks(model)
+    assert df.attrs["n_resolved"] == 0
+    assert df.attrs["active_constraints"] == 1
+    assert "the protein pool exchange is at its bound" in caplog.text
+
+
+def test_no_warning_when_an_enzyme_is_at_its_bound(caplog):
+    with caplog.at_level("WARNING", logger="geckopy.utilities.bottlenecks"):
+        get_enzyme_bottlenecks(_toy())
+    assert "no enzyme is at its usage bound" not in caplog.text

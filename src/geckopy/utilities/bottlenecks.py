@@ -8,6 +8,7 @@ Ported from the legacy geckopy package described in Carrasco et al. (2023, https
 """
 from __future__ import annotations
 
+import logging
 import math
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,8 @@ from ..solver_support import constraint_shadow_prices, optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
+
+logger = logging.getLogger(__name__)
 
 # An enzyme is at its bound when |flux| / upper_bound is at least 1 - _AT_CAP_TOL.
 _AT_CAP_TOL = 1e-6
@@ -51,6 +54,10 @@ def get_enzyme_bottlenecks(
     -------
     pandas.DataFrame
         Indexed by uniprot id, columns ``[gene, objective_gain, shadow_price, flux, cap_usage, upper_bound, multiple_active]``, truncated to ``top`` rows. ``df.attrs["n_resolved"]`` is the number of enzymes that were solved again and ``df.attrs["active_constraints"]`` the number of active capacity constraints.
+
+    Warns
+    -----
+    When no enzyme is at its usage bound a warning is logged: no single enzyme limits the objective, every ``objective_gain`` is 0 and the rows are in model order.
 
     Raises
     ------
@@ -87,11 +94,19 @@ def get_enzyme_bottlenecks(
         if row["upper_bound"] > 0 and row["cap_usage"] >= 1 - _AT_CAP_TOL
     ]
     active = len(at_cap)
+    pool_active = False
     if model.reactions.has_id(POOL_EXCHANGE_ID):
         pool = model.reactions.get_by_id(POOL_EXCHANGE_ID)
         pool_ub = float(pool.upper_bound)
         if 0 < pool_ub < math.inf and abs(float(pool.flux)) >= pool_ub * (1 - _AT_CAP_TOL):
             active += 1
+            pool_active = True
+    if not at_cap:
+        logger.warning(
+            "get_enzyme_bottlenecks: no enzyme is at its usage bound, so no single enzyme limits "
+            "the objective; %s. Every objective_gain is 0 and the rows are in model order.",
+            "the protein pool exchange is at its bound" if pool_active else "no capacity constraint is active",
+        )
 
     for i in at_cap:
         usage = enzymes[i].usage_reaction

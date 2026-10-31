@@ -40,3 +40,14 @@ def test_ec_stats_keep_the_case_of_the_ec_number(tmp_path):
         ["R1"], [40.0], ["brenda"], ["3.5.1.n3"], ec_stats=stats,
     )
     assert [f.checks for f in findings] == [("ec-maximum",)]
+
+
+def test_review_recognises_custom_and_standard_without_regard_to_case():
+    stats = {"1.1.1.1": geckopy.EcStats(n_kcat=1, kcat_max=2.0, kcat_median=2.0, values=frozenset({2.0}))}
+    found = geckopy.review_assignment(
+        ["R1", "R2"], [2.0, 20000.0], ["Custom", "STANDARD"], ["1.1.1.1", ""], ec_stats=stats,
+        include=("standard-fallback",),
+    )
+    by_rxn = {f.rxn_id: f.checks for f in found}
+    assert "custom-duplicate" in by_rxn["R1"]
+    assert "standard-fallback" in by_rxn["R2"]

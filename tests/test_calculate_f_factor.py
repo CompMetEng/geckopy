@@ -178,3 +178,14 @@ def test_integration_with_pax_db_loader(tmp_path):
     f = calculate_f_factor(model, pd_data)
     # P1+P2 = 80, total = 110.
     assert f == pytest.approx(80.0 / 110.0)
+
+
+# --------------------------------------------------------------------------- #
+# Explicit empty enzyme list
+# --------------------------------------------------------------------------- #
+
+def test_explicit_empty_enzyme_list_means_no_enzymes():
+    model = _ec_model(["P1", "P2"])
+    pd = _prot_data([("P1", 100.0), ("P2", 100.0)])
+    assert calculate_f_factor(model, pd, enzymes=[]) == 0.0
+    assert calculate_f_factor(model, pd) == pytest.approx(1.0)

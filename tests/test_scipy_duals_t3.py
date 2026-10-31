@@ -45,7 +45,7 @@ def _flux(model, rxn):
 def test_scipy_reads_the_bound_marginal_and_not_the_finite_difference(monkeypatch):
     model = _scipy_model(enzyme_ub=5.0)
     _forbid_finite_difference(monkeypatch)
-    enz, coeffs = get_conc_control_coeffs(model)
+    enz, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert enz[0]
     assert coeffs[0] == pytest.approx(1.0, rel=1e-6)
 
@@ -63,7 +63,7 @@ def test_scipy_gives_zero_for_a_bound_that_does_not_bind_while_the_pool_binds(mo
     rxn = model.reactions.get_by_id("usage_prot_E")
     _forbid_finite_difference(monkeypatch)
     assert _forward_reduced_cost(rxn, _flux(model, rxn)) == 0.0
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == 0.0
 
 
@@ -75,7 +75,7 @@ def test_scipy_degenerate_vertex_is_resolved_by_the_verification_step(monkeypatc
     assert _forward_reduced_cost(rxn, _flux(model, rxn)) >= 0.0
     monkeypatch.setattr(mod, "_forward_reduced_cost", lambda rxn, flux=None: 1.0)
     _forbid_finite_difference(monkeypatch)
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == 0.0
 
 
@@ -93,8 +93,8 @@ def test_scipy_degenerate_vertex_is_resolved_by_the_verification_step(monkeypatc
 def test_scipy_agrees_with_the_other_solvers(build, other):
     reference = build(other)
     scipy_model = build("scipy")
-    enz_ref, ref = get_conc_control_coeffs(reference)
-    enz_sp, sp = get_conc_control_coeffs(scipy_model)
+    enz_ref, ref = get_conc_control_coeffs(reference, method="shadow_price")
+    enz_sp, sp = get_conc_control_coeffs(scipy_model, method="shadow_price")
     np.testing.assert_array_equal(enz_ref, enz_sp)
     np.testing.assert_allclose(sp, ref, rtol=1e-6, atol=1e-12)
 
@@ -112,7 +112,7 @@ def test_scipy_result_without_bound_marginals_falls_back(caplog, monkeypatch):
     monkeypatch.setattr(problem_class, "optimize", optimize_without_marginals)
     mod._FALLBACK_REPORTED.clear()
     with caplog.at_level(logging.INFO, logger=mod.__name__):
-        pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+        pm, pc = get_conc_control_coeffs(model, fold_change=2.0, method="shadow_price")
     fm, fc = _finite_difference_coeffs(model, ["E"], 2.0, 0.0)
     np.testing.assert_array_equal(pm, fm)
     np.testing.assert_allclose(pc, fc, rtol=1e-6, atol=1e-12)
@@ -136,6 +136,6 @@ def test_nan_marginal_falls_back(monkeypatch):
     monkeypatch.setattr(mod, "_scipy_upper_marginal", lambda rxn, flux: float("nan"))
     rxn = model.reactions.get_by_id("usage_prot_E")
     assert _forward_reduced_cost(rxn, 5.0) is None
-    enz, coeffs = get_conc_control_coeffs(model)
+    enz, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     _, local = _finite_difference_coeffs(model, ["E"], 2.0, 0.0)
     assert coeffs[0] == pytest.approx(local[0], rel=1e-6)

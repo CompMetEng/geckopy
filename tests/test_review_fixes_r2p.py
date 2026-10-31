@@ -59,7 +59,7 @@ def _fixed_reduced_cost(monkeypatch, value):
 def test_a_gain_below_half_the_prediction_gives_zero(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     _stub_check_solve(monkeypatch, model, 0.3 * 5e-4)
-    enz, coeffs = get_conc_control_coeffs(model)
+    enz, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert enz[0]
     assert coeffs[0] == 0.0
 
@@ -68,7 +68,7 @@ def test_a_gain_below_half_the_prediction_gives_zero(solver, monkeypatch):
 def test_a_gain_above_half_the_prediction_keeps_the_reduced_cost(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     _stub_check_solve(monkeypatch, model, 0.6 * 5e-4)
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == pytest.approx(1.0, rel=1e-6)
 
 
@@ -78,7 +78,7 @@ def test_a_gain_below_the_floor_is_noise(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     _fixed_reduced_cost(monkeypatch, 1e-8)
     _stub_check_solve(monkeypatch, model, 4e-12)
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == 0.0
 
 
@@ -87,7 +87,7 @@ def test_a_gain_above_the_floor_is_kept(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     _fixed_reduced_cost(monkeypatch, 1e-8)
     _stub_check_solve(monkeypatch, model, 6e-12)
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == pytest.approx(1e-8)
 
 
@@ -97,7 +97,7 @@ def test_a_reduced_cost_below_1e_10_is_checked_and_kept(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=500.0, enzyme_coeff_in_R=-2000.0), solver)
     _fixed_reduced_cost(monkeypatch, 5e-11)
     _stub_check_solve(monkeypatch, model, 2.5e-12)
-    enz, coeffs = get_conc_control_coeffs(model)
+    enz, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert enz[0]
     assert coeffs[0] == pytest.approx(5e-11)
 
@@ -107,7 +107,7 @@ def test_a_zero_reduced_cost_is_not_checked(solver, monkeypatch):
     model = _with_solver(_build_toy_ec_model(enzyme_ub=5.0), solver)
     _fixed_reduced_cost(monkeypatch, 0.0)
     state = _stub_check_solve(monkeypatch, model, 1.0)
-    _, coeffs = get_conc_control_coeffs(model)
+    _, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert coeffs[0] == 0.0
     assert state["calls"] == 1
 
@@ -120,7 +120,7 @@ def test_a_usage_reaction_held_at_its_lower_bound_is_not_checked(solver, monkeyp
     usage.upper_bound = 2.0
     _fixed_reduced_cost(monkeypatch, 1.0)
     state = _stub_check_solve(monkeypatch, model, 1.0)
-    enz, coeffs = get_conc_control_coeffs(model)
+    enz, coeffs = get_conc_control_coeffs(model, method="shadow_price")
     assert enz[0]
     assert coeffs[0] == 0.0
     assert state["calls"] == 1

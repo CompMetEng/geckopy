@@ -368,3 +368,22 @@ def test_met_smiles_accepts_the_shape_a_loaded_model_carries():
 
     del met.annotation["smiles"]
     assert met_smiles(met) == ""
+
+
+def test_duplicate_cache_name_uses_the_last_row(monkeypatch, tmp_path):
+    cache_path = tmp_path / "smilesDB.tsv"
+    cache_path.write_text("glucose\tFIRST\nglucose\tLAST\n")
+    model = _build_model([("glc_c", "glucose")])
+    find_met_smiles(model, cache_path=cache_path)
+    assert _smiles(model, "glc_c") == "LAST"
+
+
+def test_metabolite_without_name_is_skipped_with_a_warning(monkeypatch, tmp_path, caplog):
+    cache_path = tmp_path / "smilesDB.tsv"
+    cache_path.write_text("m1_c\tFROM_ID\nglucose\tCCO\n")
+    model = _build_model([("m1_c", ""), ("glc_c", "glucose")])
+    with caplog.at_level(logging.WARNING):
+        find_met_smiles(model, cache_path=cache_path)
+    assert _smiles(model, "m1_c") == ""
+    assert _smiles(model, "glc_c") == "CCO"
+    assert any("m1_c" in r.getMessage() and "no name" in r.getMessage() for r in caplog.records)

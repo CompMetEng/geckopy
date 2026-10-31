@@ -69,3 +69,40 @@ def test_read_kcat_source_quoted_rows(tmp_path):
     file.write_text("\n".join(head[:2] + ['"R3\tP4\t25\todd']) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="no closing one"):
         read_kcat_source(file)
+
+
+def test_read_dlkcat_output_kcat_fields(tmp_path):
+    """A kcat field that is not a finite number drops the row before the reactions
+    are checked; a file without a number raises."""
+    model, _, _ = _project(tmp_path)
+    file = tmp_path / "DLKcat_out.tsv"
+    head = "rxns\tgenes\tsubstrates\tsmiles\tsequence\tkcat"
+
+    def write(*rows):
+        file.write_text("\n".join([head] + [f"{r}\tG1\t{s}\tsmiles\tseq\t{k}" for r, s, k in rows]) + "\n",
+                        encoding="utf-8")
+
+    write(("R2_EXP_1", "m1", "12.5"), ("R2_EXP_2", "m1", "inf"), ("R2_EXP_2", "m1", "1.2.3"))
+    out = read_dlkcat_output(model, file)
+    assert list(out["rxn_id"]) == ["R2_EXP_1"] and list(out["kcat"]) == [12.5]
+    write(("R2_EXP_1", "m1", "None"), ("R2_EXP_2", "m1", "None"))
+    with pytest.raises(ValueError, match="no numeric kcat"):
+        read_dlkcat_output(model, file)
+    write(("R2_EXP_1", "m1", "12.5"), ("NOTAREACTION_EXP_1", "m1", "NA"))
+    assert list(read_dlkcat_output(model, file)["rxn_id"]) == ["R2_EXP_1"]
+    write(("R2_EXP_1", "m1", "12.5"), ("NOTAREACTION_EXP_1", "m1", "7"))
+    with pytest.raises(ValueError, match="not present in model.ec.rxns"):
+        read_dlkcat_output(model, file)
+
+
+def test_write_dlkcat_input_selection(tmp_path):
+    """An empty selection writes an empty file; the rows follow model.ec.rxns."""
+    model, _, _ = _project(tmp_path)
+    ignore = load_dlkcat_ignore_lists()
+    target = tmp_path / "DLKcat_in.tsv"
+    df = write_dlkcat_input(model, target, ignore, ec_rxns=[], overwrite=True, only_with_smiles=False)
+    assert df.empty and target.read_text(encoding="utf-8") == ""
+    df = write_dlkcat_input(model, target, ignore, ec_rxns=["R5", "R3", "R5"], overwrite=True,
+                            only_with_smiles=False)
+    wanted = [r for r in model.ec.rxns if r in {"R3", "R5"}]
+    assert list(dict.fromkeys(df["rxn_id"])) == wanted

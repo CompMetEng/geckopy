@@ -161,13 +161,15 @@ def test_get_enzyme_bottlenecks_on_scipy_equals_the_reference(reference, scipy_d
     scipy_model = _on("scipy", tight=True)[0]
     actual = get_enzyme_bottlenecks(scipy_model, top=999)
     assert (expected["shadow_price"].abs() > 1e-9).any()
-    assert list(actual.index[:1]) == list(expected.index[:1])
-    assert set(actual.index) == set(expected.index)
+    assert list(actual.index) == list(expected.index)
+    assert actual["objective_gain"].to_numpy() == pytest.approx(
+        expected["objective_gain"].to_numpy(), abs=1e-6
+    )
     aligned = actual.loc[expected.index]
     assert aligned["shadow_price"].to_numpy() == pytest.approx(
         expected["shadow_price"].to_numpy(), abs=1e-6
     )
-    assert actual["shadow_price"].abs().is_monotonic_decreasing
+    assert actual["objective_gain"].round(9).is_monotonic_decreasing
     for uniprot, row in actual.iterrows():
         assert row["flux"] == pytest.approx(scipy_model.enzymes.get_by_id(uniprot).flux)
 

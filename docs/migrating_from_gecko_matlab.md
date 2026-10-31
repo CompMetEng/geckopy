@@ -324,7 +324,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `startGECKOproject`   | `geckopy init` *(CLI)*                 | **`[Py]`** Project skeleton generator runs from the `geckopy` CLI (`geckopy init my_project`).                                                                                                                                                                                                                                                              |
 | `updateGECKOdoc`      | *(not applicable)*                     | Python docs are docstring-driven; no MATLAB Toolbox metadata to regenerate.                                                                                                                                                                                                                                                                                    |
 | —                     | `pfba_enzymes` *(new)*                 | **`[Py]`** pFBA variant that minimises total `usage_prot_*` flux instead of all fluxes. Raises `NotImplementedError` on gecko-light.                                                                                                                                                                                                                          |
-| —                     | `get_enzyme_bottlenecks` *(new)*       | **`[Py]`** Per-enzyme dual-based bottleneck ranker; returns a DataFrame.                                                                                                                                                                                                                                                                                       |
+| —                     | `get_enzyme_bottlenecks` *(new)*       | **`[Py]`** Per-enzyme bottleneck ranker; returns a DataFrame sorted by the re-solved change of the objective when the bound of one enzyme at its bound is raised by `fold_change`. The shadow price is a reference column.                                                                                                                                                                                                                                                                                       |
 
 ### 5.7 Model adapter (`src/geckomat/model_adapter`)
 
@@ -456,7 +456,7 @@ for the MATLAB-side items the port surfaced.
 ### geckopy-only (no MATLAB counterpart)
 
 - `pfba_enzymes` — enzyme-pool-minimising pFBA.
-- `get_enzyme_bottlenecks` — dual-based bottleneck ranking.
+- `get_enzyme_bottlenecks` — bottleneck ranking by the re-solved change of the objective.
 - `relax_proteomics_greedy` — greedy alternative to
   `flexibilize_enz_concs`.
 - `merge_kcats` — generalised n-source kcat merge (replaces the

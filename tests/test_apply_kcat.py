@@ -324,8 +324,29 @@ def test_light_setting_kcat_to_zero_and_reapplying_clears_old_constraint():
 
 def test_light_update_rxns_unknown_id_raises():
     ec = _ectestgem_light_model()
-    with pytest.raises(ValueError, match="not present in ec.rxns"):
+    with pytest.raises(ValueError, match="neither in ec.rxns nor"):
         apply_kcat_constraints(ec, update_rxns=["999_nonsense"])
+
+
+def test_light_update_rxns_takes_cobra_ids_and_ec_ids():
+    ec = _ectestgem_light_model()
+    ec.ec.kcat[ec.ec.rxns.index("001_R3")] = 10.0
+    r3 = ec.reactions.get_by_id("R3")
+    apply_kcat_constraints(ec, update_rxns=["R3"])
+    coef = _get_s_coef(r3, "prot_pool")
+    assert coef < 0
+    apply_kcat_constraints(ec, update_rxns=["001_R5"])
+    assert _get_s_coef(r3, "prot_pool") == coef
+    ec.ec.kcat[ec.ec.rxns.index("001_R3")] = 0.0
+    apply_kcat_constraints(ec, update_rxns=["001_R3"])
+    assert _get_s_coef(r3, "prot_pool") == 0.0
+
+
+def test_light_update_rxns_id_of_both_kinds_raises():
+    ec = _ectestgem_light_model()
+    ec.reactions.get_by_id("R5").id = "001_R3"
+    with pytest.raises(ValueError, match="both"):
+        apply_kcat_constraints(ec, update_rxns=["001_R3"])
 
 
 def test_light_warns_when_no_valid_kcats():

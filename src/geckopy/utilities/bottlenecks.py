@@ -32,7 +32,7 @@ def get_enzyme_bottlenecks(
 
     Solves the model. An enzyme is at its bound when its upper bound is positive and ``|flux| / upper_bound`` is at least ``1 - 1e-6``. For each such enzyme the upper bound of its usage reaction is raised to ``upper_bound * fold_change``, the model is solved again and ``objective_gain`` is the new objective minus the objective of the first solve (0 when the new solve is not optimal or the change is below 1e-10). The model is restored after each solve. Every other enzyme has ``objective_gain`` 0 without a solve, because raising a bound that does not bind cannot change the optimum. The change is signed in the direction of the objective as the solver returns it, so it is positive for a maximised objective that increases.
 
-    The rows are sorted by ``objective_gain`` descending, compared at 9 decimals, and ties keep the order of ``model.enzymes``. ``shadow_price`` (the dual of the ``prot_<id>`` constraint) is reported for reference and does not enter the order, because at a degenerate optimum it depends on the basis the solver ended in.
+    ``objective_gain`` is the improvement of the objective in its own direction: a rise for a maximised objective and a fall for a minimised one. The rows are sorted by ``objective_gain`` descending, compared at 9 decimals, and ties keep the order of ``model.enzymes``. ``shadow_price`` (the dual of the ``prot_<id>`` constraint) is reported for reference and does not enter the order, because at a degenerate optimum it depends on the basis the solver ended in.
 
     ``multiple_active`` is True for an enzyme when a capacity constraint other than its own is active at the same optimum, which is where the dual says little about the enzyme. The capacity constraints counted are the enzymes at their bound and the protein pool exchange (``prot_pool_exchange``) when its flux is within 1e-6 relative of a finite, positive upper bound.
 
@@ -45,7 +45,7 @@ def get_enzyme_bottlenecks(
     top
         Number of top-ranked enzymes to return. Default 10.
     fold_change
-        Factor by which the upper bound of an enzyme at its bound is raised. Default 2.0.
+        Factor, greater than 1, by which the upper bound of an enzyme at its bound is raised. Default 2.0.
 
     Returns
     -------
@@ -54,9 +54,13 @@ def get_enzyme_bottlenecks(
 
     Raises
     ------
+    ValueError
+        If ``fold_change`` is not greater than 1.
     RuntimeError
         If the solve status is not optimal.
     """
+    if not fold_change > 1:
+        raise ValueError(f"fold_change must be greater than 1, got {fold_change!r}")
     sol = optimize_model(model)
     if sol.status != "optimal":
         raise RuntimeError(
@@ -95,7 +99,7 @@ def get_enzyme_bottlenecks(
             usage.upper_bound = rows[i]["upper_bound"] * fold_change
             new = optimize_model(model)
             if new.status == "optimal":
-                gain = new.objective_value - base
+                gain = (new.objective_value - base) * (1.0 if model.objective_direction == "max" else -1.0)
                 rows[i]["objective_gain"] = gain if gain >= _GAIN_TOL else 0.0
     if at_cap:
         optimize_model(model)

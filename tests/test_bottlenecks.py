@@ -186,6 +186,22 @@ def test_fold_change_is_respected():
     assert thrice["objective_gain"].iloc[0] == pytest.approx(6.0)
 
 
+@pytest.mark.parametrize("fold_change", [1.0, 0.5, float("nan")])
+def test_fold_change_must_exceed_one(fold_change):
+    with pytest.raises(ValueError, match="fold_change"):
+        get_enzyme_bottlenecks(_toy(), fold_change=fold_change)
+
+
+def test_gain_is_the_improvement_of_a_minimised_objective():
+    maximised = get_enzyme_bottlenecks(_toy(), top=4)
+    model = _toy()
+    model.objective = {model.reactions.get_by_id("SK_C"): -1.0, model.reactions.get_by_id("SK_D"): -1.0}
+    model.objective_direction = "min"
+    minimised = get_enzyme_bottlenecks(model, top=4)
+    assert list(minimised.index) == list(maximised.index)
+    assert minimised["objective_gain"].to_numpy() == pytest.approx(maximised["objective_gain"].to_numpy())
+
+
 @pytest.mark.parametrize("solver", ["glpk", "scipy", "gurobi"])
 def test_order_does_not_depend_on_the_solver(solver):
     reference = get_enzyme_bottlenecks(_toy("glpk"), top=10)

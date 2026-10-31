@@ -47,6 +47,7 @@ def get_conc_control_coeffs(
     proteins: Optional[list[str]] = None,
     fold_change: float = 2.0,
     limit: float = 0.0,
+    method: str = "finite_difference",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute control coefficients for enzyme concentrations.
 
@@ -56,7 +57,14 @@ def get_conc_control_coeffs(
     ``limit`` times their upper bound are skipped (no sensitivity to
     expect there).
 
-    The default path reads, from a single LP solve, the reduced cost of
+    The default ``method="finite_difference"`` raises the upper bound of one usage reaction
+    by ``fold_change``, re-solves and divides the rise of the optimum by the rise of the
+    bound, one solve per analysed protein (several minutes on a genome-scale ecModel). A
+    rise of at most 1e-10 counts as no sensitivity. This is what GECKO's
+    ``getConcControlCoeffs`` does, and it is a re-solved change of the objective, which
+    stays meaningful when the LP is degenerate and its duals are not.
+
+    ``method="shadow_price"`` reads, from a single LP solve, the reduced cost of
     each analysed usage reaction's forward variable. That is the local
     marginal d(objective)/d(usage_ub) of the enzyme's own bound: it is
     zero for an enzyme whose bound does not bind, also when the shared
@@ -73,9 +81,9 @@ def get_conc_control_coeffs(
     read from the bound marginal of the last ``linprog`` result, since optlang does not
     expose variable duals there. When the active solver gives no usable variable duals
     (a missing or NaN value, or a scipy result without bound marginals) the function falls
-    back to the per-protein finite-difference loop, which needs one solve per protein
-    (several minutes on a genome-scale ecModel), and logs once that it has done so. The
-    fold-change probe size is only used in that fallback.
+    back to the finite-difference loop and logs once that it has done so. The two methods
+    agree where raising the bound does not cross a change of the active set and differ
+    where it does.
 
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/getConcControlCoeffs.m.
@@ -89,12 +97,14 @@ def get_conc_control_coeffs(
     proteins
         UniProt IDs to analyse. Defaults to ``model.ec.enzymes``.
     fold_change
-        Probe size for the finite-difference fallback (default 2.0).
-        Ignored on the shadow-price path.
+        Factor by which the finite-difference path raises a usage upper bound
+        (default 2.0). Used by ``method="shadow_price"`` only when it falls back.
     limit
         Skip proteins whose usage flux is at most ``limit`` times
         their upper bound. Default 0.0 includes any protein with
         non-zero flux.
+    method
+        ``"finite_difference"`` (default) or ``"shadow_price"``.
 
     Returns
     -------
@@ -105,13 +115,18 @@ def get_conc_control_coeffs(
         Float array of length ``len(proteins)``; 0.0 where the
         protein was either skipped or showed no sensitivity.
     """
+    if method not in ("finite_difference", "shadow_price"):
+        raise ValueError(
+            f"get_conc_control_coeffs: method must be 'finite_difference' or "
+            f"'shadow_price', got {method!r}"
+        )
     if proteins is None:
         proteins = list(model.ec.enzymes)
-
     n = len(proteins)
     if n == 0:
         return np.zeros(0, dtype=bool), np.zeros(0, dtype=float)
-
+    if method == "finite_difference":
+        return _finite_difference_coeffs(model, proteins, fold_change, limit)
     if _solver_supports_duals(model):
         return _shadow_price_coeffs(model, proteins, limit, fold_change)
     _report_finite_difference_fallback(model, "does not expose LP duals")
@@ -240,10 +255,10 @@ def _finite_difference_coeffs(
     fold_change: float,
     limit: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Per-protein finite-difference fallback (one solve per protein).
+    """Per-protein finite-difference coefficients (one solve per protein).
 
-    Same contract as :func:`get_conc_control_coeffs`. Used when the solver
-    does not expose usable variable duals.
+    Same contract as :func:`get_conc_control_coeffs`. The default method, and the
+    fallback of the shadow-price method when the solver does not expose usable variable duals.
     """
     n = len(proteins)
     enz_mask = np.zeros(n, dtype=bool)

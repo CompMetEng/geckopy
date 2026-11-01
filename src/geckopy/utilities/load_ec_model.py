@@ -23,7 +23,9 @@ geckopy keeps three application-level concerns:
 4. **Tolerated input**: a file that the YAML reader rejects is read again
    after the two forms that GECKO's ``loadEcModel`` (through RAVEN's
    ``readYAMLmodel``) accepts are rewritten as valid YAML: ``enzymes: !!omap``
-   with no entries, as GECKO writes it for a reaction without enzymes, and a
+   with no entries, as earlier GECKO and RAVEN versions wrote it for a
+   reaction without enzymes (current writers omit the ``enzymes`` entry, which
+   is read as no enzymes), and a
    value in double quotes that holds unescaped double quotes, such as
    ``""text""``, which RAVEN 2 wrote for a value that has quotes of its own.
    The value loaded is the one MATLAB loads: the outer pair of quotes is

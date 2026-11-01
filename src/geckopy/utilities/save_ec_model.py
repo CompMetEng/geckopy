@@ -73,7 +73,9 @@ def save_ec_model(
     Returns
     -------
     Path
-        The absolute path of the file that was written.
+        The absolute path of the file that was written. An ec reaction
+        without enzymes (a zero row in ``model.ec.rxn_enz_mat``) is written
+        without an ``enzymes`` entry.
 
     Raises
     ------

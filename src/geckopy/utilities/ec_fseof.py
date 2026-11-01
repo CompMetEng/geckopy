@@ -116,7 +116,7 @@ def ec_fseof(
         rows filtered out of both ``scan`` and ``targets``. ``targets``
         has an added boolean column ``transport`` and lists the reaction
         targets first, then the transport targets, each group in the
-        order of the score ``|slope| * |correlation|`` (equal scores in
+        order of the score ``|slope| * |correlation|`` rounded to 9 significant digits (equal scores in
         model order); a reaction is a transport target when a metabolite
         name occurs more than once among its metabolites, not counting
         the ``prot_*`` ones. A caller that takes the top N rows gets the
@@ -219,14 +219,19 @@ def _group_transport_targets(result: FSEOFResult, model: "EcModel") -> FSEOFResu
     """Add the ``transport`` column and list reaction targets before transport targets.
 
     As in ``ecFSEOF.m``, a reaction is a transport reaction when a metabolite name repeats
-    among its metabolites after the ``prot_*`` metabolites are dropped. The order within a
-    group is the order of ``result.targets``.
+    among its metabolites after the ``prot_*`` metabolites are dropped. Within a group the
+    reactions are ordered by their score rounded to 9 significant digits, equal scores in
+    model order.
     """
     targets = result.targets.copy()
     targets["transport"] = [
         _is_transport(model.reactions.get_by_id(rid)) for rid in targets["reaction"]
     ]
-    targets = targets.sort_values("transport", kind="stable", ignore_index=True)
+    position = {rxn.id: i for i, rxn in enumerate(model.reactions)}
+    targets["_model_order"] = [position[rid] for rid in targets["reaction"]]
+    targets["_score"] = [float(f"{x:.9g}") for x in targets["score"]]
+    targets = targets.sort_values(["transport", "_score", "_model_order"], ascending=[True, False, True], ignore_index=True)
+    targets = targets.drop(columns=["_model_order", "_score"])
     return FSEOFResult(scan=result.scan, enforced=result.enforced, targets=targets)
 
 

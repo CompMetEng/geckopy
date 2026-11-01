@@ -1,4 +1,6 @@
 """Tests for save_ec_model."""
+import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -421,3 +423,73 @@ def test_round_trip_with_gecko_light_true(tmp_path):
     path = save_ec_model(model)
     loaded = load_ec_model(path)
     assert loaded.ec.gecko_light is True
+
+
+# --------------------------------------------------------------------------- #
+# ec reaction without enzymes
+# --------------------------------------------------------------------------- #
+
+def _build_model_with_enzymeless_rxn(adapter: ModelAdapter) -> EcModel:
+    """`_build_full_ec_model` with R2 as an ec reaction without enzymes."""
+    model = _build_full_ec_model(adapter)
+    mat = model.ec.rxn_enz_mat.tolil()
+    mat[1, 1] = 0.0
+    model.ec.rxn_enz_mat = mat.tocsr()
+    model.ec.rxn_enz_mat.eliminate_zeros()
+    model.ec.source[1] = "standard"
+    return model
+
+
+def test_rxn_without_enzymes_has_no_enzymes_entry(tmp_path):
+    adapter = _adapter(tmp_path)
+    path = save_ec_model(_build_model_with_enzymeless_rxn(adapter))
+    text = path.read_text(encoding="utf-8")
+    ec_rxns = text.split("- ec-rxns:")[1].split("- ec-enzymes:")[0]
+    assert ec_rxns.count("enzymes") == 1
+    r2 = re.split(r'- id: "?R2"?\n', ec_rxns)[1]
+    assert "enzymes" not in r2
+    assert "standard" in r2
+    assert "!!omap []" not in text
+    doc = _read_yaml(path)
+    assert "enzymes" not in doc["ec-rxns"][1]
+
+
+def test_round_trip_rxn_without_enzymes(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_model_with_enzymeless_rxn(adapter)
+    loaded = load_ec_model(save_ec_model(model))
+    assert loaded.ec.rxns == ["R1", "R2"]
+    assert loaded.ec.source == ["brenda", "standard"]
+    np.testing.assert_array_equal(loaded.ec.kcat, model.ec.kcat)
+    np.testing.assert_array_equal(
+        loaded.ec.rxn_enz_mat.toarray(), [[1.0, 0.0], [0.0, 0.0]],
+    )
+    assert loaded.ec.enzymes == ["E1", "E2"]
+
+
+_LIGHT_ECMODEL = Path(os.environ.get("LIGHT_ECMODEL_YML", "/nonexistent"))
+
+
+@pytest.mark.skipif(
+    not _LIGHT_ECMODEL.is_file(),
+    reason="set LIGHT_ECMODEL_YML to GECKO's tutorials/light_ecModel/models/ecModel.yml",
+)
+def test_light_tutorial_model_loses_only_the_empty_enzymes_entries(tmp_path):
+    """The light tutorial ecModel, written by GECKO 3, has `enzymes: !!omap` with
+    no entries for its reactions without enzymes. Loaded and saved again, the
+    file has no `enzymes` entry for them and the ec data is unchanged."""
+    loaded = load_ec_model(_LIGHT_ECMODEL)
+    n_zero = int((loaded.ec.rxn_enz_mat.getnnz(axis=1) == 0).sum())
+    assert n_zero == 52
+    path = save_ec_model(loaded, tmp_path / "out.yml", adapter=None)
+    saved = path.read_text(encoding="utf-8")
+    saved_rxns = saved.split("- ec-rxns:")[1].split("- ec-enzymes:")[0]
+    assert "!!omap []" not in saved_rxns
+    assert saved_rxns.count("- id:") == len(loaded.ec.rxns)
+    assert saved_rxns.count("enzymes:") == len(loaded.ec.rxns) - n_zero
+    again = load_ec_model(path)
+    assert again.ec.rxns == loaded.ec.rxns
+    np.testing.assert_array_equal(again.ec.kcat, loaded.ec.kcat)
+    assert again.ec.source == loaded.ec.source
+    assert again.ec.enzymes == loaded.ec.enzymes
+    assert (again.ec.rxn_enz_mat != loaded.ec.rxn_enz_mat).nnz == 0

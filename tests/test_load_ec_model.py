@@ -554,7 +554,7 @@ def test_other_reader_warnings_pass_through(tmp_path, monkeypatch):
 # Input that MATLAB's readYAMLmodel reads and a YAML parser rejects
 # --------------------------------------------------------------------------- #
 
-# The ec reactions as GECKO writes them: R1_EXP_1 has no enzymes (`enzymes: !!omap`
+# The ec reactions as earlier GECKO versions wrote them: R1_EXP_1 has no enzymes (`enzymes: !!omap`
 # with no entries, as for a `standard` row), R3 is the last row before the next section.
 # The notes of R1_EXP_1 and R3 hold quotes that RAVEN 2 did not escape.
 _GECKO_FORM = """\

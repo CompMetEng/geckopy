@@ -25,6 +25,7 @@ from .mask_size import (
     recommend_target_impact_share,
     sweep_tunable_mask_size,
 )
+from .parsimony import best_parsimonious, n_changed, parsimony_frontier
 from .priors import (
     UNLABELLED_GROUP,
     build_sigma0_log,
@@ -32,6 +33,7 @@ from .priors import (
     classify_kcat_sources,
 )
 from .simulate import ConditionSimResult, simulate_evotune_dataset
+from .tying import isozyme_tie_map
 from .tuning import (
     EvotuneResult,
     cmaes_kcat_tuning,
@@ -49,13 +51,17 @@ __all__ = [
     "ConditionSimResult",
     "MaskSizePoint",
     "evotune_distance",
+    "best_parsimonious",
     "build_sigma0_log",
     "classify_kcat_source",
     "classify_kcat_sources",
     "cmaes_kcat_tuning",
     "compute_excarbon",
     "dataset_rmse",
+    "isozyme_tie_map",
     "load_evotune_data",
+    "n_changed",
+    "parsimony_frontier",
     "recommend_target_impact_share",
     "screen_kcat_leverage",
     "select_tunable_mask",

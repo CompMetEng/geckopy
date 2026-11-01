@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `geckopy.kcat_tuning.evotune` exports `best_parsimonious`, `n_changed`, `parsimony_frontier` and `isozyme_tie_map`, the helpers behind the parsimony sweep and the tying of isozyme copies, which GECKO has as `bestParsimonious`, `nChanged`, `parsimonyFrontier` and `isozymeTieMap`.
 * `read_kcat_source` and `load_kcat_source` skip a row whose fields are all empty quoted fields (`""<TAB>""`), as they skip a row of tabs, and raise `ValueError` for a field that opens a double quote and does not close it. Before, the first was reported as an invalid row and the second was read as a row with a kcat that is not a number.
 * `read_dlkcat_output` drops a row whose kcat is infinite (`inf`), as it drops `NA` and `None`, so the kcat list holds finite numbers only.
 * `write_dlkcat_input` and `extract_enzyme_substrate_pairs` write the rows in the order of `model.ec.rxns` whatever the order of `ec_rxns`, and a reaction named twice once, as GECKO's `writeDLKcatInput` does with its logical vector.

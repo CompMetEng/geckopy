@@ -33,22 +33,23 @@ if TYPE_CHECKING:
 
 _PFBA_OBJ_NAME = "_pfba_enzymes_objective"
 
-# RAVEN's solveLP fixes the objective at this fraction of its optimum in the flux-minimising
-# stage (getPfbaEnzymes calls it with minFlux 1). A solver reports the optimum to within its
-# feasibility tolerance, so a second solve that demands the full value can be infeasible.
-_PFBA_FRACTION = 0.999999
+# RAVEN's solveLP multiplies the fraction of the optimum by this margin in the
+# flux-minimising stage (getPfbaEnzymes calls it with minFlux 1). A solver reports the
+# optimum to within its feasibility tolerance, so a second solve that demands the full
+# value can be infeasible.
+_PFBA_MARGIN = 0.999999
 
 
 def pfba_enzymes(
     model: "EcModel",
     objective: Union[cobra.Reaction, str, None] = None,
     *,
-    fraction_of_optimum: float = _PFBA_FRACTION,
+    fraction_of_optimum: float = 1.0,
 ) -> cobra.Solution:
     """Parsimonious FBA minimising the L1 norm of ``usage_prot_*`` fluxes.
 
     Sets the objective (if given), fixes it at
-    ``fraction_of_optimum * optimal_value``, then minimises
+    ``fraction_of_optimum * 0.999999 * optimal_value``, then minimises
     ``sum(usage_prot_*.forward_variable)``. Usage reactions are
     forward-only in the GECKO 3 layout (``lb=0``); if a user has
     flipped one to allow reverse flux, its ``reverse_variable`` is
@@ -69,10 +70,12 @@ def pfba_enzymes(
         used as-is.
     fraction_of_optimum
         Fraction of the objective's optimal value to fix as a
-        constraint before minimising enzyme usage. The default,
-        0.999999, is the fraction MATLAB's ``getPfbaEnzymes`` uses
-        (RAVEN's ``solveLP``); a lower value trades some objective
-        value for potentially lower enzyme usage.
+        constraint before minimising enzyme usage (default 1.0). The
+        fraction is multiplied by 0.999999, the margin of RAVEN's
+        ``solveLP`` that MATLAB's ``getPfbaEnzymes`` applies, so the
+        default fixes the objective at 0.999999 of its optimum and
+        0.9 fixes it at 0.8999991. A lower value trades some
+        objective value for potentially lower enzyme usage.
 
     Returns
     -------
@@ -105,7 +108,9 @@ def pfba_enzymes(
                 f"Objective is already {_PFBA_OBJ_NAME}; "
                 "pfba_enzymes appears to be nested."
             )
-        cobra.util.fix_objective_as_constraint(m, fraction=fraction_of_optimum)
+        cobra.util.fix_objective_as_constraint(
+            m, fraction=fraction_of_optimum * _PFBA_MARGIN,
+        )
 
         usage_rxns = [r for r in m.reactions if r.id.startswith(USAGE_PREFIX)]
         variables = []

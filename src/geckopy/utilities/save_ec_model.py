@@ -73,7 +73,9 @@ def save_ec_model(
     Returns
     -------
     Path
-        The absolute path of the file that was written.
+        The absolute path of the file that was written. An ec reaction
+        without enzymes (a zero row in ``model.ec.rxn_enz_mat``) is written
+        without an ``enzymes`` entry.
 
     Raises
     ------
@@ -139,8 +141,8 @@ def _build_metadata(model: EcModel) -> dict:
     format the file follows (as ``project_format`` in
     ``model_adapter.toml``, written as text as GECKO's ``saveEcModel``
     writes it); ``generator``, the release that wrote the file; and a
-    description string of the form ``"Enzyme-constrained model of <id>"``.
-    GECKO's ``saveEcModel`` writes the same ``gecko_format`` and
+    description string of the form ``"Enzyme-constrained model of <id>"``,
+    written only when the model has no description of its own. GECKO's ``saveEcModel`` writes the same ``gecko_format`` and
     ``generator``.
     """
     try:
@@ -152,5 +154,6 @@ def _build_metadata(model: EcModel) -> dict:
     meta["date"] = meta.get("date") or date.today().isoformat()
     meta["gecko_format"] = "4"
     meta["generator"] = f"geckopy {geckopy_version}"
-    meta["description"] = f"Enzyme-constrained model of {model.id}"
+    if not meta.get("description"):
+        meta["description"] = f"Enzyme-constrained model of {model.id}"
     return meta

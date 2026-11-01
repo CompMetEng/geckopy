@@ -82,7 +82,9 @@ def write_dlkcat_input(
         ``load_dlkcat_ignore_lists``).
     ec_rxns
         Optional iterable of reaction IDs (must be in
-        ``model.ec.rxns``). ``None`` means all.
+        ``model.ec.rxns``). ``None`` means all; an empty iterable selects
+        no reaction and writes an empty file. The rows follow the order of
+        ``model.ec.rxns``, whatever the order of ``ec_rxns``.
     only_with_smiles
         When True (default), drop rows whose substrate has no
         SMILES. When False, write ``"None"`` in the SMILES column
@@ -150,7 +152,7 @@ def extract_enzyme_substrate_pairs(
         Loaded ``DLKcatIgnoreLists``.
     ec_rxns
         Optional iterable of reaction IDs (must be in ``model.ec.rxns``).
-        ``None`` means all.
+        ``None`` means all; the rows follow the order of ``model.ec.rxns``.
     only_with_smiles
         Drop rows with no SMILES when True; otherwise write ``"None"``.
 
@@ -172,7 +174,7 @@ def extract_enzyme_substrate_pairs(
                 f"{len(unknown)} reaction ID(s) in ec_rxns are not present "
                 f"in model.ec.rxns (examples: {preview})"
             )
-        ec_rxn_indices = [index_by_id[rid] for rid in ec_rxns_list]
+        ec_rxn_indices = sorted({index_by_id[rid] for rid in ec_rxns_list})
 
     if not ec_rxn_indices:
         return pd.DataFrame(columns=_PAIR_COLUMNS)

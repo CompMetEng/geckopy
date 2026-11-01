@@ -289,3 +289,29 @@ def test_loaded_data_can_feed_apply_flux_data_constraints(tmp_path):
     apply_flux_data_constraints(model, fd)
     assert model.reactions.get_by_id("EX_glc").lower_bound == -5.0
     assert model.reactions.get_by_id("biomass").upper_bound == pytest.approx(0.4)
+
+
+# --------------------------------------------------------------------------- #
+# Malformed rows and headers
+# --------------------------------------------------------------------------- #
+
+def test_ragged_row_raises(tmp_path):
+    p = tmp_path / "ragged.tsv"
+    _write_tsv(p, [
+        ["condition", "Ptot", "grRate", "Glc (EX_a)", "O2 (EX_b)"],
+        ["c1", "0.5", "0.4", "-1", "2"],
+        ["c2", "0.5", "0.4", "-1"],
+    ])
+    with pytest.raises(ValueError, match="row 3 has 4 cell"):
+        load_flux_data(p)
+
+
+def test_nested_parentheses_in_reaction_id(tmp_path):
+    p = tmp_path / "nested.tsv"
+    _write_tsv(p, [
+        ["condition", "Ptot", "grRate", "X (EX_a(e))", "O2 (EX_b)"],
+        ["c1", "0.5", "0.4", "-1", "2"],
+    ])
+    fd = load_flux_data(p)
+    assert fd.exch_mets == ["X", "O2"]
+    assert fd.exch_rxn_ids == ["EX_a(e)", "EX_b"]

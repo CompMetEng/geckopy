@@ -185,6 +185,10 @@ def _resolve_context(model, adapter, params, evotune_data, bio_rxn, okp_method):
     return params, evotune_data, bio_rxn, okp_method
 
 
+#: Termination criteria of ``cma`` that a flat objective triggers.
+_FLAT_STOPS = frozenset({"tolfun", "tolfunhist", "tolflatfitness"})
+
+
 def _tunable_context(
     model, params, evotune_data, bio_rxn, okp_method, tunable_mask,
 ):
@@ -351,7 +355,8 @@ def screen_kcat_leverage(
 
     df = pd.DataFrame(rows)
     df["rank"] = df["leverage"] * df["sigma0_log"]
-    df = df.sort_values("rank", ascending=False, ignore_index=True)
+    df = df.sort_values(
+        "rank", ascending=False, ignore_index=True, kind="stable")
     total = float(df["rank"].sum())
     df["cum_leverage_share"] = (
         (df["rank"].cumsum() / total) if total > 0 else 0.0
@@ -412,7 +417,9 @@ def cmaes_kcat_tuning(
     Configuration comes entirely from ``EvotuneParams``: trust tiers,
     ``max_growth_weight``, ``prior_penalty_weight`` and ``tie_isozymes``
     control the search, and ``max_generations``/``rmse_threshold`` are
-    its stopping conditions.
+    its stopping conditions. A generation whose candidates all score
+    the same does not end the search early; ``cma``'s other convergence
+    criteria (such as ``tolx``) still can.
 
     Parameters
     ----------
@@ -556,12 +563,20 @@ def cmaes_kcat_tuning(
         rmse_trace: list[float] = []
         objective_trace: list[float] = []
         generation = 0
-        while not es.stop():
+        flat = False
+        while True:
+            stop = es.stop()
+            # cma ends a search whose candidates all score the same
+            # (tolfun, tolfunhist, tolflatfitness); that is not a stopping
+            # condition here, so a flat generation does not end the run.
+            if stop and not (flat and set(stop) <= _FLAT_STOPS):
+                break
             asks = es.ask()
             xm = np.array(asks).T
             scores = _score_batch(expand(xm), pool)
             es.tell(asks, list(scores[:, 0]))
             generation += 1
+            flat = bool(np.ptp(scores[:, 0]) == 0.0)
 
             j = int(np.argmin(scores[:, 0]))
             if scores[j, 0] < best_obj:

@@ -415,3 +415,30 @@ def test_ec_fseof_fixes_the_target_flux_at_each_level(tmp_path, monkeypatch):
     result = ec_fseof(_build_fseof_model(_adapter(tmp_path)), "EX_PROD", n_steps=4)
     assert seen["equality"] is True
     assert "transport" in result.targets.columns
+
+
+def test_scores_equal_to_nine_digits_keep_model_order():
+    """Scores that differ only below 9 significant digits count as equal and are listed in
+    model order."""
+    import importlib
+
+    import pandas as pd
+
+    module = importlib.import_module("geckopy.utilities.ec_fseof")
+    model = cobra.Model("m")
+    met = cobra.Metabolite("a_c", name="a", compartment="c")
+    reactions = []
+    for rid in ("R1", "R2", "R3"):
+        rxn = cobra.Reaction(rid)
+        rxn.add_metabolites({met: -1.0})
+        reactions.append(rxn)
+    model.add_reactions(reactions)
+    result = FSEOFResult(
+        scan=pd.DataFrame(),
+        enforced=[1.0],
+        targets=pd.DataFrame({"reaction": ["R3", "R2", "R1"], "score": [2.0 + 1e-12, 2.0, 2.5]}),
+    )
+
+    grouped = module._group_transport_targets(result, model).targets
+
+    assert list(grouped["reaction"]) == ["R1", "R2", "R3"]

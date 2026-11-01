@@ -147,9 +147,9 @@ def load_ec_model(
     ec_model.ec = ec
     if on_fast_solver:
         switch_to_scipy(ec_model)
-    # raven-toolbox turns the reactions with a negative lower bound; GECKO
-    # turns those whose stoichiometry has the GECKO 3 sign, which also
-    # covers a usage reaction fixed to zero.
+    # raven-toolbox turns the reactions whose stoichiometry has the GECKO 3
+    # sign; the same rule is applied here to a model that was not read from
+    # YAML.
     turned += len(upgrade_ec_model(ec_model))
     if turned:
         warnings.warn(

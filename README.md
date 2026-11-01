@@ -4,6 +4,11 @@
 </picture>
 
 [![tests](https://github.com/CompMetEng/geckopy/actions/workflows/test.yml/badge.svg)](https://github.com/CompMetEng/geckopy/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/CompMetEng/geckopy?include_prereleases)](https://github.com/CompMetEng/geckopy/releases/)
+[![Documentation](https://readthedocs.org/projects/gecko-docs/badge/?version=latest)](https://gecko-docs.readthedocs.io/en/latest/)
+[![GitHub Discussions](https://img.shields.io/github/discussions-search?query=repo%3ACompMetEng%2Fgeckopy&label=GitHub%20Discussions)](https://github.com/CompMetEng/geckopy/discussions)
+
+**[Documentation](https://gecko-docs.readthedocs.io/en/latest/)** · [Installation](https://gecko-docs.readthedocs.io/en/latest/installation/) · [Guide](https://gecko-docs.readthedocs.io/en/latest/guide/) · [API reference](https://gecko-docs.readthedocs.io/en/latest/api/) · [Migrate](https://gecko-docs.readthedocs.io/en/latest/migrate.html) · [Citations](https://gecko-docs.readthedocs.io/en/latest/references.html)
 
 # geckopy
 
@@ -39,11 +44,11 @@ ec_model = make_ec_model(model, adapter, uniprot_db=uniprot)
 save_ec_model(ec_model, "ecModel.yml", adapter=adapter)
 ```
 
-Every public function is available as `from geckopy import X`; `geckopy.__all__` lists them. The full protocol, with kcat curation, proteomics and Crabtree-effect simulation, is [`tutorials/full_ecModel/protocol.py`](tutorials/full_ecModel/protocol.py). Fitting kcats to measured growth and fluxes is described in [`docs/evotune_kcat_tuning.md`](docs/evotune_kcat_tuning.md).
+The guide covers each step: [Getting started](https://gecko-docs.readthedocs.io/en/latest/guide/getting-started.html), [Building an ecModel](https://gecko-docs.readthedocs.io/en/latest/guide/building-ec-model.html) and [Gathering kcats](https://gecko-docs.readthedocs.io/en/latest/guide/gathering-kcats.html). Every public function is available as `from geckopy import X`; `geckopy.__all__` lists them, and the [API reference](https://gecko-docs.readthedocs.io/en/latest/api/) documents them. The full protocol, with kcat curation, proteomics and Crabtree-effect simulation, is [`tutorials/full_ecModel/protocol.py`](tutorials/full_ecModel/protocol.py). Fitting kcats to measured growth and fluxes is described in [`docs/evotune_kcat_tuning.md`](docs/evotune_kcat_tuning.md).
 
 ## Documentation and parity with GECKO
 
-The protocol, installation, troubleshooting and API reference for both toolboxes are at [gecko-docs](https://gecko-docs.readthedocs.io/). The ecModel YAML format is described in [`docs/yaml_format.md`](docs/yaml_format.md). geckopy ports GECKO function by function, and each source file names its MATLAB original. The [parity ledger](https://github.com/CompMetEng/raven-gecko-parity) records, for every public function, whether the two agree and why where they do not.
+The protocol, installation, troubleshooting and API reference for both toolboxes are at [gecko-docs](https://gecko-docs.readthedocs.io/). The ecModel YAML format is described in the [guide](https://gecko-docs.readthedocs.io/en/latest/guide/yaml-format.html) and in [`docs/yaml_format.md`](docs/yaml_format.md). geckopy ports GECKO function by function, and each source file names its MATLAB original. The [parity ledger](https://github.com/CompMetEng/raven-gecko-parity) records, for every public function, whether the two agree and why where they do not.
 
 ## Cite us
 

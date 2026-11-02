@@ -319,9 +319,15 @@ leverage_by_rxn = dict(zip(screen["rxn_id"], screen["leverage"]))
 leverage = [leverage_by_rxn.get(r, 0.0) for r in result.rxns]
 
 annotations = annotate_from_model(model, result.rxns)
-rows = result.corrections(leverage=leverage, **annotations)
+rows = result.corrections(
+    leverage=leverage,
+    names=annotations["names"], ec_codes=annotations["ec_codes"],
+)
 open("corrections.tsv", "w").write(corrections_tsv(rows))
 ```
+
+`annotate_from_model` also returns `sources`, which `corrections()`
+takes from `result.groups` itself rather than as a keyword.
 
 `cumulative_share` on each row is the running fraction of total leverage
 the list has accounted for so far, so a reader can stop where it stops

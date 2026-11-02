@@ -181,17 +181,31 @@ def test_kcat_list_wrong_length_raises():
 # Unknown ID, empty input
 # --------------------------------------------------------------------------- #
 
-def test_unknown_rxn_id_raises():
+def test_unknown_rxn_id_is_ignored():
     ec_model = _ectestgem_ec_model()
-    with pytest.raises(ValueError, match="matched no entries"):
-        set_kcat_for_reactions(ec_model, ["nonsense"], 1.0)
+    before = list(ec_model.ec.kcat)
+    assert set_kcat_for_reactions(ec_model, ["nonsense"], 1.0) == []
+    assert list(ec_model.ec.kcat) == before
 
 
-def test_unknown_with_known_still_raises():
-    """If any one ID is unknown, the whole call must fail."""
+def test_unknown_with_known_changes_the_known_one():
+    """An unknown ID is ignored; the known one is still set."""
     ec_model = _ectestgem_ec_model()
-    with pytest.raises(ValueError, match="matched no entries"):
-        set_kcat_for_reactions(ec_model, ["R3", "nonsense"], 1.0)
+    updated = set_kcat_for_reactions(ec_model, ["R3", "nonsense"], 1.0)
+    assert updated == ["R3"]
+    assert _kcat_at(ec_model, "R3") == 1.0
+
+
+def test_ids_match_without_regard_to_letter_case():
+    """The ``_EXP_<n>`` suffix itself is recognised in capitals only, as in
+    MATLAB; the rest of the ID is compared without regard to case."""
+    ec_model = _ectestgem_ec_model()
+    updated = set_kcat_for_reactions(ec_model, ["r3"], 7.0)
+    assert updated == ["R3"]
+    assert _kcat_at(ec_model, "R3") == 7.0
+    updated = set_kcat_for_reactions(ec_model, ["r2_EXP_1"], 8.0)
+    assert updated == ["R2_EXP_1"]
+    assert _kcat_at(ec_model, "R2_EXP_1") == 8.0
 
 
 def test_empty_rxn_ids_returns_empty():
@@ -221,12 +235,14 @@ def test_apply_false_leaves_s_matrix_unchanged():
     assert _get_s_coef(r3, "prot_P4") == 0.0
 
 
-def test_apply_default_is_true():
-    """The default value of apply should be True."""
+def test_apply_default_is_false():
+    """As MATLAB setKcatForReactions, only ec.kcat and ec.source change by
+    default; the S matrix follows once apply_kcat_constraints runs."""
     ec_model = _ectestgem_ec_model()
     set_kcat_for_reactions(ec_model, ["R3"], 10.0)  # no apply arg
     r3 = ec_model.reactions.get_by_id("R3")
-    assert _get_s_coef(r3, "prot_P4") != 0.0
+    assert _get_s_coef(r3, "prot_P4") == 0.0
+    assert _kcat_at(ec_model, "R3") == 10.0
 
 
 def test_apply_only_updates_passed_reactions():
@@ -240,7 +256,7 @@ def test_apply_only_updates_passed_reactions():
     assert r5_pre != 0.0
 
     # Now use set_kcat_for_reactions to update R3. R5 must be untouched.
-    set_kcat_for_reactions(ec_model, ["R3"], 10.0)
+    set_kcat_for_reactions(ec_model, ["R3"], 10.0, apply=True)
     r5_post = _get_s_coef(ec_model.reactions.get_by_id("R5"), "prot_P5")
     assert r5_post == r5_pre
 
@@ -287,24 +303,29 @@ def test_light_set_single_explicit_prefixed_id():
     assert _source_at(ec, "001_R3") == "setKcatForReactions"
 
 
-def test_light_unsuffixed_id_expands_to_all_isozyme_rows():
-    """Bare ``R2`` should match both ``001_R2`` and ``002_R2`` (R2's two
-    isozymes), but not ``001_R2_REV`` / ``002_R2_REV``."""
+def test_light_base_id_matches_nothing():
+    """The ``###_`` prefix is part of a light ec.rxns ID, as in MATLAB: the
+    bare cobra ID ``R2`` matches none of ``001_R2`` and ``002_R2``."""
     ec = _ectestgem_light_ec_model()
-    updated = set_kcat_for_reactions(ec, ["R2"], 5.0, apply=False)
-    assert sorted(updated) == ["001_R2", "002_R2"]
+    updated = set_kcat_for_reactions(ec, ["R2"], 5.0)
+    assert updated == []
+    assert _kcat_at(ec, "001_R2") == 0.0
+    assert _kcat_at(ec, "002_R2") == 0.0
+
+
+def test_light_both_prefixed_ids_set_both_isozyme_rows():
+    ec = _ectestgem_light_ec_model()
+    updated = set_kcat_for_reactions(ec, ["001_R2", "002_R2"], 5.0)
+    assert updated == ["001_R2", "002_R2"]
     assert _kcat_at(ec, "001_R2") == 5.0
     assert _kcat_at(ec, "002_R2") == 5.0
     assert _kcat_at(ec, "001_R2_REV") == 0.0
     assert _kcat_at(ec, "002_R2_REV") == 0.0
 
 
-def test_light_unsuffixed_with_list_kcat_assigns_positionally():
-    """Same as the full-layout case: an un-suffixed ID that expands to
-    multiple matches now accepts a per-match kcat list, assigned
-    positionally in ec.rxns order."""
+def test_light_prefixed_ids_with_list_kcat():
     ec = _ectestgem_light_ec_model()
-    updated = set_kcat_for_reactions(ec, ["R2"], [1.0, 2.0], apply=False)
+    updated = set_kcat_for_reactions(ec, ["001_R2", "002_R2"], [1.0, 2.0])
     assert updated == ["001_R2", "002_R2"]
     assert _kcat_at(ec, "001_R2") == 1.0
     assert _kcat_at(ec, "002_R2") == 2.0
@@ -333,10 +354,10 @@ def test_light_apply_true_writes_prot_pool_coefficient():
 
 
 def test_light_apply_picks_lowest_cost_isozyme():
-    """If both isozymes of R2 get a kcat via the base-name shorthand,
-    apply_kcat must pick the cheapest (lowest MW_sum/kcat) one."""
+    """If both isozymes of R2 get a kcat, apply_kcat must pick the
+    cheapest (lowest MW_sum/kcat) one."""
     ec = _ectestgem_light_ec_model()
-    set_kcat_for_reactions(ec, ["R2"], 5.0, apply=True)
+    set_kcat_for_reactions(ec, ["001_R2", "002_R2"], 5.0, apply=True)
 
     r2 = ec.reactions.get_by_id("R2")
     coef = _get_s_coef(r2, "prot_pool")
@@ -347,7 +368,6 @@ def test_light_apply_picks_lowest_cost_isozyme():
     assert coef == pytest.approx(expected)
 
 
-def test_light_unknown_rxn_id_raises():
+def test_light_unknown_rxn_id_is_ignored():
     ec = _ectestgem_light_ec_model()
-    with pytest.raises(ValueError, match="matched no entries"):
-        set_kcat_for_reactions(ec, ["nonsense"], 1.0)
+    assert set_kcat_for_reactions(ec, ["nonsense"], 1.0) == []

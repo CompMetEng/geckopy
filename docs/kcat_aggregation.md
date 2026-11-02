@@ -1,6 +1,6 @@
 # kcat aggregation: how far is `max` from `median` on BRENDA?
 
-The bundled BRENDA snapshot ships **both** the per-(ec, substrate,
+The BRENDA files (toolbox-assets release `brenda-2026.1-1`) carry **both** the per-(ec, substrate,
 organism) max and the per-triple median of all raw measurements that
 fell into the triple. They live in the same `kcat.tsv` / `sa.tsv` file
 distinguished by an `aggregation` column; `load_brenda_data` splits
@@ -20,7 +20,7 @@ diffusion-limited filter in `parse_brenda_json`):
 - [`scripts/kcat_aggregation_raw.py`](../scripts/kcat_aggregation_raw.py)
   walks the raw JSON and answers both questions below.
 - [`scripts/kcat_aggregation_compare.py`](../scripts/kcat_aggregation_compare.py)
-  reads only the bundled TSV (no 710 MB JSON needed) and compares
+  reads only the BRENDA TSV (no 710 MB JSON needed) and compares
   per-EC max-of-max vs median-of-median over the pre-aggregated views.
 
 > **3.4.21.4 (trypsin) is excluded** from these analyses: its BRENDA
@@ -158,5 +158,5 @@ python scripts/kcat_aggregation_raw.py       # raw-JSON, both layers
 python scripts/kcat_aggregation_compare.py   # snapshot-only, per-EC
 ```
 
-Raw-JSON takes ~6 min on the bundled snapshot (limited by 710 MB JSON
+Raw-JSON takes ~6 min on the BRENDA 2026.1 dump (limited by 710 MB JSON
 load via WSL2 /mnt/c); snapshot-only runs in ~10 s.

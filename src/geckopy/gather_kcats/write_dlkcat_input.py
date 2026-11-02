@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
+from ..databases.pubchem import met_smiles as read_met_smiles
+
 if TYPE_CHECKING:
     from ..databases.dlkcat_ignore_lists import DLKcatIgnoreLists
     from ..ec_model.ec_model import EcModel
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 _OUTPUT_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "kcat"]
-_PAIR_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence"]
+_PAIR_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "met_id"]
 _NORMALIZE_RE = re.compile(r"[^0-9a-zA-Z]+")
 
 
@@ -64,7 +66,8 @@ def write_dlkcat_input(
       SMILES are dropped from the output. Otherwise the SMILES is
       written as the literal string ``"None"``.
 
-    SMILES are read from each metabolite's ``annotation['smiles']``.
+    SMILES are read from each metabolite's ``annotation['smiles']``,
+    which cobra returns as a list for a model loaded from a file.
 
     Parameters
     ----------
@@ -79,7 +82,9 @@ def write_dlkcat_input(
         ``load_dlkcat_ignore_lists``).
     ec_rxns
         Optional iterable of reaction IDs (must be in
-        ``model.ec.rxns``). ``None`` means all.
+        ``model.ec.rxns``). ``None`` means all; an empty iterable selects
+        no reaction and writes an empty file. The rows follow the order of
+        ``model.ec.rxns``, whatever the order of ``ec_rxns``.
     only_with_smiles
         When True (default), drop rows whose substrate has no
         SMILES. When False, write ``"None"`` in the SMILES column
@@ -147,14 +152,14 @@ def extract_enzyme_substrate_pairs(
         Loaded ``DLKcatIgnoreLists``.
     ec_rxns
         Optional iterable of reaction IDs (must be in ``model.ec.rxns``).
-        ``None`` means all.
+        ``None`` means all; the rows follow the order of ``model.ec.rxns``.
     only_with_smiles
         Drop rows with no SMILES when True; otherwise write ``"None"``.
 
     Returns
     -------
     pandas.DataFrame
-        Columns ``rxn_id, gene, substrate, smiles, sequence``.
+        Columns ``rxn_id, gene, substrate, smiles, sequence, met_id``.
     """
     n_ec = model.ec.n_rxns
     if ec_rxns is None:
@@ -169,7 +174,7 @@ def extract_enzyme_substrate_pairs(
                 f"{len(unknown)} reaction ID(s) in ec_rxns are not present "
                 f"in model.ec.rxns (examples: {preview})"
             )
-        ec_rxn_indices = [index_by_id[rid] for rid in ec_rxns_list]
+        ec_rxn_indices = sorted({index_by_id[rid] for rid in ec_rxns_list})
 
     if not ec_rxn_indices:
         return pd.DataFrame(columns=_PAIR_COLUMNS)
@@ -194,7 +199,7 @@ def extract_enzyme_substrate_pairs(
     metabolites = list(model.metabolites)
     met_ids = [m.id for m in metabolites]
     met_names = [m.name for m in metabolites]
-    met_smiles = [m.annotation.get("smiles", "") for m in metabolites]
+    met_smiles = [read_met_smiles(m) for m in metabolites]
     met_normalized = [_normalize(n) for n in met_names]
 
     # Build the ignore mask.
@@ -254,6 +259,7 @@ def extract_enzyme_substrate_pairs(
                 "smiles": met_smiles[sub_i],
                 "sequence": model.ec.sequence[gene_idx]
                             if gene_idx < len(model.ec.sequence) else "",
+                "met_id": met_ids[sub_i],
             })
 
     df = pd.DataFrame(rows, columns=_PAIR_COLUMNS)

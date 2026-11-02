@@ -103,17 +103,17 @@ print(f"Reactions containing 'prot': "
 # pipeline). Here we set a couple of kcats by hand to demonstrate the
 # light dispatch.
 #
-# ``set_kcat_for_reactions`` understands two ID shapes for light models:
-#
-# - **Base name** (``"R2"``): broadcasts the kcat to every isozyme row
-#   for that cobra reaction. Both ``001_R2`` and ``002_R2`` are updated.
-# - **Explicit prefixed name** (``"001_R2"``): targets exactly one
-#   isozyme row, letting you set different kcats per isozyme.
+# In a light model the ``ec.rxns`` IDs carry a ``###_`` prefix, which is
+# part of the ID for ``set_kcat_for_reactions``, as in GECKO's
+# ``setKcatForReactions``: ``"001_R2"`` targets exactly that isozyme row,
+# so you can set different kcats per isozyme, and the bare cobra ID
+# ``"R2"`` matches nothing. The call changes ``ec.kcat`` and ``ec.source``
+# only; ``apply_kcat_constraints`` writes the S matrix afterwards.
 
 # %%
-set_kcat_for_reactions(ec_model, ["R2"], 5.0, apply=False)
-set_kcat_for_reactions(ec_model, ["001_R3"], 10.0, apply=False)
-set_kcat_for_reactions(ec_model, ["001_R5"], 20.0, apply=False)
+set_kcat_for_reactions(ec_model, ["001_R2", "002_R2"], 5.0)
+set_kcat_for_reactions(ec_model, ["001_R3"], 10.0)
+set_kcat_for_reactions(ec_model, ["001_R5"], 20.0)
 print("ec.kcat after manual edits:")
 for rid in ec_model.ec.rxns:
     idx = ec_model.ec.rxns.index(rid)

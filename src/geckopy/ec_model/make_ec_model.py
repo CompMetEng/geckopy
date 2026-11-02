@@ -23,12 +23,14 @@ Ported from GECKO MATLAB: src/geckomat/change_model/makeEcModel.m.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Optional
 
 import cobra
 from raven_toolbox.utils.sort import sort_identifiers
 
-from ..databases import UniprotDB, load_uniprot_tsv
+from ..databases import UniprotDB, load_kegg_tsv, load_uniprot_tsv
+from ..solver_support import repair_scipy_problem, switch_to_scipy
 from .ec_model import EcModel
 from .pipeline import (
     add_protein_pool_exchange_reaction,
@@ -51,6 +53,50 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+_EXP_SUFFIX = re.compile(r"_EXP_\d+$")
+
+
+def _check_inputs(model: cobra.Model, adapter: "ModelAdapter") -> None:
+    """Refuse inputs that GECKO's ``makeEcModel`` refuses."""
+    enzyme_comp = adapter.params.enzyme_comp
+    if enzyme_comp not in set(model.compartments.values()):
+        raise ValueError(
+            f"Compartment {enzyme_comp} (specified in params.enzyme_comp) "
+            "cannot be found in the compartment names of the model."
+        )
+    if any(met.id.startswith("prot_") for met in model.metabolites):
+        raise ValueError(
+            "The identifiers in model.metabolites are not allowed to start "
+            "with 'prot_'."
+        )
+    if any(
+        rxn.id.startswith(("usage_prot_", "prot_pool"))
+        or rxn.id.endswith("_REV")
+        or _EXP_SUFFIX.search(rxn.id)
+        for rxn in model.reactions
+    ):
+        raise ValueError(
+            "The identifiers in model.reactions are not allowed to start "
+            "with 'usage_prot' or 'prot_pool', or end with '_REV' or "
+            "'_EXP_[digit]'."
+        )
+    if not model.genes:
+        raise ValueError(
+            "None of the proteins in uniprot.tsv or kegg.tsv match the genes "
+            "in the model: the model has no genes."
+        )
+
+
+def _is_exchange(rxn: cobra.Reaction) -> bool:
+    """Whether a reaction only consumes or only produces metabolites.
+
+    RAVEN's ``getExchangeRxns`` counts every reaction without a positive or
+    without a negative stoichiometric coefficient, so ``A + B <=>`` is an
+    exchange reaction as well as ``A <=>``.
+    """
+    coefficients = list(rxn.metabolites.values())
+    return all(c <= 0 for c in coefficients) or all(c >= 0 for c in coefficients)
 
 
 def make_ec_model(
@@ -116,8 +162,9 @@ def make_ec_model(
         UniProt accession carried in the KEGG row, or to the KEGG
         gene id when that accession is empty), and the EC-number
         lookup (``fill_eccodes_from_database``) consults KEGG when
-        the UniProt result is empty or ends with ``-``. If None,
-        KEGG is not used.
+        the UniProt result is empty or ends with ``-``. If None, the
+        function loads ``adapter.params.path / "data" / "kegg.tsv"``
+        when that file exists, and uses no KEGG data otherwise.
 
     Returns
     -------
@@ -131,9 +178,15 @@ def make_ec_model(
         If ``uniprot_db`` is None and no ``uniprot.tsv`` is found
         under the adapter's data folder.
     ValueError
-        Propagated from individual pipeline stages on
-        inconsistencies (e.g. genes referenced in GPRs that don't
-        exist in the model).
+        As ``makeEcModel`` does, if the compartment named by
+        ``adapter.params.enzyme_comp`` is not one of the model's
+        compartment names (a compartment ID that differs from its name is
+        refused), if a metabolite ID starts with ``prot_``, if a reaction ID
+        starts with ``usage_prot_`` or ``prot_pool`` or ends in ``_REV`` or
+        ``_EXP_<digits>``, or if the model has no genes or none of them is
+        found in the databases. Also propagated from individual pipeline
+        stages on inconsistencies (e.g. genes referenced in GPRs that
+        don't exist in the model).
 
     Genes referenced in the model's GPRs but not found in UniProt are
     left enzyme-unconstrained: they are reported as a single warning
@@ -146,21 +199,38 @@ def make_ec_model(
             "populated ec substructure. Run it only on a conventional GEM."
         )
 
+    _check_inputs(model, adapter)
+
     # Work on a copy: the pipeline stages below mutate the model in place
     # (splitting reactions, adding pseudometabolites, ...), but the caller's
     # input GEM must be left untouched.
     model = model.copy()
+    # On the scipy solver the pipeline runs on glpk and the result is converted at the end:
+    # optlang grows the scipy matrix densely, so the thousands of edits of a genome-scale
+    # build take hours there (see geckopy.solver_support).
+    on_scipy = repair_scipy_problem(model)
+    if on_scipy:
+        try:
+            model.solver = "glpk"
+        except Exception:  # glpk unavailable: build on scipy
+            on_scipy = False
 
     # Stages 1-4: preprocess on a plain cobra.Model. Stage 5 (isozyme
     # expansion) is full-only; light keeps isozymes singular and tracks
     # them per-row in ec instead.
     remove_pseudoreaction_gprs(model, adapter)
     invert_backwards_only_reactions(model)
-    # Exchange reactions are left reversible: MATLAB's makeEcModel.m
-    # excludes them here too, passing convertToIrrev only nonExchRxns
-    # (model.rxns minus getExchangeRxns(model)).
-    non_exchange_rxns = [rxn.id for rxn in model.reactions if not rxn.boundary]
-    convert_to_irreversible(model, rxns=non_exchange_rxns)
+    # Only reactions that carry flux in both directions (lb < 0 < ub) and
+    # are not exchange reactions are split, as MATLAB's makeEcModel.m does:
+    # it passes convertToIrrev the reversible reactions without
+    # getExchangeRxns(model). A reaction with both bounds negative stays as
+    # it is.
+    reversible_rxns = [
+        rxn.id
+        for rxn in model.reactions
+        if rxn.lower_bound < 0 < rxn.upper_bound and not _is_exchange(rxn)
+    ]
+    convert_to_irreversible(model, rxns=reversible_rxns)
     if not gecko_light:
         expand_model(model)
         # Sort reactions, so that reversible and isozymic reactions are kept
@@ -176,6 +246,11 @@ def make_ec_model(
     if uniprot_db is None:
         uniprot_path = adapter.params.path / "data" / "uniprot.tsv"
         uniprot_db = load_uniprot_tsv(uniprot_path)
+
+    if kegg_db is None:
+        kegg_path = adapter.params.path / "data" / "kegg.tsv"
+        if kegg_path.is_file():
+            kegg_db = load_kegg_tsv(kegg_path, auto_download=False)
 
     if gecko_light:
         # Light: stage 7 (per-enzyme data) runs first so the coupling
@@ -219,6 +294,9 @@ def make_ec_model(
             preview,
             more,
         )
+
+    if on_scipy:
+        switch_to_scipy(ec_model)
 
     # Catch any internal length/shape drift in the ec arrays before the
     # model is handed back (cheap, and surfaces build bugs early).

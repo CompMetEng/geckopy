@@ -115,7 +115,9 @@ def load_uniprot_tsv(
     Notes
     -----
     Empty cells (common for EC number and Sequence) become empty
-    strings, matching MATLAB ``textscan`` with ``%q`` behavior.
+    strings. Cells are read as :func:`read_quoted_tsv` reads them, as
+    MATLAB's ``textscan`` with ``%q`` does: the quotes around a cell
+    are dropped, so ``"1.1.1.25; 2.5.1.19"`` gives ``1.1.1.25; 2.5.1.19``.
     Duplicate entries raise, matching MATLAB's dispEM failure mode.
     """
     path = Path(path)
@@ -144,44 +146,36 @@ def load_uniprot_tsv(
     # expands to.
     source_row_ids: list[str] = []
 
-    with open(path, "r", encoding="utf-8") as f:
-        header_line = f.readline()
-        if not header_line:
-            raise ValueError(f"{path} is empty.")
-        header_fields = header_line.rstrip("\n").split("\t")
-        if len(header_fields) < 5:
-            raise ValueError(
-                f"{path} header has {len(header_fields)} fields, expected 5."
-            )
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        text = f.read()
+    if not text:
+        raise ValueError(f"{path} is empty.")
+    header_end = _first_line_end(text)
+    header_fields = text[:header_end].rstrip("\r\n").split("\t")
+    if len(header_fields) < 5:
+        raise ValueError(
+            f"{path} header has {len(header_fields)} fields, expected 5."
+        )
 
-        for line_no, line in enumerate(f, start=2):
-            line = line.rstrip("\n")
-            if not line:
-                continue
-            parts = line.split("\t")
-            # Pad short lines so all five fields are always addressable.
-            while len(parts) < 5:
-                parts.append("")
-            entry, gene_cell, ec, mass_str, seq = parts[:5]
+    for entry, gene_cell, ec, mass_str, seq in read_quoted_tsv(text, 5, header_lines=1):
+        # MATLAB str2double returns NaN for empty or non-numeric; mirror.
+        try:
+            mass_da = float(mass_str) if mass_str.strip() else float("nan")
+        except ValueError:
+            mass_da = float("nan")
 
-            # MATLAB str2double returns NaN for empty or non-numeric; mirror.
-            try:
-                mass_da = float(mass_str) if mass_str.strip() else float("nan")
-            except ValueError:
-                mass_da = float("nan")
+        if split_gene_cells and gene_cell.strip():
+            gene_names = gene_cell.split()
+        else:
+            gene_names = [gene_cell]
 
-            if split_gene_cells and gene_cell.strip():
-                gene_names = gene_cell.split()
-            else:
-                gene_names = [gene_cell]
-
-            source_row_ids.append(entry)
-            for gene_name in gene_names:
-                ids.append(entry)
-                genes.append(gene_name)
-                eccodes.append(ec)
-                mw_da.append(mass_da)
-                sequences.append(seq)
+        source_row_ids.append(entry)
+        for gene_name in gene_names:
+            ids.append(entry)
+            genes.append(gene_name)
+            eccodes.append(ec)
+            mw_da.append(mass_da)
+            sequences.append(seq)
 
     _check_duplicate_ids(source_row_ids, path)
 
@@ -214,3 +208,82 @@ def _check_duplicate_ids(source_row_ids: list[str], path: Path) -> None:
             f"Duplicate Entry values in {path}: {preview}. "
             f"Manually curate uniprot.tsv or adjust adapter parameters."
         )
+
+
+def _first_line_end(text: str, start: int = 0) -> int:
+    """Index just after the end of the line of ``text`` that begins at
+    ``start`` (the length of ``text`` for the last line)."""
+    for i in range(start, len(text)):
+        c = text[i]
+        if c == "\n":
+            return i + 1
+        if c == "\r":
+            return i + 2 if text[i + 1:i + 2] == "\n" else i + 1
+    return len(text)
+
+
+def read_quoted_tsv(text: str, n_columns: int, header_lines: int = 0) -> list[list[str]]:
+    """Split tab-delimited ``text`` into rows of ``n_columns`` cells the way
+    MATLAB's ``textscan(fid, '%q ...', 'Delimiter', '\\t')`` does.
+
+    A cell that starts with a double quote (after spaces) ends at the next
+    double quote that is not doubled; a doubled quote inside stands for one
+    quote, and tabs and line breaks inside are part of the cell. Text between
+    the closing quote and the next tab or line break is appended to the cell.
+    A quote that is never closed takes the rest of the text. In any other
+    cell the quotes are kept, and leading spaces are dropped. A line break
+    ends the row, so a short line is padded with empty cells; the cells of a
+    line beyond ``n_columns`` start a new row. A line without any text is
+    skipped. The first ``header_lines`` lines are skipped as they are, as
+    ``textscan`` does with ``'HeaderLines'``.
+    """
+    rows: list[list[str]] = []
+    row: list[str] = []
+    n = len(text)
+    i = 0
+    for _ in range(header_lines):
+        i = _first_line_end(text, i)
+
+    def finish(cell: str, at_line_end: bool) -> None:
+        row.append(cell)
+        if len(row) == n_columns or at_line_end:
+            row.extend([""] * (n_columns - len(row)))
+            rows.append(row.copy())
+            row.clear()
+
+    while i < n:
+        while i < n and text[i] in " \b":
+            i += 1
+        quoted = i < n and text[i] == '"'
+        cell: list[str] = []
+        if quoted:
+            i += 1
+            while i < n:
+                if text[i] == '"':
+                    if text[i + 1:i + 2] == '"':
+                        cell.append('"')
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                cell.append(text[i])
+                i += 1
+        while i < n and text[i] not in "\t\r\n":
+            cell.append(text[i])
+            i += 1
+        value = "".join(cell)
+        if i >= n:
+            if value or quoted or row:
+                finish(value, True)
+            break
+        c = text[i]
+        if c == "\t":
+            i += 1
+            finish(value, False)
+            if i >= n and row:
+                finish("", True)
+            continue
+        i += 2 if c == "\r" and text[i + 1:i + 2] == "\n" else 1
+        if value or quoted or row:
+            finish(value, True)
+    return rows

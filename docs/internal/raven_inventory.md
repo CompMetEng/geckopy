@@ -1,7 +1,7 @@
 # RAVEN function inventory
 
 GECKO MATLAB is built on top of
-[RAVEN](https://github.com/SysBioChalmers/RAVEN), a MATLAB toolkit
+[RAVEN](https://github.com/CompMetEng/RAVEN), a MATLAB toolkit
 for genome-scale metabolic modelling. RAVEN handles all the
 low-level work: parsing SBML files, editing reactions and
 metabolites, solving FBAs, manipulating gene-protein-reaction

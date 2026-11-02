@@ -113,6 +113,9 @@ def review_assignment(
         flagged rows are a minority of the model's leverage.
     include
         Names from :data:`OPTIONAL_CHECKS` to report as well.
+    sources
+        The source labels ``custom`` and ``standard`` are recognised
+        without regard to letter case.
 
     Returns
     -------
@@ -176,7 +179,7 @@ def review_assignment(
         if kcats[i] < slow or kcats[i] > fast:
             checks.append("magnitude")
             detail.append(f"{kcats[i]:g} 1/s is outside {slow:g}-{fast:g}")
-        if (str(sources[i]) == "custom" and st is not None
+        if (str(sources[i]).lower() == "custom" and st is not None
                 and round(float(kcats[i]), 6) in st.values):
             checks.append("custom-duplicate")
             detail.append("custom value equals a database value for its own EC")
@@ -184,7 +187,7 @@ def review_assignment(
             if "tied-isozymes" in include:
                 checks.append("tied-isozymes")
             detail.append(f"{len(idx)} isozyme copies share this value")
-        if str(sources[i]) == "standard":
+        if str(sources[i]).lower() == "standard":
             if "standard-fallback" not in include:
                 continue
             checks.append("standard-fallback")

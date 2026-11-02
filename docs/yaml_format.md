@@ -12,7 +12,7 @@ cobra doesn't model: kcat values, the enzyme list (MW, sequence,
 concentration), and the reaction-enzyme coupling matrix.
 
 geckopy delegates the I/O to
-[raven-toolbox](https://github.com/SysBioChalmers/raven-toolbox), which
+[raven-toolbox](https://github.com/CompMetEng/raven-toolbox), which
 calls cobrapy for the cobra-shaped portion and parses the GECKO
 `ec-rxns` / `ec-enzymes` / `gecko_light` sections into a typed
 `EcData` substructure attached as `model.ec`. That means:
@@ -122,7 +122,7 @@ entry here. Fields:
 | `source` | string | optional | Where the kcat came from (`"brenda"`, `"dlkcat"`, `"manual"`, ...). Default `""` |
 | `notes` | string | optional | Free-form note. Default `""` |
 | `eccodes` | string \| list | optional | One EC code as a string (`"1.1.2.4"`), or a list when several apply. Default `""` |
-| `enzymes` | mapping `enzyme_id -> stoich` | yes | Which enzymes catalyse this reaction, and the subunit count of each. Every key must appear in `ec-enzymes` |
+| `enzymes` | mapping `enzyme_id -> stoich` | optional | Which enzymes catalyse this reaction, and the subunit count of each. Every key must appear in `ec-enzymes`. A reaction without enzymes (such as a `standard` kcat row) has no `enzymes` entry; the loader also reads the `enzymes: !!omap` and `enzymes: !!omap []` forms that earlier versions of GECKO, RAVEN and raven-toolbox wrote for it |
 
 Example:
 

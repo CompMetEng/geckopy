@@ -99,3 +99,12 @@ def test_max_iterations_raises():
         relax_proteomics_greedy(
             model, minimal_growth=1e9, max_iterations=1,
         )
+
+
+def test_empty_enzyme_set_makes_no_enzyme_eligible():
+    model, _ = _ec_with_tight_concs()
+    result = relax_proteomics_greedy(
+        model, minimal_growth=0.001, enzyme_set=[], max_iterations=20,
+    )
+    assert result.relaxed == {}
+    assert result.trace == []

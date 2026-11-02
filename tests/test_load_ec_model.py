@@ -421,9 +421,10 @@ def test_autoflip_legacy_reverse_direction(tmp_path):
         flipped = load_ec_model("ecModel.yml", adapter=adapter)
 
     msgs = [str(w.message) for w in caught]
-    assert any("forward convention" in m for m in msgs), (
-        f"expected a flip warning, got: {msgs}"
+    assert any("in the GECKO 3 direction" in m and "upgrade_project" in m for m in msgs), (
+        f"expected a GECKO 3 warning, got: {msgs}"
     )
+    assert not any("forward convention" in m for m in msgs)
 
     # Every flipped reaction should now look like the canonical fixture.
     canonical_doc = _canonical_yaml()
@@ -486,3 +487,178 @@ def test_legacy_metadata_and_smiles_normalized(tmp_path):
     assert model.name == "demo ecModel"
     met = model.metabolites.get_by_id("A_c")
     assert met.annotation.get("smiles") in ("C(C)O", ["C(C)O"])
+
+
+def test_newer_ecmodel_format_raises(tmp_path):
+    """A file of an ecModel format above 4 is refused, naming its writer."""
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "5", "generator": "geckopy 9.0.0"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with pytest.raises(ValueError, match=r"ecModel format 5 \(written by geckopy 9\.0\.0\)"):
+        load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_format_4_file_loads_without_warning(tmp_path):
+    import warnings
+
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "4"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        load_ec_model("ecModel.yml", adapter=adapter)
+    assert not [w for w in caught if "ecModel" in str(w.message)]
+
+
+def test_format_that_is_not_a_number_loads(tmp_path):
+    """As GECKO's str2double, a gecko_format that is not a number counts as none."""
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "4.1.0"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_newer_format_without_generator_names_unknown_release(tmp_path):
+    adapter = _adapter(tmp_path)
+    doc = _canonical_yaml()
+    doc["metaData"] = {"id": "demo", "gecko_format": "5"}
+    _write_yaml(tmp_path / "models" / "ecModel.yml", doc)
+    with pytest.raises(ValueError, match="written by an unknown release"):
+        load_ec_model("ecModel.yml", adapter=adapter)
+
+
+def test_other_reader_warnings_pass_through(tmp_path, monkeypatch):
+    """Only raven-toolbox's GECKO 3 warning is replaced; other warnings reach the caller."""
+    import importlib
+    import warnings
+
+    lem = importlib.import_module("geckopy.utilities.load_ec_model")
+
+    adapter = _adapter(tmp_path)
+    _write_yaml(tmp_path / "models" / "ecModel.yml", _canonical_yaml())
+    read = lem.read_yaml_model
+
+    def read_with_warning(path):
+        warnings.warn("unrelated reader warning", UserWarning)
+        return read(path)
+
+    monkeypatch.setattr(lem, "read_yaml_model", read_with_warning)
+    with pytest.warns(UserWarning, match="unrelated reader warning"):
+        load_ec_model("ecModel.yml", adapter=adapter)
+
+
+# --------------------------------------------------------------------------- #
+# Input that MATLAB's readYAMLmodel reads and a YAML parser rejects
+# --------------------------------------------------------------------------- #
+
+# The ec reactions as earlier GECKO versions wrote them: R1_EXP_1 has no enzymes (`enzymes: !!omap`
+# with no entries, as for a `standard` row), R3 is the last row before the next section.
+# The notes of R1_EXP_1 and R3 hold quotes that RAVEN 2 did not escape.
+_GECKO_FORM = """\
+!!omap
+- metaData: !!omap
+  - id: "t"
+  - name: "t"
+- metabolites:
+  - !!omap
+    - id: "A_c"
+    - name: "A"
+    - compartment: "c"
+- reactions:
+  - !!omap
+    - id: "R1"
+    - name: "r"
+    - metabolites: !!omap
+      - A_c: -1
+    - lower_bound: 0
+    - upper_bound: 1000
+    - gene_reaction_rule: "g1"
+- genes:
+  - !!omap
+    - id: "g1"
+- compartments: !!omap
+  - c: "cyto"
+- gecko_light: false
+- ec-rxns:
+  - !!omap
+    - id: "R1_EXP_1"
+    - kcat: 1.5
+    - source: "standard"
+    - notes: ""Putative x. And y.""
+    - enzymes: !!omap
+  - !!omap
+    - id: "R2"
+    - kcat: 2
+    - notes: "say \\"hi\\" now"
+    - enzymes: !!omap
+        - P1: 1
+  - !!omap
+    - id: "R3"
+    - kcat: 3
+    - notes: "say "hi" now \\\\ ok"
+    - enzymes: !!omap
+- ec-enzymes:
+  - !!omap
+    - genes: "g1"
+    - enzymes: "P1"
+    - mw: 10
+    - sequence: "ABC"
+"""
+
+
+def test_enzymes_omap_without_entries_and_unescaped_quotes_load(tmp_path):
+    """The values are those MATLAB's readYAMLmodel gives: no enzymes for the rows
+    without entries, the outer pair of quotes of a note removed and the inner ones kept."""
+    path = tmp_path / "gecko.yml"
+    path.write_text(_GECKO_FORM, encoding="utf-8")
+    model = load_ec_model(path)
+
+    assert model.ec.rxns == ["R1_EXP_1", "R2", "R3"]
+    np.testing.assert_array_equal(model.ec.kcat, [1.5, 2.0, 3.0])
+    assert model.ec.source == ["standard", "", ""]
+    assert model.ec.notes == ['"Putative x. And y."', 'say "hi" now', 'say "hi" now \\ ok']
+    assert model.ec.enzymes == ["P1"]
+    np.testing.assert_array_equal(model.ec.rxn_enz_mat.toarray(), [[0.0], [1.0], [0.0]])
+
+
+def test_valid_file_is_not_rewritten(tmp_path):
+    """A quoted value with escaped quotes stays as it is."""
+    from geckopy.utilities.load_ec_model import _repair_yaml_text
+
+    text = '    - notes: "say \\"hi\\" now"\n    - enzymes: !!omap\n        - P1: 1\n    - notes: ""\n'
+    assert _repair_yaml_text(text) == text
+
+
+def test_file_that_stays_invalid_raises_its_first_error(tmp_path):
+    from raven_toolbox.io import read_yaml_model
+
+    path = tmp_path / "bad.yml"
+    path.write_text("!!omap\n- id: [unclosed\n", encoding="utf-8")
+    with pytest.raises(Exception) as direct:
+        read_yaml_model(path)
+    with pytest.raises(type(direct.value)):
+        load_ec_model(path)
+
+
+def test_enzymes_omap_without_entries_loads(tmp_path):
+    text = "".join(
+        line for line in _GECKO_FORM.splitlines(keepends=True)
+        if "Putative" not in line and "ok" not in line
+    )
+    path = tmp_path / "gecko.yml"
+    path.write_text(text, encoding="utf-8")
+    model = load_ec_model(path)
+
+    assert model.ec.rxns == ["R1_EXP_1", "R2", "R3"]
+    assert model.ec.notes == ["", 'say "hi" now', ""]
+    np.testing.assert_array_equal(model.ec.rxn_enz_mat.toarray(), [[0.0], [1.0], [0.0]])
+
+
+def test_loaded_ec_model_has_raven_solver_tolerance(tmp_path):
+    adapter = _adapter(tmp_path)
+    _write_canonical(tmp_path / "models" / "ecModel.yml")
+    model = load_ec_model("ecModel.yml", adapter=adapter)
+    assert model.tolerance == 1e-9

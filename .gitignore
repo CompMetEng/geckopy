@@ -16,6 +16,8 @@ htmlcov/
 # Tutorial build outputs (the source yeast-GEM.yml is tracked).
 tutorials/full_ecModel/models/ecYeastGEM*.yml
 tutorials/full_ecModel/output/
+# Downloaded on first run by the tutorial (download_phyl_dist).
+tutorials/full_ecModel/data/PhylDist.mat
 
 # BRENDA bulk download (user drops the tarball here; derived TSVs are tracked).
 src/geckopy/data/brenda/_cache/

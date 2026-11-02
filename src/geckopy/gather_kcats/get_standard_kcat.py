@@ -49,15 +49,18 @@ def assign_standard_kcat(
     ``threshold`` reactions with a real kcat) are computed. Reactions
     that lack a GPR rule, or have a GPR but no entry in
     ``model.ec.rxns``, are added to ``model.ec`` with this standard
-    pseudoenzyme.
+    pseudoenzyme. Only the first subsystem of a reaction counts, and
+    subsystem names that differ only in letter case are one subsystem.
+    A reaction with an empty subsystem has none.
 
     The function is idempotent: previous "standard" entries
     (identified by ``model.ec.source == "standard"``) are stripped
     before re-applying.
 
-    Filtering: exchange, transport (same metabolite name across
-    compartments), pseudo (name contains "pseudoreaction"), SLIME
-    (name contains "SLIME rxn"), spontaneous (via
+    Filtering: exchange (a reaction without a substrate or without a
+    product), transport (same metabolite name across compartments), pseudo
+    (name contains "pseudoreaction", in any letter case), SLIME (name
+    contains "SLIME rxn", in any letter case), spontaneous (via
     ``adapter.get_spontaneous_reactions(model)``), and reactions
     listed in ``adapter.params.path/data/pseudoRxns.tsv`` are
     excluded from receiving the standard pseudoenzyme.
@@ -172,6 +175,13 @@ def _first_subsystem(rxn: cobra.Reaction) -> str:
     return sub.split(";")[0].strip()
 
 
+def _subsystem_key(rxn: cobra.Reaction) -> str:
+    """The first subsystem of ``rxn`` without regard to letter case, as
+    MATLAB's ``strcmpi`` compares subsystem names; empty for a reaction
+    without a subsystem."""
+    return _first_subsystem(rxn).lower()
+
+
 def _ec_rxn_to_cobra_id(model: "EcModel", ec_rxn_id: str) -> str:
     return ec_rxn_id[4:] if model.ec.gecko_light else ec_rxn_id
 
@@ -197,7 +207,7 @@ def _compute_subsystem_kcats(
             rxn = model.reactions.get_by_id(cobra_rxn_id)
         except KeyError:
             continue
-        sub = _first_subsystem(rxn)
+        sub = _subsystem_key(rxn)
         if not sub:
             continue
         sub_kcats[sub].append(float(kcat))
@@ -228,6 +238,14 @@ def _find_reactions_missing_enzyme(model: "EcModel") -> list[str]:
     return no_gpr + has_gpr_no_ec
 
 
+def _is_exchange(rxn: cobra.Reaction) -> bool:
+    """Whether a reaction only consumes or only produces metabolites, as
+    RAVEN's ``getExchangeRxns`` counts it: ``A + B <=>`` is an exchange
+    reaction as well as ``A <=>``."""
+    coefficients = list(rxn.metabolites.values())
+    return all(c <= 0 for c in coefficients) or all(c >= 0 for c in coefficients)
+
+
 def _detect_transport_reactions(model: "EcModel") -> set[str]:
     """A transport reaction has the same metabolite name appearing in
     different compartments."""
@@ -248,7 +266,7 @@ def _classify_reactions_to_ignore(
     ignore: set[str] = set(custom_rxns)
 
     for rxn in model.reactions:
-        if rxn.boundary:
+        if _is_exchange(rxn):
             ignore.add(rxn.id)
         name_lower = (rxn.name or "").lower()
         if "pseudoreaction" in name_lower or "slime rxn" in name_lower:
@@ -336,7 +354,7 @@ def _add_standard_pseudoenzyme(
         prot_std = cobra.Metabolite(
             _STANDARD_MET_ID, name=_STANDARD_MET_ID, compartment=comp_id,
         )
-        prot_std.notes["enzyme_usage"] = "Standard enzyme-usage pseudometabolite"
+        prot_std.notes["note"] = "Standard enzyme-usage pseudometabolite"
         model.add_metabolites([prot_std])
 
         pool_met = model.metabolites.get_by_id(POOL_ID)
@@ -379,7 +397,7 @@ def _assign_standard_kcat_to_missing(
     kcats_to_add: list[float] = []
     for rxn_id in rxn_ids:
         rxn = model.reactions.get_by_id(rxn_id)
-        sub = _first_subsystem(rxn)
+        sub = _subsystem_key(rxn)
         kcat = (
             subsystem_kcats.get(sub, standard_kcat)
             if sub

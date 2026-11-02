@@ -59,12 +59,13 @@ def fill_enz_concs(
 
     Raises
     ------
+    ValueError
+        If a protein that is an enzyme of the model has a negative
+        abundance.
     IndexError
         If ``data_col`` is out of range for the supplied abundances.
     """
     n_enz = model.ec.n_enzymes
-    model.ec.concs = np.full(n_enz, np.nan, dtype=float)
-
     if prot_data.abundances.ndim == 2:
         if not 0 <= data_col < prot_data.abundances.shape[1]:
             raise IndexError(
@@ -80,7 +81,9 @@ def fill_enz_concs(
             )
         column = prot_data.abundances
 
+    concs = np.full(n_enz, np.nan, dtype=float)
     if n_enz == 0 or len(prot_data.uniprot_ids) == 0:
+        model.ec.concs = concs
         return
 
     enzyme_to_idx = {enz: i for i, enz in enumerate(model.ec.enzymes)}
@@ -90,11 +93,8 @@ def fill_enz_concs(
             continue
         value = float(conc)
         if value < 0:
-            # A measured concentration can't be negative; skip it so it
-            # doesn't become an infeasible bound in constrain_enz_concs.
-            logger.warning(
-                "fill_enz_concs: negative concentration %g for %r; skipped.",
-                value, uid,
+            raise ValueError(
+                f"prot_data has a negative abundance ({value:g}) for {uid!r}."
             )
-            continue
-        model.ec.concs[idx] = value
+        concs[idx] = value
+    model.ec.concs = concs

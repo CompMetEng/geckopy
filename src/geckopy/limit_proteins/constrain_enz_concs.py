@@ -35,9 +35,10 @@ def constrain_enz_concs(
     ``usage_prot_<enzyme>`` reaction's upper bound is set to that
     concentration. Enzymes with NaN concentrations have their usage
     reaction reset to the default ``upper_bound = 1000``, drawing
-    freely from ``prot_pool``. Only the reaction's upper bound is
-    changed; its stoichiometry (as set by
-    ``add_protein_usage_reactions``) is left untouched.
+    freely from ``prot_pool``. Each processed usage reaction is first
+    reset to ``lower_bound = 0``, ``upper_bound = 1000`` and a
+    ``prot_pool`` coefficient of -1, so a prior lower bound above the
+    new upper bound does not conflict with it.
 
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/constrainEnzConcs.m.
@@ -50,7 +51,8 @@ def constrain_enz_concs(
         machinery already in place. Mutated in place.
     remove_constraints
         When True, all usage reactions are reset to their default
-        ``upper_bound = 1000``, regardless of ``ec.concs``.
+        ``upper_bound = 1000`` (with ``lower_bound = 0`` and a
+        ``prot_pool`` coefficient of -1), regardless of ``ec.concs``.
         ``ec.concs`` itself is left unchanged.
     restrict_to
         If supplied, only the listed enzyme uniprot IDs are
@@ -62,7 +64,9 @@ def constrain_enz_concs(
     Raises
     ------
     ValueError
-        If the ``prot_pool`` metabolite is missing, or if any
+        If ``model.ec.concs`` holds a negative concentration for a
+        processed enzyme (unless ``remove_constraints`` is set), if the
+        ``prot_pool`` metabolite is missing, or if any
         ``usage_prot_<enzyme>`` reaction is missing for an enzyme
         in ``model.ec.enzymes`` (e.g. because the model is
         gecko-light, which has no usage reactions).
@@ -94,20 +98,26 @@ def constrain_enz_concs(
             if enz in restrict_set
         )
 
-    for i, enz in index_iter:
+    index_list = list(index_iter)
+    if not remove_constraints:
+        negative = [
+            enz for i, enz in index_list if model.ec.concs[i] < 0
+        ]
+        if negative:
+            raise ValueError(
+                "model.ec.concs has a negative concentration for "
+                + ", ".join(negative) + "."
+            )
+
+    pool_met = model.metabolites.get_by_id(POOL_ID)
+    for i, enz in index_list:
         rxn = model.reactions.get_by_id(f"{USAGE_PREFIX}{enz}")
-        rxn.upper_bound = 1000.0
+        rxn.bounds = (0.0, 1000.0)
+        if rxn.metabolites.get(pool_met) != -1.0:
+            rxn.add_metabolites({pool_met: -1.0}, combine=False)
         if remove_constraints:
             continue
         conc = model.ec.concs[i]
         if np.isnan(conc):
-            continue
-        if conc < 0:
-            # A negative bound would make the usage reaction infeasible
-            # (ub < lb == 0). Skip it and leave the enzyme unconstrained.
-            logger.warning(
-                "constrain_enz_concs: negative concentration %g for %r; "
-                "leaving it unconstrained.", float(conc), enz,
-            )
             continue
         rxn.upper_bound = float(conc)

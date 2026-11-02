@@ -245,7 +245,7 @@ def test_shadow_price_matches_finite_difference_coeff(ub, coeff_in_R, expected):
 
 # Both implementations live in the production module after the swap; tests
 # compare them as ground-truth helpers (the dispatcher uses shadow-price by
-# default and falls back to finite-difference on scipy).
+# default and falls back to finite-difference where a solver gives no usable duals).
 from geckopy.limit_proteins.get_conc_control_coeffs import (  # noqa: E402
     _finite_difference_coeffs as _fd_coeffs,
     _shadow_price_coeffs as _sp_coeffs,
@@ -392,24 +392,15 @@ def test_equiv_infeasible_model_both_zero():
     [
         "glpk",
         "glpk_exact",
-        # optlang's scipy backend explicitly does NOT implement duals
-        # (`constraint.dual` raises NotImplementedError), so the
-        # shadow-price approach is unavailable there. The finite-difference
-        # function still works on scipy.
-        pytest.param(
-            "scipy",
-            marks=pytest.mark.xfail(
-                raises=NotImplementedError,
-                reason="optlang scipy interface does not expose LP duals",
-                strict=True,
-            ),
-        ),
+        # optlang's scipy backend raises on variable duals; the reduced cost is read from
+        # HiGHS's bound marginal instead.
+        "scipy",
         "gurobi",
     ],
 )
 def test_equiv_across_solvers(solver):
-    """The shadow-price/finite-difference equivalence holds for every LP
-    solver that exposes duals. Uses the single-enzyme linear-regime model
+    """The reduced-cost/finite-difference equivalence holds for every LP
+    solver. Uses the single-enzyme linear-regime model
     so the LP is non-degenerate / non-breakpoint (where duals would be
     non-unique)."""
     from cobra.util.solver import solvers
@@ -444,16 +435,16 @@ def test_finite_diff_underestimates_when_step_crosses_breakpoint():
 
 # --------------------------------------------------------------------------- #
 # Dispatcher: the public function defaults to shadow-price and falls back to
-# finite-difference on solvers (scipy) that do not expose duals.
+# finite-difference where the solver gives no usable variable duals.
 # --------------------------------------------------------------------------- #
 
-def test_dispatcher_uses_shadow_price_on_default_solver():
-    """On glpk (cobra default), the public function takes the shadow-price
-    path. Verified by matching the shadow-price helper exactly (the
+def test_dispatcher_uses_shadow_price_when_asked():
+    """With method="shadow_price" on glpk (cobra default), the public function takes the
+    shadow-price path. Verified by matching the shadow-price helper exactly (the
     finite-difference would diverge on a breakpoint scenario)."""
     model = _build_toy_ec_model(enzyme_ub=8.0)
     model.reactions.get_by_id("EX_A").lower_bound = -10.0  # breakpoint setup
-    pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+    pm, pc = get_conc_control_coeffs(model, fold_change=2.0, method="shadow_price")
     sm, sc = _shadow_helper(model)
     np.testing.assert_array_equal(pm, sm)
     np.testing.assert_allclose(pc, sc, rtol=1e-6, atol=1e-12)
@@ -463,9 +454,10 @@ def test_dispatcher_uses_shadow_price_on_default_solver():
     assert pc[0] != pytest.approx(fc[0])
 
 
-def test_dispatcher_falls_back_to_finite_diff_on_scipy(caplog):
-    """With the scipy solver (no LP duals), the dispatcher uses the
-    finite-difference path and reports the fallback once."""
+def test_dispatcher_falls_back_to_finite_diff_without_usable_duals(caplog, monkeypatch):
+    """When the solver gives no usable variable dual (here: the scipy bound
+    marginal is unavailable), the dispatcher uses the finite-difference path
+    and reports the fallback once."""
     from cobra.util.solver import solvers
     if "scipy" not in solvers:
         pytest.skip("scipy not installed")
@@ -478,14 +470,44 @@ def test_dispatcher_falls_back_to_finite_diff_on_scipy(caplog):
     )
     # Reset the one-shot guard so the info log fires for this test.
     mod_ccc._FALLBACK_REPORTED.clear()
+    monkeypatch.setattr(mod_ccc, "_scipy_upper_marginal", lambda rxn, flux: None)
 
     model = _build_toy_ec_model(enzyme_ub=8.0)
     model.reactions.get_by_id("EX_A").lower_bound = -10.0
     model.solver = "scipy"
 
     with caplog.at_level(logging.INFO, logger=mod_ccc.__name__):
-        pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+        pm, pc = get_conc_control_coeffs(model, fold_change=2.0, method="shadow_price")
     fm, fc = _fd_helper(model, fold_change=2.0)
     np.testing.assert_array_equal(pm, fm)
     np.testing.assert_allclose(pc, fc, rtol=1e-6, atol=1e-12)
-    assert "does not expose LP duals" in caplog.text
+    assert "returns no usable variable duals" in caplog.text
+
+
+def test_default_method_is_the_finite_difference_and_matches_the_helper():
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    model.reactions.get_by_id("EX_A").lower_bound = -10.0  # breakpoint setup
+    pm, pc = get_conc_control_coeffs(model, fold_change=2.0)
+    fm, fc = _fd_helper(model, fold_change=2.0)
+    np.testing.assert_array_equal(pm, fm)
+    np.testing.assert_allclose(pc, fc, rtol=1e-12, atol=1e-14)
+
+
+def test_default_method_needs_no_duals(monkeypatch):
+    import importlib
+
+    mod_ccc = importlib.import_module("geckopy.limit_proteins.get_conc_control_coeffs")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("the shadow-price path ran")
+
+    monkeypatch.setattr(mod_ccc, "_shadow_price_coeffs", fail)
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    enz, coeffs = get_conc_control_coeffs(model)
+    assert enz.any()
+
+
+def test_unknown_method_raises():
+    model = _build_toy_ec_model(enzyme_ub=8.0)
+    with pytest.raises(ValueError, match="method must be"):
+        get_conc_control_coeffs(model, method="dual")

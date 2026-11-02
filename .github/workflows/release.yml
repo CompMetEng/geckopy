@@ -9,10 +9,6 @@ name: release
 #    https://pypi.org/manage/project/geckopy/settings/publishing/ , pointing
 #    at this repo, workflow filename `release.yml`, and environment `pypi`.
 # 2. Create a `pypi` environment in this repo's Settings -> Environments.
-# Also note: geckopy's `raven-toolbox` dependency is currently a git direct
-# reference (see pyproject.toml), which PyPI rejects on upload -- the
-# pypi-publish job below will fail until that's switched to a released
-# version pin.
 
 on:
   release:

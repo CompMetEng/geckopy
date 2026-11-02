@@ -239,10 +239,15 @@ def best_parsimonious(
 
     Defaults to 2%, which is the scale of the alternate-optimum noise
     measured on this model -- below that, two vectors are not
-    meaningfully different in fit, so the sparser one wins.
+    meaningfully different in fit, so the sparser one wins. A point with
+    a NaN RMSE is never chosen and does not set the best RMSE; when every
+    RMSE is NaN no point qualifies and ``ValueError`` is raised.
     """
     if not points:
         raise ValueError("points is empty.")
-    best_rmse = min(p.rmse for p in points)
+    rmses = [p.rmse for p in points if not np.isnan(p.rmse)]
+    if not rmses:
+        raise ValueError("every point has a NaN rmse.")
+    best_rmse = min(rmses)
     within = [p for p in points if p.rmse <= best_rmse * (1.0 + tolerance)]
     return min(within, key=lambda p: p.n_changed)

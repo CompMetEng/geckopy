@@ -55,7 +55,7 @@ def _install_fake_session(monkeypatch, responses: dict):
 def test_returns_list_of_entries(monkeypatch):
     responses = {
         "search/*?facets": (200, {
-            "size": 1,
+            "size": 1, "totalNumberOfResults": 1,
             "elements": [{"complexAC": "CPX-1"}],
         }),
         "complex/CPX-1": (200, {
@@ -88,7 +88,7 @@ def test_taxonomic_id_zero_queries_all(monkeypatch):
         def get(self, url, params=None, timeout=None):
             captured_urls.append(url)
             if "search/*" in url and "filters" not in url:
-                return _FakeResponse(200, {"size": 0, "elements": []})
+                return _FakeResponse(200, {"size": 0, "totalNumberOfResults": 0, "elements": []})
             return _FakeResponse(404, {})
 
     from geckopy.databases import complex_portal_download as mod
@@ -107,7 +107,7 @@ def test_none_taxonomic_id_raises():
 
 def test_empty_search_response_raises(monkeypatch):
     _install_fake_session(monkeypatch, {
-        "search/*": (200, {"size": 0, "elements": []}),
+        "search/*": (200, {"size": 0, "totalNumberOfResults": 0, "elements": []}),
     })
     with pytest.raises(ValueError, match="No complexes"):
         get_complex_data(taxonomic_id=9606)
@@ -117,7 +117,7 @@ def test_404_on_individual_complex_is_skipped(monkeypatch):
     """If one complex's details 404, the run continues without it."""
     responses = {
         "search/*": (200, {
-            "size": 2,
+            "size": 2, "totalNumberOfResults": 2,
             "elements": [{"complexAC": "CPX-1"}, {"complexAC": "CPX-MISSING"}],
         }),
         "complex/CPX-1": (200, {
@@ -145,7 +145,7 @@ def test_404_on_individual_complex_is_skipped(monkeypatch):
 def test_missing_stoichiometry_becomes_zero(monkeypatch):
     """A complex with no stoichiometry info should have all zeros."""
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "CPX-1"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "CPX-1"}]}),
         "complex/CPX-1": (200, {
             "complexAc": "CPX-1",
             "name": "x", "species": "y",
@@ -165,7 +165,7 @@ def test_only_min_value_parsed(monkeypatch):
     """Only minValue is parsed from a 'minValue: 2, maxValue: 4' string;
     maxValue is ignored."""
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "CPX-1"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "CPX-1"}]}),
         "complex/CPX-1": (200, {
             "complexAc": "CPX-1", "name": "x", "species": "y",
             "participants": [
@@ -187,7 +187,7 @@ def test_non_protein_participants_filtered(monkeypatch):
     """Participants with interactorType != 'protein' are excluded when
     at least one protein participant is present."""
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "CPX-1"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "CPX-1"}]}),
         "complex/CPX-1": (200, {
             "complexAc": "CPX-1", "name": "x", "species": "y",
             "participants": [
@@ -211,7 +211,7 @@ def test_non_protein_participants_filtered(monkeypatch):
 
 def test_writes_json_to_disk(monkeypatch, tmp_path):
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "CPX-1"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "CPX-1"}]}),
         "complex/CPX-1": (200, {
             "complexAc": "CPX-1", "name": "Test", "species": "Homo sapiens",
             "participants": [
@@ -236,7 +236,7 @@ def test_round_trip_through_disk(monkeypatch, tmp_path):
     """Download, write, reload: the entries should be identical
     in their relevant fields."""
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "CPX-1"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "CPX-1"}]}),
         "complex/CPX-1": (200, {
             "complexAc": "CPX-1", "name": "Test", "species": "x",
             "participants": [
@@ -269,7 +269,7 @@ def test_complex_of_complexes_flattens(monkeypatch):
     proteins, with stoichiometries multiplied."""
     responses = {
         "search/*": (200, {
-            "size": 3,
+            "size": 3, "totalNumberOfResults": 3,
             "elements": [
                 {"complexAC": "SUB-A"},
                 {"complexAC": "SUB-B"},
@@ -316,7 +316,7 @@ def test_subcomplex_with_ligand_ignores_ligand(monkeypatch):
     be treated as a sub-complex id."""
     responses = {
         "search/*": (200, {
-            "size": 2,
+            "size": 2, "totalNumberOfResults": 2,
             "elements": [{"complexAC": "SUB-A"}, {"complexAC": "BIG"}],
         }),
         "complex/SUB-A": (200, {
@@ -350,7 +350,7 @@ def test_ligand_only_complex_has_no_proteins(monkeypatch):
     """A complex whose only participants are non-protein, non-complex must
     not be flattened as a complex-of-complexes; it yields no proteins."""
     responses = {
-        "search/*": (200, {"size": 1, "elements": [{"complexAC": "LIG"}]}),
+        "search/*": (200, {"size": 1, "totalNumberOfResults": 1, "elements": [{"complexAC": "LIG"}]}),
         "complex/LIG": (200, {
             "complexAc": "LIG", "name": "ligand only", "species": "x",
             "participants": [
@@ -369,13 +369,16 @@ def test_ligand_only_complex_has_no_proteins(monkeypatch):
 
 def test_search_paginates(monkeypatch):
     """The search is paged: complexes beyond the first page must still be
-    collected (size=3 spread over two pages)."""
+    collected. ``first`` is a record offset, and ``totalNumberOfResults``
+    -- not ``size``, which counts only the page at hand -- is the total."""
     from geckopy.databases import complex_portal_download as mod
 
+    page_size = mod._SEARCH_PAGE_SIZE
     pages = {
-        0: {"size": 3, "elements": [{"complexAC": "CPX-1"},
-                                    {"complexAC": "CPX-2"}]},
-        1: {"size": 3, "elements": [{"complexAC": "CPX-3"}]},
+        0: {"size": 2, "totalNumberOfResults": 3,
+            "elements": [{"complexAC": "CPX-1"}, {"complexAC": "CPX-2"}]},
+        page_size: {"size": 1, "totalNumberOfResults": 3,
+                    "elements": [{"complexAC": "CPX-3"}]},
     }
 
     def _detail(cid):
@@ -391,9 +394,11 @@ def test_search_paginates(monkeypatch):
     class _PagingSession:
         def get(self, url, params=None, timeout=None):
             if "search/" in url:
-                page = (params or {}).get("first", 0)
-                return _FakeResponse(200, pages.get(page, {"size": 3,
-                                                           "elements": []}))
+                offset = (params or {}).get("first", 0)
+                return _FakeResponse(200, pages.get(
+                    offset,
+                    {"size": 0, "totalNumberOfResults": 3, "elements": []},
+                ))
             cid = url.rsplit("/", 1)[-1]
             return _FakeResponse(200, _detail(cid))
 

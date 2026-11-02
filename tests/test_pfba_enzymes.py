@@ -45,18 +45,34 @@ def test_returns_solution():
     assert sol.status == "optimal"
 
 
-def test_objective_preserved_at_full_fraction():
+def test_full_fraction_keeps_0_999999_of_the_optimum():
+    model = _ectestgem_ec_model_with_kcats()
+    fba_optimum = model.slim_optimize()
+    sol = pfba_enzymes(model, fraction_of_optimum=1.0)
+    assert sol.fluxes["R3"] / fba_optimum == pytest.approx(0.999999, abs=2e-7)
+
+
+def test_given_fraction_is_multiplied_by_the_margin():
+    model = _ectestgem_ec_model_with_kcats()
+    fba_optimum = model.slim_optimize()
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.fluxes["R3"] / fba_optimum == pytest.approx(0.9 * 0.999999, abs=2e-7)
+
+
+def test_default_fixes_the_objective_at_0_999999_of_the_optimum():
+    """MATLAB's getPfbaEnzymes (RAVEN's solveLP) keeps 0.999999 of the optimum."""
     model = _ectestgem_ec_model_with_kcats()
     fba_optimum = model.slim_optimize()
     sol = pfba_enzymes(model)
-    assert sol.fluxes["R3"] == pytest.approx(fba_optimum, abs=1e-6)
+    ratio = sol.fluxes["R3"] / fba_optimum
+    assert ratio == pytest.approx(0.999999, abs=2e-7)
 
 
 def test_objective_preserved_at_partial_fraction():
     model = _ectestgem_ec_model_with_kcats()
     fba_optimum = model.slim_optimize()
     sol = pfba_enzymes(model, fraction_of_optimum=0.5)
-    assert sol.fluxes["R3"] >= 0.5 * fba_optimum - 1e-6
+    assert sol.fluxes["R3"] >= 0.5 * 0.999999 * fba_optimum - 1e-6
 
 
 def test_total_usage_le_plain_fba():
@@ -96,3 +112,26 @@ def test_gecko_light_raises():
     model.ec.gecko_light = True
     with pytest.raises(NotImplementedError):
         pfba_enzymes(model)
+
+
+def test_fraction_of_a_negative_optimum_lets_the_objective_fall():
+    model = _ectestgem_ec_model_with_kcats()
+    # Maximising -R3 with R3 >= 1 gives an optimum of -1.
+    model.reactions.get_by_id("R3").lower_bound = 1.0
+    model.objective = {model.reactions.get_by_id("R3"): -1.0}
+    optimum = model.slim_optimize()
+    assert optimum == pytest.approx(-1.0)
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.status == "optimal"
+    assert -sol.fluxes["R3"] >= optimum * 1.1 - 1e-6
+
+
+def test_fraction_of_a_minimised_objective_lets_it_rise():
+    model = _ectestgem_ec_model_with_kcats()
+    model.reactions.get_by_id("R3").lower_bound = 1.0
+    model.objective = "R3"
+    model.objective_direction = "min"
+    optimum = model.slim_optimize()
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.status == "optimal"
+    assert sol.fluxes["R3"] <= optimum * 1.1 + 1e-6

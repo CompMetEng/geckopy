@@ -15,14 +15,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import cobra
 
 sys.path.insert(0, "src")
 from geckopy.databases import load_brenda_data
 
-ROOT = Path("/mnt/c/Work/GitHub/geckopy")
+ROOT = Path(__file__).resolve().parent.parent
 BRENDA_DIR = ROOT / "src" / "geckopy" / "data" / "brenda"
-EXAMPLE = ROOT / "examples" / "ecTestGEM"
 
 EXCLUDED_ECS = {"3.4.21.4"}
 

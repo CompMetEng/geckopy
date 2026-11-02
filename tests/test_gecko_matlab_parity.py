@@ -25,7 +25,7 @@ Scope and limits
   Parity on ecTestGEM does not prove parity on yeast-GEM; it proves the
   core functions agree on every behaviour MATLAB itself pins down.
   Whole-GEM parity needs MATLAB in the loop (see
-  ``SysBioChalmers/raven-gecko-parity``).
+  ``CompMetEng/raven-gecko-parity``).
 - Stages that need the network (UniProt/KEGG/ComplexPortal downloads,
   DLKcat inference) are out of scope here, exactly as in MATLAB's suite,
   which also runs them off stored files.

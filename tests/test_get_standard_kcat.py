@@ -596,3 +596,63 @@ def test_fill_zero_kcat_false_leaves_zeros_alone(tmp_path):
     assert model.ec.kcat[r2_idx] == 0.0
 
 
+
+
+# --------------------------------------------------------------------------- #
+# Subsystem names compare without regard to letter case
+# --------------------------------------------------------------------------- #
+
+def _model_with_subsystems(tmp_path, subsystems: dict[str, str], missing_subsystem):
+    """12 reactions with a kcat (6 with 2.0 and 6 with 4.0) named in
+    ``subsystems`` (by index), 5 reactions of subsystem ``Other`` with 100.0,
+    and ``missing_r`` without genes in ``missing_subsystem``. The global
+    standard kcat is 4.0."""
+    adapter = _adapter(tmp_path)
+    n = 17
+    rxn_specs = [
+        (f"r{i}", [(f"m{i}_in", -1.0, f"m{i}_in", "c"), (f"m{i}_out", 1.0, f"m{i}_out", "c")], f"g{i}")
+        for i in range(n)
+    ]
+    rxn_specs.append(
+        ("missing_r", [("X_in", -1.0, "X_in", "c"), ("X_out", 1.0, "X_out", "c")], None)
+    )
+    kcats = [2.0] * 6 + [4.0] * 6 + [100.0] * 5
+    model = _build_model_with_pool(
+        adapter, rxn_specs,
+        ec_rxns=[f"r{i}" for i in range(n)],
+        ec_kcats=kcats,
+        ec_genes=[f"g{i}" for i in range(n)],
+        ec_enzymes=[f"g{i}" for i in range(n)],
+        ec_mws=[100.0] * n,
+        rxn_to_ec_genes=[[i] for i in range(n)],
+    )
+    for i in range(n):
+        model.reactions.get_by_id(f"r{i}").subsystem = (
+            subsystems.get(i, "Other") if i < 12 else "Other"
+        )
+    model.reactions.get_by_id("missing_r").subsystem = missing_subsystem
+    return model
+
+
+def test_subsystem_names_differing_in_case_are_one_subsystem(tmp_path):
+    """"Alpha" and "alpha" have 6 reactions each, below the threshold of 10 on
+    their own; together they reach it and give their joint median, 3.0."""
+    subsystems = {i: "Alpha" if i < 6 else "alpha" for i in range(12)}
+    model = _model_with_subsystems(tmp_path, subsystems, "ALPHA")
+    assign_standard_kcat(model, _uniprot([100.0]), threshold=10)
+    assert model.ec.kcat[model.ec.rxns.index("missing_r")] == pytest.approx(3.0)
+
+
+def test_empty_subsystem_gets_the_standard_kcat(tmp_path):
+    subsystems = {i: "Alpha" for i in range(12)}
+    model = _model_with_subsystems(tmp_path, subsystems, "")
+    assign_standard_kcat(model, _uniprot([100.0]), threshold=10)
+    assert model.ec.kcat[model.ec.rxns.index("missing_r")] == pytest.approx(4.0)
+
+
+def test_empty_first_subsystem_of_a_list_gets_the_standard_kcat(tmp_path):
+    subsystems = {i: "Alpha" for i in range(12)}
+    model = _model_with_subsystems(tmp_path, subsystems, "")
+    model.reactions.get_by_id("missing_r").subsystem = ["", "Alpha"]
+    assign_standard_kcat(model, _uniprot([100.0]), threshold=10)
+    assert model.ec.kcat[model.ec.rxns.index("missing_r")] == pytest.approx(4.0)

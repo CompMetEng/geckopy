@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
@@ -43,8 +44,9 @@ def read_dlkcat_output(
     The input file is the 6-column TSV that DLKcat writes (see
     ``run_dlkcat``), with one header line and columns
     ``rxn_id, gene, substrate, smiles, sequence, kcat``. Rows whose
-    kcat column is non-numeric (``"NA"``, empty, etc.) are silently
-    dropped before validation against the model.
+    kcat column is not a finite number (``"NA"``, ``"None"``, empty,
+    ``"inf"``, ``"1.2.3"``) are dropped before the reactions are validated
+    against the model.
 
     The output DataFrame matches the schema produced by
     ``fuzzy_kcat_matching`` so downstream functions
@@ -87,8 +89,8 @@ def read_dlkcat_output(
     ValueError
         If the file contains no numeric kcat values; if
         ``strict=True`` and any substrate name from the file is not
-        in ``model.metabolites.<name>`` (case-insensitive); or if any
-        ``rxn_id`` is not in ``model.ec.rxns``.
+        in ``model.metabolites.<name>`` (case-insensitive); or if the
+        ``rxn_id`` of a row that is kept is not in ``model.ec.rxns``.
     """
     file_path = Path(file_path)
     if not file_path.is_file():
@@ -104,6 +106,7 @@ def read_dlkcat_output(
     )
 
     numeric_kcat = pd.to_numeric(df["kcat"], errors="coerce")
+    numeric_kcat = numeric_kcat.where(np.isfinite(numeric_kcat))
     valid_mask = numeric_kcat.notna()
 
     if not valid_mask.any():

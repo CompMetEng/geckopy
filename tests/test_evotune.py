@@ -443,3 +443,41 @@ def test_result_reports_its_own_corrections():
     assert rows[0].source == "brenda"
     assert rows[0].fold_change == pytest.approx(10.0)
     assert rows[0].cumulative_share == pytest.approx(3.0 / 4.01)
+
+
+def test_screen_orders_rows_of_equal_rank_as_the_tie_groups(tmp_path, monkeypatch):
+    from geckopy.kcat_tuning.evotune import tuning
+
+    monkeypatch.setattr(tuning, "_score_kcat_vector", lambda *a, **k: (1.0, 1.0))
+    adapter = _adapter(tmp_path)
+    model = _build_toy(adapter)
+    screen = screen_kcat_leverage(
+        model, adapter=adapter, evotune_data=_evotune_data(), n_proc=1,
+    )
+    assert list(screen["leverage"]) == [0.0, 0.0]
+    assert list(screen["rxn_id"]) == list(model.ec.rxns)
+
+
+def test_cmaes_tuning_runs_all_generations_on_a_flat_objective(tmp_path, monkeypatch):
+    from geckopy.kcat_tuning.evotune import tuning
+
+    monkeypatch.setattr(tuning, "_score_kcat_vector", lambda *a, **k: (1.0, 1.0))
+    adapter = _adapter(tmp_path)
+    model = _build_toy(adapter)
+    params = EvotuneParams(max_generations=6, rmse_threshold=-1.0)
+    result = cmaes_kcat_tuning(
+        model, adapter=adapter, params=params, evotune_data=_evotune_data(),
+        n_proc=1, seed=0, verbose=False,
+    )
+    assert result.n_generations == 6
+
+
+def test_screen_warns_when_the_model_has_no_formulas(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_toy(adapter)
+    for met in model.metabolites:
+        met.formula = None
+    with pytest.warns(UserWarning, match="no metabolite formulas"):
+        screen_kcat_leverage(
+            model, adapter=adapter, evotune_data=_evotune_data(), n_proc=1,
+        )

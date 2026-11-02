@@ -169,6 +169,22 @@ def test_parse_maps_back_to_ec_rxns():
     assert set(df["rxn_id"]) == {"r1", "r2"}
 
 
+def test_parse_maps_back_from_a_reloaded_models_list_valued_smiles():
+    """cobra returns annotation values as lists for a model read from a
+    file, which is what `save_ec_model` + `load_ec_model` produces. The
+    SMILES index has to key on the string inside the list, not on the
+    list itself."""
+    model = _ec_model()
+    for met in model.metabolites:
+        if met.annotation.get("smiles"):
+            met.annotation["smiles"] = [met.annotation["smiles"]]
+
+    df = parse_okp_output(model, _OKP_RESULT_CSV)
+    assert len(df) == 3
+    assert set(df["rxn_id"]) == {"r1", "r2"}
+    assert all(s in (["ala"], ["beta"]) for s in df["substrates"])
+
+
 def test_parse_source_provenance_stripped_and_verbatim():
     df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     sources = set(df["source"])
@@ -183,10 +199,12 @@ def test_parse_kcat_and_columns():
     df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     assert list(df.columns) == [
         "rxn_id", "source", "eccode", "substrates", "genes",
-        "kcat", "wildcard_level", "origin",
+        "kcat", "wildcard_level", "origin", "similarity",
     ]
     cco_rows = df[df["source"] == "OKP-CataPro"]
     assert all(cco_rows["kcat"] == 12.5)
+    # The max similarity column gives the similarity, in percent.
+    assert cco_rows["similarity"].notna().all()
     assert all(s == ["ala"] for s in cco_rows["substrates"])
     assert all(g == ["g1"] for g in cco_rows["genes"])
 
@@ -198,6 +216,37 @@ def test_parse_no_numeric_kcat_raises():
     )
     with pytest.raises(ValueError, match="no numeric kcat"):
         parse_okp_output(_ec_model(), csv_text)
+
+
+def test_parse_catrange_class_ranges():
+    """CatRange's column holds class ranges; each becomes its geometric
+    midpoint, as OKP returned it before."""
+    csv_text = (
+        "Predicted kcat range: kcat (1/s),Source kcat,Extra Info kcat,Protein Sequence,Substrate\n"
+        "10 to 100 s^-1,Prediction from CatRange,Predicted range: 10 to 100 s^-1,S1,CCO\n"
+    )
+    df = parse_okp_output(_ec_model(), csv_text)
+    assert not df.empty
+    assert all(df["source"] == "OKP-CatRange")
+    assert df["kcat"].iloc[0] == pytest.approx(10 ** 1.5)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("12.5", 12.5),
+    ("10 to 100 s^-1", 10 ** 1.5),
+    ("0 to 1e-08 s^-1", 5e-9),
+    ("1000 to 1e+08 s^-1", 10 ** 5.5),
+    ("", None),
+    ("NA", None),
+])
+def test_kcat_value(text, expected):
+    from geckopy.gather_kcats.open_kinetics_predictor.parse_output import _kcat_value
+
+    value = _kcat_value(text)
+    if expected is None:
+        assert value is None or value != value
+    else:
+        assert value == pytest.approx(expected)
 
 
 def test_parse_missing_column_raises():

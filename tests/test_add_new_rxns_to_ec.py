@@ -318,3 +318,25 @@ def test_multiple_new_rxns_added(tmp_path):
     assert sorted(result.enz_added) == ["Y", "Z"]
     assert "R_AY" in model.ec.rxns
     assert "R_BZ" in model.ec.rxns
+
+
+# --------------------------------------------------------------------------- #
+# Genes that already have enzymes
+# --------------------------------------------------------------------------- #
+
+def test_reaction_with_genes_that_already_have_enzymes_is_added(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_base_model(adapter)
+    A_c = model.metabolites.get_by_id("A_c")
+    B_c = cobra.Metabolite("B_c", compartment="c")
+    model.add_metabolites([B_c])
+    n_enzymes = len(model.ec.enzymes)
+    rxn = _make_rxn(
+        "R_AX", metabolites={A_c: -1.0, B_c: 1.0}, gpr="g_X",
+    )
+
+    result = add_new_rxns_to_ec(model, [rxn], [])
+
+    assert result.enz_added == []
+    assert len(model.ec.enzymes) == n_enzymes
+    assert "R_AX" in model.ec.rxns

@@ -1,11 +1,12 @@
 """Tests for load_phyl_dist."""
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 from scipy.io import savemat
 
-from geckopy.databases import PhylDist, load_phyl_dist
+from geckopy.databases import PhylDist, download_phyl_dist, load_phyl_dist
 from geckopy.databases.phyl_dist import _clean_name
 
 
@@ -265,3 +266,41 @@ def test_combined_lookup_for_name_and_genus_fallback(tmp_path):
     # Direct miss, but genus match falls back to the genus list.
     assert pd.name_to_index.get("saccharomyces unknown") is None
     assert pd.genus_to_indices.get("saccharomyces") == [0, 1]
+
+
+def _session_returning(content: bytes) -> MagicMock:
+    session = MagicMock()
+    resp = MagicMock()
+    resp.content = content
+    resp.raise_for_status = MagicMock()
+    session.get.return_value = resp
+    return session
+
+
+def test_download_phyl_dist_writes_loadable_file(tmp_path):
+    src = tmp_path / "src.mat"
+    savemat(src, {"phylDistStruct": {
+        "names": np.array(["Saccharomyces cerevisiae", "Homo sapiens"], dtype=object),
+        "distMat": np.array([[0.0, 3.0], [3.0, 0.0]]),
+    }})
+    out = tmp_path / "data" / "PhylDist.mat"
+    session = _session_returning(src.read_bytes())
+
+    assert download_phyl_dist(out, url="https://example.org/x.mat", session=session) == out
+    session.get.assert_called_once()
+    assert session.get.call_args.args[0] == "https://example.org/x.mat"
+    assert load_phyl_dist(out).names == ["Saccharomyces cerevisiae", "Homo sapiens"]
+    assert not (tmp_path / "data" / "PhylDist.mat.part").exists()
+
+
+def test_download_phyl_dist_rejects_non_phyl_dist_file(tmp_path):
+    src = tmp_path / "src.mat"
+    savemat(src, {"other": np.zeros(2)})
+    out = tmp_path / "PhylDist.mat"
+    out.write_bytes(b"existing")
+
+    with pytest.raises(KeyError, match="phylDistStruct"):
+        download_phyl_dist(out, session=_session_returning(src.read_bytes()))
+    assert out.read_bytes() == b"existing"
+    assert not (tmp_path / "PhylDist.mat.part").exists()
+

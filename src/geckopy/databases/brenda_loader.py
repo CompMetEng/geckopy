@@ -10,21 +10,27 @@ Three tab-delimited files are read from the BRENDA folder:
     sa.tsv     specific activities (same wide shape)
     mw.tsv     molecular weights (single value per (ec, organism))
 
-The files are produced by the ``geckopy brenda-refresh`` CLI. kcat and
-SA have seven tab-delimited columns: EC number, substrate (``*`` for
-SA), organism, value-max, value-median, n (number of raw measurements
-aggregated), references (semicolon-joined PMIDs or ``*``). MW has six
-columns (single value, no aggregation choice). A ``#`` header line
-carries the BRENDA release version; the line after it is the TSV
-column header (also skipped).
+The files are produced by the ``geckopy brenda-refresh`` CLI. geckopy's
+own come from a toolbox-assets release (see
+:func:`~geckopy.databases.fetch_brenda_asset`). This loader reads plain
+text, or ``.xz``-compressed copies (``kcat.tsv.xz`` etc.) when present.
+
+kcat and SA have seven tab-delimited columns: EC number, substrate
+(``*`` for SA), organism, value-max, value-median, n (number of raw
+measurements aggregated), references (semicolon-joined PMIDs or
+``*``). MW has six columns (single value, no aggregation choice). A
+``#`` header line carries the BRENDA release version; the line after
+it is the TSV column header (also skipped).
 """
 from __future__ import annotations
 
 import logging
+import lzma
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import IO, Literal
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -87,7 +93,9 @@ class BrendaData:
         )
 
 
-def load_brenda_data(folder: str | Path) -> BrendaData:
+def load_brenda_data(
+    folder: str | Path, *, filter_outlier_kcats: bool = True,
+) -> BrendaData:
     """Load BRENDA kcat, SA, and MW dumps from a folder.
 
     Ported from GECKO MATLAB:
@@ -121,6 +129,12 @@ def load_brenda_data(folder: str | Path) -> BrendaData:
     ----------
     folder
         Directory containing all three BRENDA dump files.
+    filter_outlier_kcats
+        If True (default), drop a row whose kcat is more than 4 orders
+        of magnitude below the typical kcat of its EC before it can be
+        matched to any reaction -- see ``_filter_outlier_rows`` for the
+        rationale and mechanism. Set False to reproduce the unfiltered
+        1.0-era behaviour.
 
     Returns
     -------
@@ -135,9 +149,9 @@ def load_brenda_data(folder: str | Path) -> BrendaData:
         If any of the three expected files is missing.
     """
     folder = Path(folder)
-    kcat_path = folder / "kcat.tsv"
-    sa_path = folder / "sa.tsv"
-    mw_path = folder / "mw.tsv"
+    kcat_path = _resolve_brenda_path(folder, "kcat")
+    sa_path = _resolve_brenda_path(folder, "sa")
+    mw_path = _resolve_brenda_path(folder, "mw")
 
     for p in (kcat_path, sa_path, mw_path):
         if not p.is_file():
@@ -162,6 +176,11 @@ def load_brenda_data(folder: str | Path) -> BrendaData:
         _sa_view_from_wide(sa_wide, "sa_median"), mw_raw,
     )
 
+    if filter_outlier_kcats:
+        kcat_max, kcat_median, sa_max, sa_median = _filter_outlier_rows(
+            [kcat_max, kcat_median, sa_max, sa_median],
+        )
+
     return BrendaData(
         kcat_max=kcat_max,
         kcat_median=kcat_median,
@@ -173,6 +192,23 @@ def load_brenda_data(folder: str | Path) -> BrendaData:
 # --------------------------------------------------------------------------- #
 # File parsing
 # --------------------------------------------------------------------------- #
+
+
+def _resolve_brenda_path(folder: Path, stem: str) -> Path:
+    """``<stem>.tsv.xz`` when present, otherwise ``<stem>.tsv``."""
+    xz_path = folder / f"{stem}.tsv.xz"
+    if xz_path.is_file():
+        return xz_path
+    return folder / f"{stem}.tsv"
+
+
+def _open_brenda_file(path: Path) -> IO[str]:
+    """Open a BRENDA TSV for text reading, transparently decompressing
+    ``.xz`` files."""
+    if path.suffix == ".xz":
+        return lzma.open(path, "rt", encoding="utf-8")
+    return open(path, "r", encoding="utf-8")
+
 
 # Wide-format file layout (kcat / SA): 7 columns
 # 0=ec_code, 1=substrate, 2=organism, 3=value_max, 4=value_median,
@@ -199,7 +235,7 @@ def _load_wide_table(
     max_col, med_col = value_columns
     rows: list[tuple[str, str, str, float, float, int]] = []
     invalid = 0
-    with open(path, "r", encoding="utf-8") as f:
+    with _open_brenda_file(path) as f:
         for line_no, line in enumerate(f, start=1):
             line = line.rstrip("\n")
             if not line or line.startswith("#"):
@@ -247,7 +283,7 @@ def _load_mw_table(path: Path, *, value_scale: float) -> pd.DataFrame:
     """
     rows: list[tuple[str, str, float]] = []
     invalid = 0
-    with open(path, "r", encoding="utf-8") as f:
+    with _open_brenda_file(path) as f:
         for line_no, line in enumerate(f, start=1):
             line = line.rstrip("\n")
             if not line or line.startswith("#"):
@@ -345,3 +381,95 @@ def _join_sa_with_mw(sa: pd.DataFrame, mw: pd.DataFrame) -> pd.DataFrame:
     if not out_rows:
         return pd.DataFrame(columns=_SA_COLUMNS)
     return pd.DataFrame(out_rows, columns=_SA_COLUMNS)
+
+
+def _filter_outlier_rows(
+    tables: list[pd.DataFrame], *, decades: float = 4.0, min_ref: int = 5,
+) -> list[pd.DataFrame]:
+    """Drop a row whose kcat is implausibly low for its EC.
+
+    BRENDA's specific-activity x molecular-weight join can produce a
+    derived kcat that is many orders of magnitude below anything else
+    reported for the same EC -- almost always a unit or transcription
+    error upstream, not a real slow enzyme (a documented case: EC
+    2.3.1.297's only molecular-weight row is for a different organism
+    than its lowest specific-activity row, and the derived kcat this
+    produces, ~4e-7 1/s, is 8 orders of magnitude below the yeast SA
+    measurement for the same EC that has no matching MW row and is
+    silently dropped instead). Once matched to a reaction, a kcat that
+    small makes the enzyme-usage coefficient enormous and can make a
+    model untunable.
+
+    This is a *relative* floor, not a fixed threshold: a row is dropped
+    only if it is more than ``decades`` orders of magnitude below the
+    median kcat of its own EC. "Its own EC" widens from the full
+    4-level code to the 3-, 2-, then 1-level prefix if fewer than
+    ``min_ref`` values are available at the current level, so a
+    sparsely-represented EC is still judged against something. The
+    reference pool for one EC is built from every positive-kcat row of
+    every table passed in (plain kcat rows and SA-derived rows alike),
+    computed once up front from the *unfiltered* tables so that
+    dropping a row in one table cannot shift the reference used to
+    judge another.
+
+    Real enzymes can be genuinely slow, so this only catches a row far
+    outside its own EC's spread, not a merely-low one.
+
+    Parameters
+    ----------
+    tables
+        The four BRENDA views (``kcat_max``, ``kcat_median``,
+        ``sa_max``, ``sa_median``); each must have ``ec_code`` and
+        ``kcat`` columns. Order is preserved in the return value.
+    decades
+        How many orders of magnitude below the reference counts as an
+        outlier.
+    min_ref
+        Minimum number of reference values required before a level is
+        trusted; the search widens to a broader EC prefix otherwise.
+
+    Returns
+    -------
+    list[pandas.DataFrame]
+        The same tables, each with outlier rows removed and its index
+        reset.
+    """
+    pool: dict[str, list[float]] = {}
+    for table in tables:
+        for ec, kcat in zip(table["ec_code"], table["kcat"]):
+            if kcat > 0 and "-" not in ec:
+                pool.setdefault(ec, []).append(np.log10(kcat))
+
+    log_values_by_level: dict[tuple[int, str], list[float]] = {}
+    for ec, values in pool.items():
+        parts = ec.split(".")
+        for level in (4, 3, 2, 1):
+            key = (level, ".".join(parts[:level]))
+            log_values_by_level.setdefault(key, []).extend(values)
+
+    reference_cache: dict[str, float | None] = {}
+
+    def reference_log_kcat(ec: str) -> float | None:
+        if ec not in reference_cache:
+            parts = ec.split(".")
+            reference_cache[ec] = None
+            for level in (4, 3, 2, 1):
+                values = log_values_by_level.get((level, ".".join(parts[:level])), [])
+                if len(values) >= min_ref:
+                    reference_cache[ec] = float(np.median(values))
+                    break
+        return reference_cache[ec]
+
+    filtered = []
+    for table in tables:
+        if table.empty:
+            # An empty boolean mask loses the (already-correct) column
+            # set on an empty frame; nothing to filter anyway.
+            filtered.append(table)
+            continue
+        keep = []
+        for ec, kcat in zip(table["ec_code"], table["kcat"]):
+            ref = reference_log_kcat(ec) if kcat > 0 else None
+            keep.append(not (ref is not None and np.log10(kcat) < ref - decades))
+        filtered.append(table[pd.Series(keep, index=table.index)].reset_index(drop=True))
+    return filtered

@@ -15,12 +15,43 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
+
+from ...databases.pubchem import met_smiles as read_met_smiles
 
 if TYPE_CHECKING:
     from ...ec_model.ec_model import EcModel
 
 logger = logging.getLogger(__name__)
+
+_KCAT_COLUMN_SUFFIX = "kcat (1/s)"
+_RANGE_RE = re.compile(
+    r"^\s*([0-9.eE+-]+)\s+to\s+([0-9.eE+-]+)\s*(?:s\^-1)?\s*$"
+)
+
+
+def _kcat_value(text: str) -> float | None:
+    """A prediction as a number in 1/s.
+
+    Plain numbers are returned as they are. CatRange predicts a class,
+    which OKP returns as its range (``"10 to 100 s^-1"``); it becomes the
+    geometric midpoint, or half the upper bound for the class starting at
+    0, the values OKP returned for these classes before. Anything else is
+    None.
+    """
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        pass
+    match = _RANGE_RE.match(text or "")
+    if match is None:
+        return None
+    try:
+        low, high = float(match.group(1)), float(match.group(2))
+    except ValueError:
+        return None
+    return (low * high) ** 0.5 if low > 0 else high / 2
 
 _OUTPUT_COLUMNS = [
     "rxn_id", "source", "eccode", "substrates", "genes",
@@ -42,15 +73,19 @@ def parse_okp_output(
         ``ec.rxn_enz_mat`` and per-metabolite SMILES populated.
     result
         Either the CSV text or a path to the result file. Expected
-        columns include ``kcat (1/s)``, ``Source kcat``,
-        ``Protein Sequence`` and ``Substrate`` (extra similarity
-        columns are ignored).
+        columns include ``kcat (1/s)`` (CatRange: ``Predicted kcat
+        range: kcat (1/s)``, a number or a class range such as
+        ``10 to 100 s^-1``), ``Source kcat``, ``Protein Sequence`` and
+        ``Substrate``; ``max similarity to <method> training data``, when
+        present, gives ``similarity``.
 
     Returns
     -------
     pandas.DataFrame
         Columns ``rxn_id, source, eccode, substrates, genes, kcat,
-        wildcard_level, origin``. ``source`` is the per-row provenance
+        wildcard_level, origin, similarity`` (the enzyme's highest
+        sequence similarity to the method's training data, in percent; NaN
+        without the similarity column). ``source`` is the per-row provenance
         from the ``Source kcat`` column (the prediction method such as
         ``CataPro``, or a database such as ``BRENDA`` / ``Sabio-RK`` /
         ``UniProt``), prefixed with ``OKP-`` to mark it as having come
@@ -69,15 +104,21 @@ def parse_okp_output(
     df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
     df.columns = [c.strip() for c in df.columns]
 
-    required = ["kcat (1/s)", "Source kcat", "Protein Sequence", "Substrate"]
+    kcat_columns = [c for c in df.columns if c.endswith(_KCAT_COLUMN_SUFFIX)]
+    required = ["Source kcat", "Protein Sequence", "Substrate"]
     missing = [c for c in required if c not in df.columns]
+    if len(kcat_columns) != 1:
+        missing.insert(0, _KCAT_COLUMN_SUFFIX)
     if missing:
         raise ValueError(
             f"OKP result is missing expected column(s): {missing}. "
             f"Found: {list(df.columns)}"
         )
 
-    numeric_kcat = pd.to_numeric(df["kcat (1/s)"], errors="coerce")
+    numeric_kcat = pd.to_numeric(df[kcat_columns[0]].map(_kcat_value), errors="coerce")
+    sim_columns = [c for c in df.columns if c.startswith("max similarity to ")]
+    similarity = (pd.to_numeric(df[sim_columns[0]], errors="coerce") if sim_columns
+                  else pd.Series(np.nan, index=df.index))
     valid_mask = numeric_kcat.notna()
     if not valid_mask.any():
         raise ValueError(
@@ -88,7 +129,7 @@ def parse_okp_output(
     seq_to_proteins = _index(model.ec.sequence)
     smiles_to_mets: dict[str, list] = {}
     for met in model.metabolites:
-        smiles = met.annotation.get("smiles", "")
+        smiles = read_met_smiles(met)
         if smiles:
             smiles_to_mets.setdefault(smiles, []).append(met)
 
@@ -117,6 +158,7 @@ def parse_okp_output(
         sequence = df.at[idx, "Protein Sequence"]
         smiles = df.at[idx, "Substrate"]
         kcat = float(numeric_kcat[idx])
+        sim = float(similarity[idx])
         bare_source = _PREDICTION_PREFIX_RE.sub("", df.at[idx, "Source kcat"]).strip()
         source = f"OKP-{bare_source}"
 
@@ -153,7 +195,7 @@ def parse_okp_output(
                 if cobra_id in met_consumers.get(met.id, set()):
                     sub_name = met.name
                     break
-            rows.append((model.ec.rxns[ec_idx], source, sub_name, gene, kcat))
+            rows.append((model.ec.rxns[ec_idx], source, sub_name, gene, kcat, sim))
 
     if unmatched:
         logger.warning(
@@ -176,6 +218,7 @@ def parse_okp_output(
         "kcat": [r[4] for r in rows],
         "wildcard_level": pd.array([pd.NA] * n, dtype="Int64"),
         "origin": pd.array([pd.NA] * n, dtype="Int64"),
+        "similarity": [r[5] for r in rows],
     })
     logger.info("parse_okp_output: mapped %d kcat row(s).", n)
     return out

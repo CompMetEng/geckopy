@@ -10,7 +10,7 @@ weren't blocking. Three audiences:
   spotted while comparing the two implementations side by side. For
   the current, maintained list of MATLAB ↔ Python behavioural
   differences (broader than just what's tracked here), see the
-  [MATLAB ↔ Python translation guide](https://gecko-docs.readthedocs.io/en/latest/api/translation/)
+  [GECKO vs. geckopy](https://gecko-docs.readthedocs.io/en/latest/gecko-to-geckopy.html) page
   on [gecko-docs.readthedocs.io](https://gecko-docs.readthedocs.io/).
 - **anyone hitting a strange dependency bug** — section
   "Third-party library gotchas".
@@ -134,7 +134,9 @@ Notable items:
   the docstring's origin ranking implies origin 4 should win. Either
   swap the search order so any-no-subs-kcat is tried before org-SA,
   or update the docstring to match the search order. geckopy
-  replicates the current MATLAB behavior; see the note in
+  replicates the current MATLAB behavior, both within one EC number
+  and when selecting among the EC numbers of one reaction; see
+  `SEARCH_LEVELS` and `SEARCH_RANK` in
   `fuzzy_kcat_matching/_brenda_query.py`.
 - Delete `updateProtPool` from MATLAB GECKO. The function has been
   obsolete since GECKO 3.2.0 (all enzymes, measured and unmeasured,

@@ -1,5 +1,173 @@
 # Changelog
 
+## 4.0.0b2 — 2026-11-02
+
+* `pfba_enzymes` with `fraction_of_optimum` below 1 lets the objective fall by that fraction of the magnitude of its optimum, for a negative optimum and for a minimised objective as for a maximised positive one, as MATLAB's `getPfbaEnzymes` does; it raised `Infeasible` for these objectives.
+* `ec_fseof` ranks the targets by the score `|slope| * |correlation|` rounded to 9 significant digits, with scores that are equal after rounding in model order, as GECKO's `ecFSEOF` does; scores that differ by solver noise used to decide the order.
+* `geckopy.kcat_tuning.evotune` exports `best_parsimonious`, `n_changed`, `parsimony_frontier` and `isozyme_tie_map`, the helpers behind the parsimony sweep and the tying of isozyme copies, which GECKO has as `bestParsimonious`, `nChanged`, `parsimonyFrontier` and `isozymeTieMap`.
+* `read_kcat_source` and `load_kcat_source` skip a row whose fields are all empty quoted fields (`""<TAB>""`), as they skip a row of tabs, and raise `ValueError` for a field that opens a double quote and does not close it. Before, the first was reported as an invalid row and the second was read as a row with a kcat that is not a number.
+* `read_dlkcat_output` drops a row whose kcat is infinite (`inf`), as it drops `NA` and `None`, so the kcat list holds finite numbers only.
+* `write_dlkcat_input` and `extract_enzyme_substrate_pairs` write the rows in the order of `model.ec.rxns` whatever the order of `ec_rxns`, and a reaction named twice once, as GECKO's `writeDLKcatInput` does with its logical vector.
+* `ECTree` raises `ValueError` for `k = NaN`, as GECKO's `ecTreeEstimate` does; it returned NaN estimates.
+* `kcats_from_ec_tree` with an empty `ec_rxns` returns no kcats instead of raising, as an empty selection means no reaction, and counts a reaction named twice once in the `ec_rxns` parameter of the source file.
+* `assign_standard_kcat` leaves out every reaction without a substrate or without a product (RAVEN's `getExchangeRxns`), such as `A + B =>`; it left out single-metabolite boundary reactions only.
+* `review_assignment` recognises the source labels `custom` and `standard` without regard to letter case, as MATLAB's `reviewKcatAssignment` does: a source `Custom` is checked for a duplicate of a database value and `STANDARD` is the fallback.
+* `find_met_smiles` skips a metabolite without a name with a logged warning and gives it no SMILES; it used to look the metabolite up by its id. When the cache file holds a name more than once, the last row is used (as before, now stated in the docstring).
+* `review_assignment`, `EcStats` and `ec_stats_from_brenda` are exported from `geckopy.gather_kcats` and `geckopy`, and listed in `__all__`.
+* `apply_kcat_constraints` takes cobra reaction ids as well as ec reaction ids (with the `###_` prefix) in `update_rxns` on a gecko-light model, as GECKO's `applyKcatConstraints` does for `model.rxns` ids; naming the cobra reaction updates it as a whole. An id that is both kinds or neither raises a `ValueError`.
+* `constrain_enz_concs` resets each processed usage reaction to a lower bound of 0 and a `prot_pool` coefficient of -1 before it sets the upper bound, as GECKO's `constrainEnzConcs` does; a prior lower bound above the new upper bound used to raise.
+* `fill_enz_concs` raises a `ValueError` for a negative abundance of a protein that is an enzyme of the model, as GECKO's `fillEnzConcs` does with the error `fillEnzConcs:negativeAbundance`; it used to skip the value with a warning.
+* `constrain_enz_concs` raises a `ValueError` for a negative concentration in `model.ec.concs` before it changes any bound, as GECKO's `constrainEnzConcs` does with the error `constrainEnzConcs:negativeConcentration`; it used to skip the enzyme with a warning. `remove_constraints=True` does not read the concentrations.
+* `load_flux_data` raises a `ValueError` for a row with a different number of cells than the header, as GECKO's `loadFluxData` does with the error `loadFluxData:raggedRow`; it used to pad the missing cells with NaN. A header `X (EX_a(e))` gives the metabolite `X` and the reaction id `EX_a(e)`: the reaction id is the text between the parenthesis that matches the final one and that one; a header with nested parentheses used to give the whole header for both.
+* `enzyme_usage` logs a warning that lists the enzymes without a `usage_prot_<enzyme>` reaction, which it leaves out of the result, as GECKO's `getEnzymeUsage` does with the warning `getEnzymeUsage:missingUsageReaction`.
+* `report_enzyme_usage` raises a `ValueError` for a negative `top_abs_usage`; it used to list all enzymes except the last ones, counted from the end of the ranking.
+* `save_ec_model` keeps the description of a model that has one (`metaData` of the file it was loaded from) and writes `Enzyme-constrained model of <id>` only when there is none; it used to overwrite it. GECKO's `saveEcModel` does the same.
+* `best_parsimonious` skips points with a NaN `rmse`, as MATLAB's `bestParsimonious` does with `min(rmses)`: a NaN at the first point of the frontier made every comparison false and raised `ValueError`. It still raises when every `rmse` is NaN.
+* `screen_kcat_leverage` keeps rows of equal rank in the order of the tie groups (a stable sort), as MATLAB's `screenKcatLeverage` does, and `compute_excarbon` warns when no metabolite of the model has a formula (every exchange then gets the carbon weight 1).
+* `cmaes_kcat_tuning` runs `max_generations` generations on a flat objective instead of stopping after the first (the flat-fitness criteria of `cma` do not end the search), as MATLAB's `cmaesKcatTuning` does.
+* `get_enzyme_bottlenecks` ranks the enzymes by `objective_gain`, the change of the objective after the upper bound of one enzyme's usage reaction is raised by `fold_change` (default 2.0) and the model is solved again, instead of by the absolute shadow price of the `prot_<id>` constraint. At a degenerate optimum several capacity constraints are active and the solver assigns the dual to one of them, so the dual depends on the basis. Only the enzymes at their bound (`upper_bound > 0` and `|flux| / upper_bound >= 1 - 1e-6`) are solved again; every other enzyme has `objective_gain` 0. Ties are broken by the position in `model.enzymes`, so the order does not depend on the solver. The columns are `gene, objective_gain, shadow_price, flux, cap_usage, upper_bound, multiple_active` (`shadow_price` is a reference column and moved from position 2 to 3), so callers that read columns by position must use the column names. `multiple_active` is True when another capacity constraint (an enzyme at its bound, or `prot_pool_exchange` at its upper bound) is active at the same optimum. `df.attrs["n_resolved"]` and `df.attrs["active_constraints"]` hold the number of solves and of active constraints. When no enzyme is at its usage bound, as on ecYeastGEM where the protein pool is the active constraint, a warning says so and the rows are in model order.
+* `save_ec_model` writes an ec reaction without enzymes with no `enzymes` entry, as GECKO's `saveEcModel` does (it wrote `enzymes: !!omap []`). `load_ec_model` reads a missing `enzymes` entry as no enzymes, and still reads `enzymes: !!omap` with no entries and `enzymes: !!omap []` from files written by earlier versions of GECKO, RAVEN and geckopy.
+* `get_conc_control_coeffs` takes the control coefficient by finite difference by default, as GECKO's `getConcControlCoeffs` does: it raises one usage bound by `fold_change` (2), re-solves and divides the rise of the optimum by the rise of the bound. The reduced-cost path, which reads the dual of the usage reaction and is unreliable at a degenerate vertex, is `method="shadow_price"`. The finite-difference path needs one solve per protein, so each iteration of `flexibilize_enz_concs`, which calls it, takes minutes on a genome-scale ecModel.
+* `get_subset_ec_model` works on the scipy solver. It raised `LookupError: Constraint prot_P1 ... not in solver` at the next `optimize` when it had removed two or more constraints: optlang's scipy interface calls the generic removal inside its per-constraint loop, with the whole list each time, so the second pass finds the constraints gone. The sparse scipy model removes constraints correctly, and the function removes genes, reactions and metabolites on glpk and converts the subset back to scipy, because optlang rewrites every constraint expression for each removed variable (65 minutes for the HT29-GEM subset of the light Human-GEM ecModel). `geckopy.solver_support.edit_on_fast_solver` is the context manager that does this for any structural edit of a scipy model.
+* `switch_to_scipy` and so `make_ec_model`, `load_conventional_gem` and `load_ec_model` on scipy create each constraint with its whole expression instead of setting the coefficients one at a time, which made the scipy interface remove and add the rows of a constraint for every call (the light Human-GEM ecModel took 2 h 17 min to build on scipy against 1.5 min on Gurobi). `apply_kcat_constraints` edits the model on glpk when it updates 100 or more ec reactions of a scipy model, for the same reason.
+* `ec_fseof` follows `ecFSEOF.m`. The target flux is fixed at each level of the scan (`equality=True` of the raven-toolbox `fseof`, which `ecFSEOF.m` sets with `setParam(model, 'eq', ...)`) instead of lower-bounded. `targets` lists the reaction targets first and then the transport targets (MATLAB's `rxnTargets` and `transportTargets`), each group sorted by score, and has a new boolean column `transport`; a reaction is a transport target when a metabolite name occurs more than once among its metabolites, not counting `prot_*`. This changes the row order of `targets` (and of `amplification`, `knockout` and `gene_targets`, which are derived from it) for callers that take the top N: transport targets now come after all reaction targets.
+* `pfba_enzymes` fixes the objective at 0.999999 of its optimum by default, as MATLAB's `getPfbaEnzymes` does through RAVEN's `solveLP`; a given `fraction_of_optimum` is multiplied by 0.999999 as well, so `fraction_of_optimum=0.9` fixes the objective at 0.8999991 of its optimum and the default 1.0 at 0.999999.
+* `model.tolerance` reaches HiGHS on the scipy solver. optlang's scipy interface ignored every tolerance, so a model set to `1e-9` (as the Gurobi and GLPK runs of the parity scenarios are) was solved at HiGHS's `1e-7`; the flux ranges of `ec_fva` on ecYeastGEM then differed from Gurobi's by up to 0.2 percent. The feasibility tolerance becomes `primal_feasibility_tolerance` and the optimality tolerance `dual_feasibility_tolerance`; both stay at HiGHS's default until set, and survive a copy or a pickle of the model. HiGHS ends some LPs with numerical difficulties (status 4) at `1e-9`; those are solved again at its default, and a solve that still ends so has the status `numeric` instead of raising `KeyError`.
+* A scipy `EcModel` is copied and pickled into the sparse problem. optlang pickles a model as JSON and restores it by adding the variables and constraints to a dense problem, so every worker process of `ec_fva` (and `cobra.Model.copy`, `copy.deepcopy`) spent tens of minutes rebuilding the matrix of a genome-scale ecModel; ecYeastGEM now restores in 1.6 s and copies in 2.2 s. The solver of a repaired or converted scipy model is a `geckopy.solver_support._SparseModel`.
+* `load_ec_model` reads the file on glpk and converts the ecModel to scipy when scipy is cobra's default solver, as `load_conventional_gem` does, and setting `model.solver = "scipy"` on an `EcModel` that is not on scipy builds the sparse problem of `geckopy.solver_support.switch_to_scipy`. optlang's own clone grows the dense coefficient matrix row by row: loading ecYeastGEM (8001 reactions) on scipy did not finish in 25 minutes and is now a matter of seconds. The scenarios that load a genome-scale ecModel on scipy spent most of their hours there. `geckopy.solver_support.is_scipy_interface` tells whether a solver name or interface is scipy.
+* `get_subset_ec_model` removes the metabolites and genes that no reaction of the subset uses, as the `removeGenes` and `removeReactions` calls of GECKO's `getSubsetEcModel` do, also those that were unused in the big ecModel. The HT29-GEM subset of the light Human-GEM ecModel had the pseudo-gene `standard` and six metabolites (`MAM00579m`, `MAM01009c`, `MAM01099c`, `MAM01420m`, `MAM02549c`, `MAM02579m`) more than MATLAB's. A context model equal to the big model gives a copy without its unused metabolites and genes.
+* `load_ec_model` loads the two forms of ecModel file that GECKO's `loadEcModel` reads and the YAML parser of raven-toolbox rejects, with the values MATLAB loads. `- enzymes: !!omap` with no entries, as GECKO writes it for an ec reaction without enzymes (the `standard` rows), raised `AttributeError: 'ScalarNode' object has no attribute 'flow_style'`; the row has no enzymes. A value in double quotes that holds unescaped double quotes, such as the notes `""text""` of the published eciYali5-GEM (RAVEN 2's `writeYAMLmodel` wraps a value in quotes without escaping the quotes in it, and GECKO 3 read the notes column of `customKcats.tsv` with `%s`, which keeps the quotes of the file), raised a parser error; the note is `"text"`, the outer pair of quotes removed and the inner ones kept. A file that the parser rejects is read again after these two forms are rewritten as YAML.
+* `load_uniprot_tsv` and `ModelAdapter.get_uniprot_ids_from_table` read the cells as MATLAB's `textscan` with `%q` does, which the docstring of `load_uniprot_tsv` already claimed: a cell in double quotes is given without the quotes (`"1.1.1.25; 2.5.1.19"` gives `1.1.1.25; 2.5.1.19`), `""` inside a quoted cell is one quote, tabs and line breaks inside quotes belong to the cell, and leading spaces of a cell are dropped. A line with fewer cells is padded with empty cells and the cells of a line beyond the last column start a new row, as `textscan` does. The conversion table maps a gene that is listed twice to its first row, as `ismember` does, and a gene on a line without a second cell to an empty UniProt ID. `geckopy.databases.uniprot_loader.read_quoted_tsv` does the splitting.
+* `assign_standard_kcat` compares the subsystem names of the reactions without regard to letter case, as MATLAB's `strcmpi` does: `Pentose phosphate pathway` and `Pentose Phosphate Pathway` are one subsystem, so their reactions count together toward the `threshold` and give one median. A reaction with an empty subsystem has none and gets the model-wide standard kcat.
+* `get_subset_ec_model` removes the genes of the big ecModel that the context model lacks with `cobra.manipulation.remove_genes`, so a reaction that survives the removal (an isozyme remains, as with the rule `G1 and G2 or G3` without `G3`) loses the gene from its rule. Before, the gene left `model.genes` while the rule still named it, and removing that reaction later because the context model lacks it raised `ValueError: G3 not found`, as it did for the HT29-GEM subset of the light Human-GEM ecModel. In a gecko-light model the `001_` prefix of the ec reaction ids is no longer part of the id the ec rows are matched against: the subset used to drop every row of `ec.rxns`, `kcat`, `source`, `notes`, `eccodes` and `rxn_enz_mat`. A context model equal to the big model gives a copy, as before.
+* The scipy solver (optlang's HiGHS interface) gives the results of glpk and gurobi. optlang renumbers the variable columns wrongly after a variable is removed (it stops at `len(constraints)` instead of `len(variables)`), so cobra read fluxes from the wrong columns after `make_ec_model`, `Reaction.delete` or any other removal: `ec_fva` returned 0 for every reaction of ecTestGEM although the LP optimum was 3272.7. An `EcModel` now repairs the problem whenever `model.solver` is read; `geckopy.solver_support.repair_scipy_problem(model)` does the same for a plain `cobra.Model`. The repaired problem stores the coefficients sparsely, because optlang copies a dense matrix on every added or removed variable or constraint, and it keeps the solution when `cobra.Model.optimize` sets the objective direction again, so `Reaction.flux` and `Enzyme.flux` work after `model.optimize()`. After an infeasible solve it returns NaN values and objective, so `model.optimize(raise_error=False)` returns a solution with status `infeasible` instead of raising a `TypeError`.
+* With scipy as cobra's default solver, `load_conventional_gem` reads the model on glpk and `make_ec_model` builds the ecModel on glpk, and both convert the result to scipy (`geckopy.solver_support.switch_to_scipy`). Building the yeast-GEM ecModel on the scipy interface took more than 40 minutes in optlang's dense matrix operations without finishing.
+* `Enzyme.shadow_price`, `get_enzyme_bottlenecks` and `relax_proteomics_greedy` work on the scipy solver, which has no constraint duals in optlang: `geckopy.solver_support.constraint_shadow_prices` reads the HiGHS row marginals of the last solve and uses them only if they are an optimum of the problem as it is now. `relax_proteomics_greedy` computes the shadow prices of all candidates once per iteration and takes the lowest ID among enzymes with equal absolute shadow price.
+* `flexibilize_enz_concs` and `sensitivity_tuning` decide that the starting LP is infeasible from the solver status, not from the objective value, so they behave the same on every solver. Before, an infeasible start raised on Gurobi (no objective value) but not on GLPK (a finite objective value). `flexibilize_enz_concs` now returns an empty result for it on all solvers, as MATLAB's `flexibilizeEnzConcs` does, instead of raising on Gurobi. `sensitivity_tuning` raises on all solvers and stops with a warning when a later solve is not optimal.
+* Gurobi holds no primal values for an infeasible LP that it presolved and the scipy interface returns `None` for them, so `model.optimize()` raised `GurobiError: Unable to retrieve attribute 'X'` or `TypeError` there, and the checks that an LP is infeasible failed in a few percent of full test runs. The starting-LP check of `flexibilize_enz_concs` and `sensitivity_tuning` reads the solver status after `slim_optimize`, and `geckopy.solver_support.optimize_model` returns the infeasible solution (status `infeasible`, NaN objective and fluxes) in the other solves of the limit-protein, kcat-tuning and analysis functions.
+* `apply_kcat_constraints` treats an empty `update_rxns` as all reactions, as MATLAB's
+  `applyKcatConstraints` does with an empty `updateRxns`; it used to do nothing. The callers
+  that build the list from a filter (`set_kcat_for_reactions`, the evotune scoring and reset)
+  skip the call when the list is empty.
+* `apply_custom_kcats` reads a reaction list in double quotes (`"R3,R5"`) without the quotes,
+  as MATLAB's `%q` does, so the quoted list matches R3 and R5 instead of nothing.
+* `make_ec_model` refuses what GECKO's `makeEcModel` refuses, with a `ValueError`: a reaction ID
+  that starts with `usage_prot_` or `prot_pool` or ends in `_REV` or `_EXP_<digits>`, a metabolite
+  ID that starts with `prot_`, an `enzyme_comp` that is not one of the compartment names of the
+  model (a compartment ID that differs from its name no longer passes), and a model without
+  genes. Only a reaction with `lb < 0 < ub` that is not an exchange reaction is split into a
+  `_REV` pair: a reaction with both bounds negative stays as it is instead of raising, and a
+  reaction that only consumes or only produces metabolites, such as `A + B <=>`, is an exchange
+  reaction, as in RAVEN's `getExchangeRxns`.
+* `set_kcat_for_reactions` follows `setKcatForReactions`. `apply` defaults to `False`, so only
+  `ec.kcat` and `ec.source` change; pass `apply=True` to write the S matrix. IDs match without
+  regard to letter case, an ID that matches nothing is ignored, and in a gecko-light model the
+  `###_` prefix is part of the ID, so `"R2"` no longer expands to `001_R2` and `002_R2`.
+  A kcat list with one value per matched row takes its values by position even when another
+  ID matches nothing, as in MATLAB: `["R2", "nonsense"]` with `[1.0, 2.0]` sets the two `R2` rows to 1.0 and 2.0.
+* `flexibilize_enz_concs` with a levelled complex scores a unit by its probes when the solver
+  returns no usable reduced costs (the scipy solver), where a NaN score could pick the first unit.
+* `get_conc_control_coeffs` keeps a reduced cost when raising the bound by 0.01 percent raises
+  the optimum by at least half of the rise the reduced cost predicts, and by more than 1e-12
+  times max(1, |optimum|). A small coefficient on a small bound is kept; the test used to need a
+  rise above 1e-10, which dropped any coefficient with a reduced cost times bound below 1e-6.
+* `fit_sigma(method="bisect")` gives the first grid sigma, `1 / n_sigma_steps`, for a model that
+  cannot grow even at sigma 1, as the grid does; it used to give about 1e-6.
+* `truncate_values` rounds a value exactly halfway between two candidates away from
+  zero, as MATLAB's `round(x, n)` does: 100000.5 gives 100001 and 1234565 gives
+  1234570, where they gave 100000 and 1234560.
+* `save_kcat_source` writes the free text of the `detail` column as
+  `saveKcatSource` does: a tab or line break becomes a space, so a row can no longer
+  be split, and an empty part leaves no leading, trailing or repeated `; `.
+* `fill_kcats_from_isozymes` and `get_kcat_across_isozymes` default to `apply=False`,
+  as `getKcatAcrossIsozymes` only changes `ec.kcat`; pass `apply=True` to rewrite the
+  stoichiometry. Only a kcat of 0 is filled: a NaN kcat is left as it is, and a NaN
+  sibling does not enter the mean. `assign_kcats` passes `apply=True`, as before.
+* `fit_sigma` scans the 0.01 grid of GECKO's `sigmaFitter` by default (`method="bisect"`
+  stays available and still gives a continuous sigma). A target that growth cannot
+  reach gives the first sigma of the growth plateau, where it used to give 1.0. The
+  bounds of the objective reaction are set to `[0, 1000]` before the scan and stay so on
+  the fitted model, and a solve that is not optimal counts as growth 0.
+* `sensitivity_tuning` follows `sensitivityTuning.m`. The result lists the tuned reactions
+  in model order, and reports the kcat and source of the input model, so a reaction an
+  earlier run had tuned no longer reports NaN. `ec.notes` prints the pre-tune kcat as
+  `num2str` does (`preTuneKcat=10`). A `prot_to_ignore` id is matched without regard to
+  case and raises `ValueError` when no usage reaction has it. A tuned kcat has no upper
+  limit. A gecko-light model is tuned, in place of raising `NotImplementedError`.
+* `get_conc_control_coeffs` also takes the one-solve path with the scipy solver. optlang does not expose
+  variable duals there, so the reduced cost is read from the HiGHS bound marginal of the last `linprog`
+  result, after checking that the stored result is the solution `model.optimize` returned. On the tutorial
+  yeast ecModel this takes seconds where the finite-difference loop took several minutes. A scipy result
+  without bound marginals still falls back to the finite-difference loop.
+* `get_conc_control_coeffs` reads the reduced cost of each usage reaction's forward
+  variable and keeps it where a 0.01 percent rise of the bound raises the optimum,
+  in place of the `prot_<id>` shadow price. An enzyme whose own bound does not
+  bind now gets 0 while the protein pool binds, where every used enzyme used to
+  get the pool's price, and a degenerate vertex no longer gives a spurious
+  coefficient. Every nonzero reduced cost is checked, however small, and a usage
+  reaction held at its lower bound gets 0 without a check. Where the solver exposes
+  no variable duals, or returns NaN, the finite-difference loop is used.
+* New: `save_ec_model` records the ecModel format (`gecko_format: "4"`) and
+  the release that wrote the file (`generator: geckopy <version>`) in the
+  `metaData`, the keys GECKO's `saveEcModel` writes, in place of
+  `geckopy_version`. The model's own metaData, its date included, is kept.
+  `load_ec_model` refuses a `gecko_format` above 4 and warns about a GECKO 3
+  ecModel with a message that names `upgrade_project`; it turns the same
+  protein reactions as GECKO's `loadEcModel`, including a usage reaction fixed
+  to zero. `upgrade_project` reports an ecModel it cannot read as failed
+  and goes on with the other steps.
+* New: `level_complex_concs` and `level_complex_abundances` give every enzyme
+  complex one abundance, the median per copy over its measured subunits, so a
+  single badly quantified subunit no longer sets a complex's capacity.
+  `complex_families` groups isozyme variants into complexes and leaves shared
+  subunits and electron carriers as measured. See `docs/relaxation_methods.md`.
+* New: `relax_enz_concs` relaxes enzyme caps (and, if need be, the protein
+  pool) by the least total fold increase that reaches the target growth, in one
+  LP, so the result does not depend on the order in which limiting enzymes are
+  found.
+* `flexibilize_enz_concs` gained `per_complex=True`: complexes are ranked and
+  raised as one unit, keeping levelled subunits levelled. Off by default.
+
+* Fix: `write_dlkcat_input` and the OpenKineticsPredictor input builder
+  raised `TypeError: cannot use 'list' as a set element` on any model that
+  had been saved and reloaded. cobra returns an annotation value as a list
+  for a model read from a file, so `annotation['smiles']` is `"CCO"` on a
+  model annotated in memory by `find_met_smiles` and `["CCO"]` on the same
+  model after a round trip, and the ignore-list check hashed it. The new
+  `databases.met_smiles` reads either shape; a reloaded model now writes
+  the same DLKcat input as a freshly annotated one.
+* Fix: `parse_okp_output` raised `TypeError: cannot use 'list' as a dict
+  key` on a reloaded model for the same reason, when indexing metabolites
+  by their SMILES annotation to map each prediction back to an `ec.rxn`.
+* Fix: evotune's trust tiers never applied to a fuzzy-matched kcat.
+  `ec.source` reads `"brenda (wc=0, origin=1)"` where MATLAB's reads
+  `"brenda"`, and `classify_kcat_source` compared the whole string against
+  the `source_groups` entries, so every fuzzy database match fell through
+  to `unlabelled` and took `sigma0_log_default` instead of its tier's
+  width -- on the yeast tutorial, 3 497 of 4 671 kcats. The bracketed
+  detail is now ignored when matching; a group that lists the full string
+  still matches it. Tuning runs on models with fuzzy-matched kcats will
+  move by this.
+* `fuzzy_kcat_matching`: when a reaction has several EC numbers, the EC
+  matched at the earliest-tried level now wins, using the same search order
+  as within one EC (a correct-organism specific activity, origin 5, before
+  any-organism any-substrate kcat, origin 4), matching `fuzzyKcatMatching.m`.
+  Previously the lower origin number won. This changes the kcat of
+  multi-EC reactions; on the yeast-GEM tutorial the pre-tuning growth rate
+  goes from 0.0013 to 0.12 /hour, in line with MATLAB.
+* `load_conventional_gem` reads YAML with raven-toolbox's `read_yaml_model`
+  instead of `cobra.io.load_yaml_model`, so RAVEN fields such as
+  per-reaction `eccodes` are kept (`fill_eccodes_from_gem` found no EC
+  numbers on RAVEN-format GEMs).
+* New: `geckopy.databases.download_phyl_dist` fetches the KEGG
+  phylogenetic-distance file distributed with RAVEN.
+* full_ecModel tutorial: downloads the full `PhylDist.mat` instead of
+  shipping a two-organism stub, uses KEGG as fallback for EC numbers, uses
+  `merge_kcats`, runs ecFVA (STEP 73-75, skipped on GLPK) and the light
+  versus full comparison (STEP 76-77, new `code/plot_light_vs_full.py`).
+* Docs: `max_growth_weight` is weighted as in MATLAB's `maxGrowthWeight`
+  (the previous description said otherwise).
+
 ## 4.0.0b1 — 2026-09-08
 
 Version realignment: geckopy numbering will be aligned with GECKO (MATLAB),

@@ -86,10 +86,11 @@ def get_complex_data(
 
     session = _make_session()
 
-    # Step 1: search to enumerate complex IDs. The search endpoint paginates
-    # (``elements`` is one page; ``size`` is the total), so a single request
-    # silently truncates organisms with more than one page of complexes.
-    # Page through with ``first``/``number`` until all are collected.
+    # Step 1: search to enumerate complex IDs. The search endpoint paginates,
+    # so a single request silently truncates organisms with more than one
+    # page of complexes. ``first`` is a record offset and ``number`` the page
+    # length; the grand total is ``totalNumberOfResults`` (``size`` counts
+    # only the elements in the page at hand).
     search_url = _SEARCH_URL
     if taxonomic_id != 0:
         search_url = (
@@ -104,14 +105,17 @@ def get_complex_data(
     for page in range(_MAX_SEARCH_PAGES):
         response = session.get(
             search_url,
-            params={"first": page, "number": _SEARCH_PAGE_SIZE},
+            params={
+                "first": page * _SEARCH_PAGE_SIZE,
+                "number": _SEARCH_PAGE_SIZE,
+            },
             timeout=_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         search_data = response.json()
 
         if total is None:
-            total = int(search_data.get("size", 0))
+            total = int(search_data.get("totalNumberOfResults", 0))
             if total == 0:
                 raise ValueError(
                     f"No complexes returned for taxonomic_id={taxonomic_id}."
@@ -123,6 +127,12 @@ def get_complex_data(
         complex_ids.extend(elem["complexAC"] for elem in elements)
         if len(complex_ids) >= total:
             break
+    if total is not None and len(complex_ids) < total:
+        logger.warning(
+            "Complex Portal reported %d complexes but only %d were "
+            "collected before the %d-page bound.",
+            total, len(complex_ids), _MAX_SEARCH_PAGES,
+        )
     logger.info(
         "Found %d complexes; fetching details ...", len(complex_ids)
     )

@@ -215,3 +215,36 @@ def test_integration_with_fill_enz_concs():
     assert model.reactions.get_by_id("usage_prot_P1").upper_bound == 4.0
     assert model.reactions.get_by_id("usage_prot_P2").upper_bound == 1000.0
     assert model.reactions.get_by_id("usage_prot_P3").upper_bound == 9.0
+
+
+# --------------------------------------------------------------------------- #
+# Negative concentration
+# --------------------------------------------------------------------------- #
+
+def test_negative_conc_raises_before_changing_the_model():
+    model = _ec_model_with_pool(["P1", "P2"], concs=[3.0, -0.5])
+    with pytest.raises(ValueError, match="negative concentration"):
+        constrain_enz_concs(model)
+    assert model.reactions.get_by_id("usage_prot_P1").upper_bound == 1000.0
+    assert model.reactions.get_by_id("usage_prot_P2").upper_bound == 1000.0
+
+
+def test_negative_conc_is_not_read_when_removing_constraints():
+    model = _ec_model_with_pool(["P1"], concs=[-0.5])
+    constrain_enz_concs(model, remove_constraints=True)
+    assert model.reactions.get_by_id("usage_prot_P1").upper_bound == 1000.0
+
+
+# --------------------------------------------------------------------------- #
+# Prior bounds and coefficient
+# --------------------------------------------------------------------------- #
+
+def test_prior_lower_bound_above_the_new_upper_bound_is_reset():
+    model = _ec_model_with_pool(["P1"], concs=[0.01])
+    rxn = model.reactions.get_by_id("usage_prot_P1")
+    rxn.lower_bound = 0.05
+    pool = model.metabolites.get_by_id("prot_pool")
+    rxn.add_metabolites({pool: -2.0}, combine=False)
+    constrain_enz_concs(model)
+    assert rxn.bounds == (0.0, 0.01)
+    assert rxn.metabolites[pool] == -1.0

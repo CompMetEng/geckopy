@@ -417,3 +417,40 @@ def test_written_file_has_no_header(tmp_path):
     first_line = out.read_text(encoding="utf-8").splitlines()[0]
     # Should be the data row, NOT a header.
     assert first_line.startswith("r1\t")
+
+
+def test_a_reloaded_model_carries_its_smiles_as_a_list(tmp_path):
+    """cobra returns annotation values as lists for a model read from a
+    file, which is what `save_ec_model` + `load_ec_model` produces. The
+    SMILES has to survive that, and the ignore-list check has to not
+    choke on it."""
+    model = _ec_model(
+        [("r1", [("A", -1.0, "alpha"), ("B", 1.0, "beta")])],
+        genes_per_rxn={"r1": ["g1"]},
+        gene_sequences={"g1": "MASEQ"},
+        met_smiles={"A": "C(C)O"},
+    )
+    for met in model.metabolites:
+        if met.annotation.get("smiles"):
+            met.annotation["smiles"] = [met.annotation["smiles"]]
+
+    df = write_dlkcat_input(model, tmp_path / "DLKcat.tsv", _ignore_lists())
+    assert len(df) == 1
+    assert df.iloc[0]["smiles"] == "C(C)O"
+
+
+def test_a_list_valued_smiles_is_still_matched_against_the_ignore_list(tmp_path):
+    model = _ec_model(
+        [("r1", [("A", -1.0, "alpha"), ("B", -1.0, "beta"), ("C", 1.0, "gamma")])],
+        genes_per_rxn={"r1": ["g1"]},
+        gene_sequences={"g1": "MASEQ"},
+        met_smiles={"A": "SMI_A", "B": "O"},
+    )
+    for met in model.metabolites:
+        if met.annotation.get("smiles"):
+            met.annotation["smiles"] = [met.annotation["smiles"]]
+
+    df = write_dlkcat_input(
+        model, tmp_path / "DLKcat.tsv", _ignore_lists(ignore_smiles=["O"]),
+    )
+    assert set(df["substrate"]) == {"alpha"}

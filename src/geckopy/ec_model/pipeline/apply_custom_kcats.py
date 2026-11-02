@@ -41,8 +41,10 @@ def apply_custom_kcats(
     Mode A (rxns only, proteins empty)
         Apply the kcat to every entry of ``ec.rxns`` whose ID, after
         stripping any ``_EXP_<n>`` suffix, equals one of the listed
-        reaction IDs (comma-separated). Reverse direction is honored:
-        ``"R2"`` matches ``R2_EXP_*`` but not ``R2_REV_*``.
+        reaction IDs (comma-separated). A list in double quotes, as a
+        spreadsheet exports it, is read without the quotes. Reverse
+        direction is honored: ``"R2"`` matches ``R2_EXP_*`` but not
+        ``R2_REV_*``.
 
     Mode B (proteins only, rxns empty)
         Candidate reactions are those catalyzed by any listed protein.
@@ -266,11 +268,22 @@ def _parse_custom_kcats_tsv(path: Path) -> list[dict]:
                 "index": line_no - 1,  # 1-based row index excluding header
                 "proteins": parts[0].strip(),
                 "kcat": kcat,
-                "rxns": parts[4].strip(),
+                "rxns": _unquote(parts[4].strip()),
                 "notes": parts[5].strip(),
                 "stoicho": parts[6].strip(),
             })
     return rows
+
+
+def _unquote(field: str) -> str:
+    """Strip one pair of double quotes around a field, as MATLAB's ``%q`` does.
+
+    A spreadsheet exports a reaction list such as ``R3,R5`` as ``"R3,R5"``;
+    a doubled quote inside the field stands for one quote.
+    """
+    if len(field) >= 2 and field.startswith('"') and field.endswith('"'):
+        return field[1:-1].replace('""', '"')
+    return field
 
 
 def _resolve_rxn_ids(

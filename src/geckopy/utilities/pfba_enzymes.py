@@ -33,6 +33,12 @@ if TYPE_CHECKING:
 
 _PFBA_OBJ_NAME = "_pfba_enzymes_objective"
 
+# RAVEN's solveLP multiplies the fraction of the optimum by this margin in the
+# flux-minimising stage (getPfbaEnzymes calls it with minFlux 1). A solver reports the
+# optimum to within its feasibility tolerance, so a second solve that demands the full
+# value can be infeasible.
+_PFBA_MARGIN = 0.999999
+
 
 def pfba_enzymes(
     model: "EcModel",
@@ -42,9 +48,9 @@ def pfba_enzymes(
 ) -> cobra.Solution:
     """Parsimonious FBA minimising the L1 norm of ``usage_prot_*`` fluxes.
 
-    Sets the objective (if given), fixes it at
-    ``fraction_of_optimum * optimal_value``, then minimises
-    ``sum(usage_prot_*.forward_variable)``. Usage reactions are
+    Sets the objective (if given), lets it fall from its optimum by
+    ``1 - fraction_of_optimum * 0.999999`` times the magnitude of the
+    optimum, then minimises ``sum(usage_prot_*.forward_variable)``. Usage reactions are
     forward-only in the GECKO 3 layout (``lb=0``); if a user has
     flipped one to allow reverse flux, its ``reverse_variable`` is
     included automatically.
@@ -63,10 +69,16 @@ def pfba_enzymes(
         enzyme usage. If ``None``, the model's current objective is
         used as-is.
     fraction_of_optimum
-        Fraction of the objective's optimal value to fix as a
-        constraint before minimising enzyme usage. ``1.0`` (default)
-        requires the biomass-optimal solution; a lower value trades
-        some objective value for potentially lower enzyme usage.
+        Fraction of the objective's optimal value to keep as a
+        constraint before minimising enzyme usage (default 1.0). The
+        fraction is multiplied by 0.999999, the margin of RAVEN's
+        ``solveLP`` that MATLAB's ``getPfbaEnzymes`` applies. The
+        objective may fall from its optimum by ``1 - fraction * 0.999999``
+        times the magnitude of the optimum, so the default keeps it within
+        1e-6 of the optimum and 0.9 within 10 %, for a negative optimum
+        (the exchange flux of a nutrient that is maximised) as for a
+        positive one. A lower value trades some objective value for
+        potentially lower enzyme usage.
 
     Returns
     -------
@@ -99,7 +111,16 @@ def pfba_enzymes(
                 f"Objective is already {_PFBA_OBJ_NAME}; "
                 "pfba_enzymes appears to be nested."
             )
-        cobra.util.fix_objective_as_constraint(m, fraction=fraction_of_optimum)
+        optimum = m.slim_optimize(error_value=None)
+        if optimum is None:
+            raise cobra.exceptions.OptimizationError(
+                "pfba_enzymes: the model is infeasible for its objective."
+            )
+        # The objective may fall by (1 - fraction * margin) of the magnitude
+        # of its optimum, for a positive and a negative optimum alike.
+        slack = (1.0 - fraction_of_optimum * _PFBA_MARGIN) * abs(optimum)
+        bound = optimum - slack if m.objective.direction == "max" else optimum + slack
+        cobra.util.fix_objective_as_constraint(m, bound=bound)
 
         usage_rxns = [r for r in m.reactions if r.id.startswith(USAGE_PREFIX)]
         variables = []

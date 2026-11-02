@@ -108,14 +108,6 @@ def _build_toy(
 # Pre-flight
 # --------------------------------------------------------------------------- #
 
-def test_gecko_light_raises(tmp_path):
-    adapter = _adapter(tmp_path)
-    model = _build_toy(adapter)
-    model.ec.gecko_light = True
-    with pytest.raises(NotImplementedError, match="gecko-light"):
-        sensitivity_tuning(model)
-
-
 def test_no_adapter_no_growth_rate_raises(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
@@ -259,3 +251,56 @@ def test_result_reports_its_own_corrections():
     assert rows[0].name == "drifting enzyme"
     assert rows[1].source == "brenda"
     assert rows[1].fold_change == pytest.approx(10.0)
+
+
+# --------------------------------------------------------------------------- #
+# Infeasible start: the same on every solver
+# --------------------------------------------------------------------------- #
+
+def _usable_solvers():
+    solvers = []
+    for name in ("glpk", "glpk_exact", "gurobi"):
+        try:
+            cobra.Model("probe").solver = name
+        except Exception:
+            continue
+        solvers.append(name)
+    return solvers
+
+
+@pytest.fixture(params=_usable_solvers())
+def solver(request):
+    """Solver name; a solver that imports but is not licensed is skipped."""
+    model = cobra.Model("probe")
+    try:
+        model.solver = request.param
+        model.add_metabolites([cobra.Metabolite("m")])
+        model.optimize()
+    except Exception as exc:
+        pytest.skip(f"{request.param} unusable: {exc}")
+    return request.param
+
+
+def test_infeasible_start_raises_on_every_solver(tmp_path, solver):
+    adapter = _adapter(tmp_path, gr_exp=300.0)
+    model = _build_toy(adapter, initial_kcat=1.0, enzyme_mw=100.0)
+    model.solver = solver
+    model.reactions.get_by_id("biomass").lower_bound = 500.0
+    model.slim_optimize(error_value=float("nan"))
+    assert model.solver.status == "infeasible"
+    with pytest.raises(ValueError, match="not optimal"):
+        sensitivity_tuning(model)
+
+
+def test_infeasible_start_raises_when_gurobi_presolves_it(tmp_path):
+    """Gurobi holds no primal values for an infeasible LP it presolved; the start check must not read them."""
+    adapter = _adapter(tmp_path, gr_exp=300.0)
+    model = _build_toy(adapter, initial_kcat=1.0, enzyme_mw=100.0)
+    try:
+        model.solver = "gurobi"
+    except Exception as exc:
+        pytest.skip(f"gurobi unusable: {exc}")
+    model.solver.problem.Params.Presolve = 2
+    model.reactions.get_by_id("biomass").lower_bound = 500.0
+    with pytest.raises(ValueError, match="not optimal"):
+        sensitivity_tuning(model)

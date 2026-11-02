@@ -283,3 +283,20 @@ def test_missing_path_and_no_complex_data_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         apply_complex_data(ec_model)
+
+
+def test_partial_zero_stoichiometry_counts_the_subunit_as_one():
+    """A subunit with stoichiometry 0 has no stated stoichiometry: it is a
+    subunit with stoichiometry 1, so the complex still matches."""
+    ec_model = _ectestgem_ec_model()
+    data = [ComplexPortalEntry(
+        complex_id="R2Compl",
+        name="x",
+        species="t",
+        gene_names=["G1", "G2"],
+        protein_ids=["P1", "P2"],
+        stoichiometry=[2, 0],
+    )]
+    apply_complex_data(ec_model, complex_data=data, apply=False)
+    assert _stoich(ec_model, "R2_EXP_1", "P1") == 2.0
+    assert _stoich(ec_model, "R2_EXP_1", "P2") == 1.0

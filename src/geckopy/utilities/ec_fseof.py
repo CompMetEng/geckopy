@@ -13,6 +13,11 @@ ec-specific concerns on top of raven's general-purpose FSEOF:
 - restricts targets (and the reported scan) to gene-associated
   reactions whose GPR doesn't reference the "standard" placeholder
   pseudogene, matching ``ecFSEOF.m``'s candidate-set restriction;
+- fixes the target flux at each level (lower and upper bound), as
+  ``ecFSEOF.m`` does;
+- orders ``targets`` as ``ecFSEOF.m`` returns them: reaction targets first,
+  then transport targets, each group sorted by score, with a ``transport``
+  boolean column that marks the group;
 - filters ``usage_prot_*`` rows out of the returned ``scan`` /
   ``targets`` DataFrames — those reactions are protein-pool plumbing,
   never engineering targets.
@@ -32,9 +37,9 @@ Callers who want the result tables on disk can call
 ``result.targets.to_csv(...)`` themselves. Per-gene essentiality is
 not computed here; use :func:`cobra.flux_analysis.single_gene_deletion`,
 which works directly on ecModels since GPRs already gate the catalysed
-reactions. Targets come back as one combined table; split it into
-reaction vs. transport subsets yourself via the ``subsystem`` column
-or by inspecting each reaction's metabolites.
+reactions. Targets come back as one table, reaction targets before transport
+targets (``ecFSEOF.m``'s ``rxnTargets`` and ``transportTargets``); the
+``transport`` column tells them apart.
 """
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from raven_toolbox.analysis.fseof import FSEOFResult, fseof
+from ..solver_support import optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -107,7 +113,14 @@ def ec_fseof(
     -------
     FSEOFResult
         raven-toolbox's FSEOF output dataclass, with ``usage_prot_*``
-        rows filtered out of both ``scan`` and ``targets``. See
+        rows filtered out of both ``scan`` and ``targets``. ``targets``
+        has an added boolean column ``transport`` and lists the reaction
+        targets first, then the transport targets, each group in the
+        order of the score ``|slope| * |correlation|`` rounded to 9 significant digits (equal scores in
+        model order); a reaction is a transport target when a metabolite
+        name occurs more than once among its metabolites, not counting
+        the ``prot_*`` ones. A caller that takes the top N rows gets the
+        top reaction targets, then transport targets. See
         :class:`raven_toolbox.analysis.fseof.FSEOFResult` for the full
         field list (``scan``, ``enforced``, ``targets``, plus the
         ``amplification`` / ``knockout`` / ``gene_targets`` properties).
@@ -131,9 +144,11 @@ def ec_fseof(
         correlation_threshold=correlation_threshold,
         flux_eps=flux_eps,
         min_target=min_target,
+        equality=True,
     )
     result = _drop_usage_prot(result)
-    return _drop_ungated_reactions(result, model)
+    result = _drop_ungated_reactions(result, model)
+    return _group_transport_targets(result, model)
 
 
 def _check_cs_consistency(
@@ -148,7 +163,7 @@ def _check_cs_consistency(
     cs_rxn_obj = model.reactions.get_by_id(cs_rxn_id)
     with model:
         model.objective = bio_rxn_id
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             return
         cs_flux = float(sol.fluxes.get(cs_rxn_id, 0.0))
@@ -173,7 +188,7 @@ def _biomass_optimal_target_flux(
     """
     with model:
         model.objective = bio_rxn_id
-        sol = model.optimize()
+        sol = optimize_model(model)
         if sol.status != "optimal":
             return 0.0
         return float(sol.fluxes.get(prod_target_rxn_id, 0.0))
@@ -198,6 +213,31 @@ def _drop_ungated_reactions(result: FSEOFResult, model: "EcModel") -> FSEOFResul
         result.targets["reaction"].map(lambda rid: _gated_reaction(model, rid))
     ].reset_index(drop=True)
     return FSEOFResult(scan=scan, enforced=result.enforced, targets=targets)
+
+
+def _group_transport_targets(result: FSEOFResult, model: "EcModel") -> FSEOFResult:
+    """Add the ``transport`` column and list reaction targets before transport targets.
+
+    As in ``ecFSEOF.m``, a reaction is a transport reaction when a metabolite name repeats
+    among its metabolites after the ``prot_*`` metabolites are dropped. Within a group the
+    reactions are ordered by their score rounded to 9 significant digits, equal scores in
+    model order.
+    """
+    targets = result.targets.copy()
+    targets["transport"] = [
+        _is_transport(model.reactions.get_by_id(rid)) for rid in targets["reaction"]
+    ]
+    position = {rxn.id: i for i, rxn in enumerate(model.reactions)}
+    targets["_model_order"] = [position[rid] for rid in targets["reaction"]]
+    targets["_score"] = [float(f"{x:.9g}") for x in targets["score"]]
+    targets = targets.sort_values(["transport", "_score", "_model_order"], ascending=[True, False, True], ignore_index=True)
+    targets = targets.drop(columns=["_model_order", "_score"])
+    return FSEOFResult(scan=result.scan, enforced=result.enforced, targets=targets)
+
+
+def _is_transport(reaction) -> bool:
+    names = [m.name for m in reaction.metabolites if not (m.name or "").startswith("prot_")]
+    return len(names) != len(set(names))
 
 
 def _drop_usage_prot(result: FSEOFResult) -> FSEOFResult:

@@ -17,7 +17,7 @@ def _adapter_with_conv_gem(tmp_path: Path, conv_gem_name: str) -> ModelAdapter:
 
 
 def test_loads_yaml_gem(tmp_path):
-    """A minimal YAML GEM is loaded via cobra.io.load_yaml_model."""
+    """A minimal cobra-style YAML GEM loads."""
     yml_path = tmp_path / "tiny.yml"
     yml_path.write_text(
         "id: tiny\n"
@@ -39,6 +39,39 @@ def test_loads_yaml_gem(tmp_path):
     assert model.id == "tiny"
     assert "R1" in {r.id for r in model.reactions}
 
+
+
+def test_yaml_gem_keeps_raven_eccodes(tmp_path):
+    """RAVEN YAML stores EC numbers as a per-reaction ``eccodes`` field;
+    they end up in ``annotation['ec-code']``, where
+    ``fill_eccodes_from_gem`` reads them."""
+    yml_path = tmp_path / "raven.yml"
+    yml_path.write_text(
+        "!!omap\n"
+        "- metaData: !!omap\n"
+        "  - id: raven\n"
+        "  - name: raven\n"
+        "- metabolites:\n"
+        "  - !!omap\n"
+        "    - id: A_c\n"
+        "    - compartment: c\n"
+        "- reactions:\n"
+        "  - !!omap\n"
+        "    - id: R1\n"
+        "    - metabolites: !!omap\n"
+        "      - A_c: -1\n"
+        "    - lower_bound: 0\n"
+        "    - upper_bound: 1000\n"
+        "    - eccodes:\n"
+        "      - \"1.1.2.4\"\n"
+        "      - \"1.1.99.-\"\n"
+        "- genes: []\n"
+        "- compartments: !!omap\n"
+        "  - c: cytosol\n"
+    )
+    adapter = _adapter_with_conv_gem(tmp_path, "raven.yml")
+    model = load_conventional_gem(adapter)
+    assert model.reactions.R1.annotation["ec-code"] == ["1.1.2.4", "1.1.99.-"]
 
 def test_loads_sbml_gem(tmp_path):
     """An SBML GEM (the existing ecTestGEM fixture) loads."""
@@ -62,3 +95,11 @@ def test_missing_file_raises(tmp_path):
     adapter = _adapter_with_conv_gem(tmp_path, "absent.yml")
     with pytest.raises(FileNotFoundError, match="conv_gem"):
         load_conventional_gem(adapter)
+
+
+def test_loaded_gem_has_raven_solver_tolerance(tmp_path):
+    """The model carries RAVEN's solver tolerance whichever reader was used."""
+    json_path = tmp_path / "tiny.json"
+    cobra.io.save_json_model(cobra.Model("tiny"), str(json_path))
+    adapter = _adapter_with_conv_gem(tmp_path, "tiny.json")
+    assert load_conventional_gem(adapter).tolerance == 1e-9

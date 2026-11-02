@@ -314,3 +314,14 @@ def test_top_abs_usage_inf_returns_all():
     ud = enzyme_usage(model, sol.fluxes)
     rep = report_enzyme_usage(model, ud, top_abs_usage=float("inf"))
     assert len(rep.top_abs_usage) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Invalid top_abs_usage
+# --------------------------------------------------------------------------- #
+
+def test_negative_top_abs_usage_raises():
+    model = _build_single_enzyme_model()
+    ud = enzyme_usage(model, model.optimize().fluxes)
+    with pytest.raises(ValueError, match="top_abs_usage"):
+        report_enzyme_usage(model, ud, top_abs_usage=-2)

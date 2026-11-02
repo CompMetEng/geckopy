@@ -22,7 +22,13 @@ def classify_kcat_source(
     """Map one ``ec.source`` string to a trust-tier group name.
 
     Matching is case-insensitive, mirroring MATLAB's
-    ``strcmpi(ecModel.ec.source, kcatSources{i})``.
+    ``strcmpi(ecModel.ec.source, kcatSources{i})``, and ignores the
+    bracketed fuzzy-match detail geckopy appends to a database source.
+    ``ec.source`` reads ``"brenda (wc=0, origin=1)"`` where MATLAB's
+    reads ``"brenda"``, so matching the whole string would leave every
+    fuzzy-matched kcat unlabelled and silently on the default prior
+    width -- which is most of a model's kcats. A ``source_groups`` entry
+    listing the full string still matches it.
 
     Parameters
     ----------
@@ -44,13 +50,15 @@ def classify_kcat_source(
         ``force_prior_thr_default``.
     """
     source_lower = source.lower()
+    token = source_lower.split(" (")[0].strip()
+    forms = {source_lower, token}
     for name, rule in params.source_groups.items():
-        if any(source_lower == s.lower() for s in rule.sources):
+        if any(s.lower() in forms for s in rule.sources):
             return name
         if (
             rule.match_okp
             and okp_method is not None
-            and source_lower == okp_method.lower()
+            and okp_method.lower() in forms
         ):
             return name
     return UNLABELLED_GROUP

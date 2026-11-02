@@ -94,7 +94,7 @@ def _strip_okp_prefix(normalized_source: str) -> str:
 def merge_kcats(
     *kcat_lists: pd.DataFrame,
     source_priority: Sequence[str],
-    top_origin_limit: int = 6,
+    top_origin_limit: int = 4,
     bottom_origin_limit: int = 6,
     wildcard_limit: int = 3,
     database_sources: Iterable[str] = _DEFAULT_DATABASE_SOURCES,
@@ -126,6 +126,13 @@ def merge_kcats(
         source not listed here is dropped (with a warning).
     top_origin_limit
         Origin upper bound for ``database_top`` fuzzy rows. ``[1, 6]``.
+        Default ``4``, not ``6``: origins 5-6 are specific-activity ×
+        molecular-weight derived kcats, which BRENDA's own data quality
+        does not always support treating as better than a prediction
+        (a bad SA/MW join can otherwise silently override a good
+        prediction with an outlier -- see ``load_brenda_data``'s
+        ``filter_outlier_kcats``, which removes the worst of these
+        before they reach this function, but does not catch every one).
     bottom_origin_limit
         Origin upper bound for ``database_bottom`` fuzzy rows. ``[1, 6]``.
     wildcard_limit

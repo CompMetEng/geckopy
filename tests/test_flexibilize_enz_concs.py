@@ -241,3 +241,59 @@ def test_flex_concs_greater_than_old_for_returned_enzymes(tmp_path):
     result = flexibilize_enz_concs(model)
     for old, flex in zip(result.old_concs, result.flex_concs):
         assert flex >= old
+
+
+# --------------------------------------------------------------------------- #
+# Infeasible start: the same on every solver
+# --------------------------------------------------------------------------- #
+
+def _usable_solvers():
+    solvers = []
+    for name in ("glpk", "glpk_exact", "gurobi", "scipy"):
+        try:
+            cobra.Model("probe").solver = name
+        except Exception:
+            continue
+        solvers.append(name)
+    return solvers
+
+
+@pytest.fixture(params=_usable_solvers())
+def solver(request):
+    """Solver name; a solver that imports but is not licensed is skipped."""
+    model = cobra.Model("probe")
+    try:
+        model.solver = request.param
+        probe = cobra.Reaction("probe_rxn")
+        probe.bounds = (0, 1)
+        model.add_reactions([probe])
+        model.optimize()
+    except Exception as exc:
+        pytest.skip(f"{request.param} unusable: {exc}")
+    return request.param
+
+
+def test_infeasible_start_returns_empty_result_on_every_solver(tmp_path, solver):
+    adapter = _adapter(tmp_path, gr_exp=500.0, bio_rxn="biomass")
+    model = _build_toy(adapter, enzyme_ub=1.0, measured_conc=1.0)
+    model.solver = solver
+    model.reactions.get_by_id("R_AB").lower_bound = 50.0
+    model.slim_optimize(error_value=float("nan"))
+    assert model.solver.status == "infeasible"
+    result = flexibilize_enz_concs(model)
+    assert result.uniprot_ids == []
+    assert model.reactions.get_by_id("usage_prot_E").upper_bound == 1.0
+    assert model.reactions.get_by_id("R_AB").lower_bound == 50.0
+
+
+def test_infeasible_start_returns_empty_result_when_gurobi_presolves_it(tmp_path):
+    """Gurobi holds no primal values for an infeasible LP it presolved; the start check must not read them."""
+    adapter = _adapter(tmp_path, gr_exp=500.0, bio_rxn="biomass")
+    model = _build_toy(adapter, enzyme_ub=1.0, measured_conc=1.0)
+    try:
+        model.solver = "gurobi"
+    except Exception as exc:
+        pytest.skip(f"gurobi unusable: {exc}")
+    model.solver.problem.Params.Presolve = 2
+    model.reactions.get_by_id("R_AB").lower_bound = 50.0
+    assert flexibilize_enz_concs(model).uniprot_ids == []

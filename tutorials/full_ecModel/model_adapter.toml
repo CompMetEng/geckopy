@@ -27,6 +27,13 @@ reviewed = true
 [complex]
 taxonomic_id = 559292
 
+# Kcat assignment (assign_kcats): the stages of the gecko_median preset,
+# with the BRENDA aggregation that kcats_from_brenda takes from
+# kcat_aggregate_brenda (the maximum).
+[[kcat_assignment.stage]]
+sources = ["custom", "database_top", "dlkcat", "database_bottom"]
+top_origin_limit = 4
+
 [evotune]
 sigma0_log_default = 0.3
 rmse_threshold = 0.2
@@ -35,9 +42,10 @@ rmse_threshold = 0.2
 # parameters; a different tunable-set size changes that population
 # size and so the evaluation count this actually spends.
 max_generations = 212
-# Weights the max-growth term: the eight max-growth conditions count double
-# against the 33 flux conditions, which are 30 parts glucose. MATLAB weights
-# the flux term with this field instead, so its maxGrowthWeight = 2 is 0.5 here.
+# Weights the max-growth term against the flux term,
+# (rmse_flux + w * rmse_max_growth) / (w + 1): the eight max-growth
+# conditions count double against the 33 flux conditions, which are
+# 30 parts glucose. Same field and value as MATLAB's maxGrowthWeight.
 max_growth_weight = 2.0
 
 # Trust tiers, least to most trusted. This model labels predicted kcats

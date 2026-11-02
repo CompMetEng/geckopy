@@ -13,3 +13,6 @@
 *.txt   text eol=lf
 *.xml   text eol=lf
 *.md    text eol=lf
+
+# A fixture that must keep its byte-order mark and CRLF line endings.
+tests/data/kcatSourceFixture.tsv -text

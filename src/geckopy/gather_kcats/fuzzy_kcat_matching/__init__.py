@@ -25,6 +25,7 @@ import pandas as pd
 
 from ._brenda_query import (
     NO_MATCH_WC,
+    SEARCH_RANK,
     build_ec_indices,
     find_ec_rows,
     iterative_match_one_ec,
@@ -35,6 +36,7 @@ from ._escalation import apply_force_wildcards, escalate_wildcard
 from ._organism import filter_by_organism, resolve_organism_index
 
 if TYPE_CHECKING:
+    from ...adapter import ModelAdapter
     from ...databases import BrendaData, PhylDist
     from ...ec_model.ec_model import EcModel
 
@@ -80,6 +82,7 @@ def fuzzy_kcat_matching(
     ec_rxns: Optional[Iterable[str]] = None,
     force_wildcard_level: int = 0,
     aggregate: Optional[str] = None,
+    adapter: Optional["ModelAdapter"] = None,
 ) -> pd.DataFrame:
     """Match each ec reaction to BRENDA kcat data with progressive
     relaxation of EC, substrate, and organism specificity.
@@ -109,8 +112,9 @@ def fuzzy_kcat_matching(
        specificity that wildcards already discard).
 
     Across the multiple EC tokens of one reaction, the best match is
-    chosen by minimum wildcard count, then minimum origin (best output
-    rank), then maximum kcat.
+    chosen by minimum wildcard count, then the earliest-tried level in
+    the order above (so org + SA, origin 5, beats any organism + any
+    substrate + KCAT, origin 4), then maximum kcat.
 
     The model's organism is read from
     ``model.adapter.params.org_name``. When BRENDA has no exact
@@ -159,6 +163,9 @@ def fuzzy_kcat_matching(
         across whichever rows survive the EC + organism + substrate
         gates. See ``docs/kcat_aggregation.md`` for the empirical
         rationale.
+    adapter
+        Model adapter for ``org_name`` and the aggregation default
+        (default: ``model.adapter``).
 
     Returns
     -------
@@ -180,7 +187,7 @@ def fuzzy_kcat_matching(
     """
     from ...adapter import resolve_adapter
     adapter = resolve_adapter(
-        model,
+        model, adapter,
         purpose="fuzzy_kcat_matching reads params.org_name from the adapter",
     )
     if force_wildcard_level < 0:
@@ -277,9 +284,9 @@ def fuzzy_kcat_matching(
 
         min_wc = min(r[2] for r in matched)
         at_min_wc = [r for r in matched if r[2] == min_wc]
-        min_origin = min(r[1] for r in at_min_wc)
-        at_min_origin = [r for r in at_min_wc if r[1] == min_origin]
-        best = max(at_min_origin, key=lambda r: r[0])
+        min_rank = min(SEARCH_RANK[r[1]] for r in at_min_wc)
+        at_min_rank = [r for r in at_min_wc if SEARCH_RANK[r[1]] == min_rank]
+        best = max(at_min_rank, key=lambda r: r[0])
 
         out_kcats.append(best[0])
         out_wcs.append(best[2])

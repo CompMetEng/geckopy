@@ -4,7 +4,6 @@ plus a ``load_flux_data`` parser for the GECKO `fluxData.tsv` format.
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -15,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 # `<met_name> (<rxn_id>)` -> capture met_name and rxn_id.
-_EXCH_HEADER_RE = re.compile(r"^(.*)\s*\(([^()]+)\)\s*$")
 
 
 @dataclass
@@ -81,6 +79,11 @@ def load_flux_data(path: str | Path) -> FluxData:
     * ``evotuneRMSEweight`` (float): weights for evotune kcat tuning.
     * ``source`` (str): free-text describing the data origin.
 
+    An exchange column header has the form ``<met> (<rxn>)``, split at
+    the parenthesis that matches the final closing one, so a reaction id
+    may contain parentheses (``X (EX_a(e))`` gives ``X`` and
+    ``EX_a(e)``).
+
     Both columns are dropped from the matrix and surfaced on the
     returned ``FluxData`` as ``evotune_rmse_weight`` and ``source``.
 
@@ -101,7 +104,8 @@ def load_flux_data(path: str | Path) -> FluxData:
     FileNotFoundError
         If ``path`` does not exist.
     ValueError
-        If the file has no header row or no exchange columns.
+        If the file has no header row, no exchange columns, or a row
+        with a different number of cells than the header.
     """
     path = Path(path)
     if not path.is_file():
@@ -123,6 +127,12 @@ def load_flux_data(path: str | Path) -> FluxData:
 
     header = rows[0]
     data = rows[1:]
+    for line_no, r in enumerate(data, start=2):
+        if len(r) != len(header):
+            raise ValueError(
+                f"{path}: row {line_no} has {len(r)} cell(s), the header "
+                f"has {len(header)}."
+            )
 
     # Pull out optional columns first; collect indices to drop.
     optional_indices: list[int] = []
@@ -134,15 +144,12 @@ def load_flux_data(path: str | Path) -> FluxData:
 
     if tuning_idx is not None:
         tuning_weights = np.array(
-            [_parse_float(r[tuning_idx]) if tuning_idx < len(r) else float("nan")
-             for r in data],
+            [_parse_float(r[tuning_idx]) for r in data],
             dtype=float,
         )
         optional_indices.append(tuning_idx)
     if source_idx is not None:
-        source_values = [
-            r[source_idx] if source_idx < len(r) else "" for r in data
-        ]
+        source_values = [r[source_idx] for r in data]
         optional_indices.append(source_idx)
 
     # Build the kept-column index list (preserving order).
@@ -158,22 +165,13 @@ def load_flux_data(path: str | Path) -> FluxData:
     exch_headers = kept_header[3:]
     exch_mets, exch_rxn_ids = _split_exch_headers(exch_headers)
 
-    conds = [r[kept[0]] if kept[0] < len(r) else "" for r in data]
-    p_tot = np.array(
-        [_parse_float(r[kept[1]]) if kept[1] < len(r) else float("nan")
-         for r in data],
-        dtype=float,
-    )
-    gr_rate = np.array(
-        [_parse_float(r[kept[2]]) if kept[2] < len(r) else float("nan")
-         for r in data],
-        dtype=float,
-    )
+    conds = [r[kept[0]] for r in data]
+    p_tot = np.array([_parse_float(r[kept[1]]) for r in data], dtype=float)
+    gr_rate = np.array([_parse_float(r[kept[2]]) for r in data], dtype=float)
     exch_fluxes = np.full((len(data), len(exch_headers)), np.nan, dtype=float)
     for i, r in enumerate(data):
         for ci, j in enumerate(kept[3:]):
-            if j < len(r):
-                exch_fluxes[i, ci] = _parse_float(r[j])
+            exch_fluxes[i, ci] = _parse_float(r[j])
 
     return FluxData(
         conds=conds,
@@ -206,6 +204,25 @@ def _parse_float(s: str) -> float:
         return float("nan")
 
 
+def _split_header(header: str) -> Optional[tuple[str, str]]:
+    """Split ``'<met> (<rxn>)'`` at the parenthesis that matches the final
+    closing one; return None for a header of another form."""
+    if not header.endswith(")"):
+        return None
+    depth = 0
+    for k in range(len(header) - 1, -1, -1):
+        if header[k] == ")":
+            depth += 1
+        elif header[k] == "(":
+            depth -= 1
+            if depth == 0:
+                rxn = header[k + 1:-1].strip()
+                if not rxn:
+                    return None
+                return header[:k].strip(), rxn
+    return None
+
+
 def _split_exch_headers(headers: list[str]) -> tuple[list[str], list[str]]:
     """Split each header `'<met> (<rxn>)'` into (met, rxn) pairs.
 
@@ -217,10 +234,10 @@ def _split_exch_headers(headers: list[str]) -> tuple[list[str], list[str]]:
     rxns: list[str] = []
     no_paren: list[str] = []
     for h in headers:
-        m = _EXCH_HEADER_RE.match(h.strip())
-        if m:
-            mets.append(m.group(1).strip())
-            rxns.append(m.group(2).strip())
+        parts = _split_header(h.strip())
+        if parts is not None:
+            mets.append(parts[0])
+            rxns.append(parts[1])
         else:
             mets.append(h.strip())
             rxns.append(h.strip())

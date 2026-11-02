@@ -421,3 +421,147 @@ def test_default_usage_bounds_emit_no_warning(tmp_path, caplog):
         "protein-concentration constraints" in rec.message
         for rec in caplog.records
     )
+
+
+# --------------------------------------------------------------------------- #
+# Reaction with an isozyme rule that survives the removal of one of its genes
+# --------------------------------------------------------------------------- #
+
+def _build_light_big_ec_model(adapter: ModelAdapter) -> EcModel:
+    """Light ecModel: R1 (rule g1) and R2 (rule ``g1 and g2 or g3``), whose
+    ec rows carry the ``001_`` prefix of a gecko-light model."""
+    model = EcModel("big_light", adapter=adapter, gecko_light=True)
+    mets = {n: cobra.Metabolite(f"{n}_c", compartment="c") for n in "ABC"}
+    pool = cobra.Metabolite("prot_pool", compartment="c")
+    model.add_metabolites([*mets.values(), pool])
+
+    r1 = cobra.Reaction("R1")
+    r1.add_metabolites({mets["A"]: -1.0, mets["B"]: 1.0})
+    r1.gene_reaction_rule = "g1"
+    r2 = cobra.Reaction("R2")
+    r2.add_metabolites({mets["B"]: -1.0, mets["C"]: 1.0})
+    r2.gene_reaction_rule = "g1 and g2 or g3"
+    pool_ex = cobra.Reaction("prot_pool_exchange")
+    pool_ex.add_metabolites({pool: 1.0})
+    pool_ex.upper_bound = 1000.0
+    model.add_reactions([r1, r2, pool_ex])
+
+    mat = sparse.lil_matrix((2, 3), dtype=float)
+    mat[0, 0] = 1.0
+    mat[1, 1] = 1.0
+    mat[1, 2] = 1.0
+    model.ec = EcData(
+        rxns=["001_R1", "001_R2"],
+        kcat=np.array([1.0, 2.0]),
+        source=["initial", "initial"],
+        notes=["", ""],
+        eccodes=["1.1.1.1", "2.2.2.2"],
+        genes=["g1", "g2", "g3"],
+        enzymes=["E1", "E2", "E3"],
+        mw=np.array([100.0, 200.0, 300.0]),
+        sequence=["A", "B", "C"],
+        concs=np.array([np.nan, np.nan, np.nan]),
+        rxn_enz_mat=mat.tocsr(),
+        gecko_light=True,
+    )
+    return model
+
+
+def _small_gem_without_r2_and_g3() -> cobra.Model:
+    """Context model with R1 and the genes g1 and g2, lacking R2 and g3."""
+    small = cobra.Model("small")
+    r1 = cobra.Reaction("R1")
+    r1.gene_reaction_rule = "g1"
+    small.add_reactions([r1])
+    small.genes.append(cobra.Gene("g2"))
+    return small
+
+
+def test_rxn_with_surviving_rule_and_missing_in_small_gem(tmp_path):
+    """R2 survives the removal of g3 (g1 and g2 satisfy its rule) and is then
+    removed because the context model lacks it; the gene g3 is not removed twice."""
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    result = get_subset_ec_model(big, _small_gem_without_r2_and_g3())
+
+    assert {r.id for r in result.reactions} == {"R1", "prot_pool_exchange"}
+    assert {g.id for g in result.genes} == {"g1"}
+    assert result.ec.genes == ["g1", "g2"]
+    assert result.ec.enzymes == ["E1", "E2"]
+
+
+def test_surviving_rxn_loses_removed_gene_from_rule(tmp_path):
+    """A kept reaction no longer refers to a gene that left model.genes."""
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    small = _small_gem_without_r2_and_g3()
+    small.add_reactions([cobra.Reaction("R2")])
+    result = get_subset_ec_model(big, small)
+
+    r2 = result.reactions.get_by_id("R2")
+    assert {g.id for g in r2.genes} == {"g1", "g2"}
+    assert "g3" not in r2.gene_reaction_rule
+    assert {g.id for g in result.genes} == {"g1", "g2"}
+
+
+def test_light_model_keeps_ec_rows_of_kept_reactions(tmp_path):
+    """The ``001_`` prefix of the ec rows of a light model is not part of the
+    reaction id the rows are matched against."""
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    result = get_subset_ec_model(big, _small_gem_without_r2_and_g3())
+
+    assert result.ec.rxns == ["001_R1"]
+    np.testing.assert_array_equal(result.ec.kcat, [1.0])
+    assert result.ec.eccodes == ["1.1.1.1"]
+    assert result.ec.rxn_enz_mat.shape == (1, 2)
+
+
+def test_identity_subset_of_light_model_is_a_copy(tmp_path):
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    small = cobra.Model("small")
+    for rid, rule in (("R1", "g1"), ("R2", "g1 and g2 or g3")):
+        rxn = cobra.Reaction(rid)
+        rxn.gene_reaction_rule = rule
+        small.add_reactions([rxn])
+    result = get_subset_ec_model(big, small)
+
+    assert result is not big
+    assert sorted(r.id for r in result.reactions) == sorted(r.id for r in big.reactions)
+    assert result.ec.rxns == ["001_R1", "001_R2"]
+
+
+def test_light_model_ec_rows_without_gene_removal(tmp_path):
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    small = cobra.Model("small")
+    r1 = cobra.Reaction("R1")
+    r1.gene_reaction_rule = "g1"
+    small.add_reactions([r1])
+    small.genes.extend([cobra.Gene("g2"), cobra.Gene("g3")])
+    result = get_subset_ec_model(big, small)
+
+    assert [r.id for r in result.reactions if r.id.startswith("R")] == ["R1"]
+    assert result.ec.rxns == ["001_R1"]
+    assert result.ec.rxn_enz_mat.shape == (1, 3)
+
+
+# --------------------------------------------------------------------------- #
+# Metabolites and genes that no reaction uses
+# --------------------------------------------------------------------------- #
+
+def test_unused_metabolites_and_genes_are_removed(tmp_path):
+    """MATLAB's removeGenes and removeReactions drop every metabolite and gene
+    without a reaction, also those that were unused in the big model."""
+    big = _build_light_big_ec_model(_adapter(tmp_path))
+    big.add_metabolites([cobra.Metabolite("X_c", compartment="c")])
+    big.genes.append(cobra.Gene("standard"))
+    small = cobra.Model("small")
+    for rid, rule in (("R1", "g1"), ("R2", "g1 and g2 or g3")):
+        rxn = cobra.Reaction(rid)
+        rxn.gene_reaction_rule = rule
+        small.add_reactions([rxn])
+    result = get_subset_ec_model(big, small)
+
+    assert not result.metabolites.has_id("X_c")
+    assert not result.genes.has_id("standard")
+    assert {g.id for g in result.genes} == {"g1", "g2", "g3"}
+    assert all(m.reactions for m in result.metabolites)
+    assert big.metabolites.has_id("X_c")
+    assert big.genes.has_id("standard")

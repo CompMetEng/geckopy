@@ -100,16 +100,15 @@ def test_no_adapter_no_defaults_raises(tmp_path):
 
 def test_best_sigma_close_to_target_growth(tmp_path):
     """With p_tot=1, f=1, growth = 1000*sigma, so for growth_rate=10 the
-    exactly-optimal sigma is 0.01; the search should land on it with
-    near-zero error."""
+    exactly-optimal sigma is 0.01; the grid scan should land on it with
+    zero error."""
     adapter = _adapter(tmp_path, p_tot=1.0, f=1.0, gr_exp=10.0)
     model = _build_pool_only_model(adapter)
     result = fit_sigma(model)
     assert isinstance(result, SigmaFitterResult)
     # growth = 1000*sigma; for growth=10, sigma=0.01.
     assert result.sigma == pytest.approx(0.01, abs=1e-4)
-    # Error should be near zero for the best sigma (bisect resolves the
-    # crossing to ~1e-6 in sigma => ~0.01% relative growth error).
+    # The 0.01 grid contains the exactly-optimal sigma, so the error is zero.
     best_idx = int(np.argmin(result.error_grid))
     assert result.error_grid[best_idx] < 0.1
 
@@ -160,8 +159,7 @@ def test_optimal_sigma_applied_to_model_at_end(tmp_path):
 
 def test_model_at_optimal_sigma_reaches_growth_rate(tmp_path):
     """After fitting, the model's LP optimum matches growth_rate (within
-    the bisect resolution: sigma is converged to ~1e-6, which here means
-    growth within ~1e-3 of the target on this linear model)."""
+    the grid resolution: here the grid contains the optimal sigma)."""
     adapter = _adapter(tmp_path, p_tot=1.0, f=1.0, gr_exp=50.0)
     model = _build_pool_only_model(adapter)
     fit_sigma(model)
@@ -228,12 +226,11 @@ def test_sigma_grid_starts_above_zero_ends_at_one(tmp_path):
     assert result.sigma_grid[-1] == pytest.approx(1.0)
 
 
-def test_default_method_is_bisect_with_fewer_solves(tmp_path):
-    """Default method is bisect: same answer as the grid search, with far
-    fewer evaluated sigmas."""
+def test_default_method_is_the_full_grid(tmp_path):
+    """Default method is the grid of sigmaFitter.m: every one of the 100
+    sigmas is evaluated."""
     adapter = _adapter(tmp_path, p_tot=1.0, f=1.0, gr_exp=10.0)
     model = _build_pool_only_model(adapter)
-    result = fit_sigma(model)  # default == bisect
-    assert result.sigma == pytest.approx(0.01, abs=1e-4)
-    # Far fewer evaluations than the 100-point grid.
-    assert len(result.sigma_grid) < 30
+    result = fit_sigma(model)  # default == grid
+    assert result.sigma == pytest.approx(0.01, abs=1e-12)
+    assert len(result.sigma_grid) == 100

@@ -160,11 +160,28 @@ def test_fuzzy_prio1_wins_when_reaction_also_in_dlkcat():
     assert row["kcat"] == 5.0
 
 
-def test_fuzzy_prio1_uses_default_top_origin_limit_6():
-    """With default top_origin_limit=6, origin=6 still qualifies for prio1."""
+def test_fuzzy_prio1_uses_default_top_origin_limit_4():
+    """Default top_origin_limit=4: an origin=6 (specific-activity x MW
+    derived) match does NOT qualify for prio1, so DLKcat wins instead.
+    Origins 5-6 are demoted by default because BRENDA's SA/MW join can
+    produce a wildly wrong outlier that would otherwise silently
+    outrank a good prediction -- see brenda_loader's
+    filter_outlier_kcats, which this default is meant to pair with."""
     out = merge_dlkcat_and_fuzzy_kcats(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=6)]),
+    )
+    assert len(out) == 1
+    assert out.iloc[0]["source"] == "DLKcat"
+
+
+def test_fuzzy_prio1_origin_6_qualifies_when_limit_explicitly_widened():
+    """The pre-4-default behaviour is still reachable by passing
+    top_origin_limit=6 explicitly."""
+    out = merge_dlkcat_and_fuzzy_kcats(
+        _dlkcat_df([_dlkcat_row("r1", 100.0)]),
+        _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=6)]),
+        top_origin_limit=6,
     )
     assert len(out) == 1
     assert out.iloc[0]["source"] == "brenda"

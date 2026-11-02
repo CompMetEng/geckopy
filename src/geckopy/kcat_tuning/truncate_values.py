@@ -5,6 +5,7 @@ src/geckomat/kcat_sensitivity_analysis/truncateValues.m.
 """
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 import numpy as np
@@ -21,6 +22,10 @@ def truncate_values(
         order_magn = max(ceil(log10(|v|)), 0)
         result     = round(v, 6 - order_magn)
 
+    A value exactly halfway between two candidates rounds away from
+    zero, as MATLAB's ``round(x, n)`` does (``100000.5`` gives
+    ``100001`` and ``1234565`` gives ``1234570``). The value is taken
+    at its shortest decimal representation, so ``2.675`` is a tie.
     Zero, NaN, and infinite values are returned unchanged.
 
     For 2D input, only the columns selected by ``columns`` are
@@ -69,9 +74,11 @@ def truncate_values(
 def _truncate_scalar(v: float) -> float:
     """Round ``v`` to ~6 significant figures.
 
-    Zero, NaN, and infinite values are returned unchanged.
+    Ties round away from zero. Zero, NaN, and infinite values are
+    returned unchanged.
     """
     if v == 0 or np.isnan(v) or np.isinf(v):
         return v
     order_magn = max(int(np.ceil(np.log10(abs(v)))), 0)
-    return round(float(v), 6 - order_magn)
+    quantum = Decimal(1).scaleb(order_magn - 6)
+    return float(Decimal(repr(float(v))).quantize(quantum, rounding=ROUND_HALF_UP))

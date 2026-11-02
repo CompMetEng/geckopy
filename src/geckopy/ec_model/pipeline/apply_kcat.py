@@ -9,6 +9,7 @@ single ``prot_pool`` coefficient there.
 """
 from __future__ import annotations
 
+import contextlib
 import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
@@ -19,8 +20,13 @@ if TYPE_CHECKING:
     from ..ec_model import EcModel
 
 
+from ...solver_support import edit_on_fast_solver
 from ..constants import POOL_ID, PROT_PREFIX
 from .populate_ec import split_light_rxn_id
+
+
+# Number of updated ec reactions from which a scipy model is edited on glpk.
+_BULK_UPDATE = 100
 
 
 def apply_kcat_constraints(
@@ -59,8 +65,12 @@ def apply_kcat_constraints(
         An EcModel produced by ``make_ec_model``, with at least some
         kcat values assigned to ``model.ec.kcat``. Mutated in place.
     update_rxns
-        Reaction IDs (from ``model.ec.rxns``) to update. If None,
-        updates all entries.
+        Reaction IDs (from ``model.ec.rxns``) to update. A gecko-light
+        model also takes the IDs of its cobra reactions (see
+        ``_apply_kcat_constraints_light``). ``None`` or an
+        empty sequence updates all entries, as ``applyKcatConstraints``
+        does with an empty ``updateRxns``; a caller that builds the list
+        from a filter must skip the call when the filter finds nothing.
 
     Raises
     ------
@@ -73,6 +83,17 @@ def apply_kcat_constraints(
         If every kcat to be applied is 0 or NaN. Old coefficients are
         still cleared in this case; nothing is written afterward.
     """
+    # A scipy model is edited on glpk when many reactions change: the scipy interface
+    # rewrites the rows of a constraint for every changed coefficient.
+    many = update_rxns is None or len(update_rxns) == 0 or len(update_rxns) >= _BULK_UPDATE
+    with edit_on_fast_solver(model) if many else contextlib.nullcontext():
+        _apply_kcat_constraints(model, update_rxns)
+
+
+def _apply_kcat_constraints(
+    model: "EcModel",
+    update_rxns: list[str] | None,
+) -> None:
     if model.ec.gecko_light:
         _apply_kcat_constraints_light(model, update_rxns)
         return
@@ -80,7 +101,10 @@ def apply_kcat_constraints(
     ec_rxn_ids = model.ec.rxns
 
     # Resolve update_rxns to a numpy array of ec-row indices.
-    if update_rxns is None:
+    if update_rxns is not None:
+        update_rxns = list(update_rxns)
+
+    if not update_rxns:
         selected_idx = np.arange(len(ec_rxn_ids))
     else:
         id_to_idx = {rxn_id: i for i, rxn_id in enumerate(ec_rxn_ids)}
@@ -194,35 +218,67 @@ def _apply_kcat_constraints_light(
     model
         A gecko-light EcModel with ``ec.gecko_light is True``.
     update_rxns
-        ec.rxns IDs (with the ``###_`` prefix) to update. ``None``
-        means update every cobra reaction backed by at least one
-        ec.rxns row.
+        IDs to update: ec.rxns IDs (with the ``###_`` prefix) or cobra
+        reaction IDs. ``None`` or an empty sequence means update every
+        cobra reaction backed by at least one ec.rxns row. A reaction
+        is updated as a whole: naming one of its isozyme rows, or the
+        cobra reaction, recomputes the cheapest cost over all its rows.
+        An ID that is both an ec.rxns ID and a cobra reaction ID, or
+        neither, raises ``ValueError``.
     """
     ec_rxn_ids = model.ec.rxns
 
-    if update_rxns is None:
+    if update_rxns is not None:
+        update_rxns = list(update_rxns)
+
+    if not update_rxns:
         selected_idx = np.arange(len(ec_rxn_ids))
     else:
         id_to_idx = {rxn_id: i for i, rxn_id in enumerate(ec_rxn_ids)}
-        unknown = [r for r in update_rxns if r not in id_to_idx]
+        rows_of_cobra: dict[str, list[int]] = defaultdict(list)
+        for i, rxn_id in enumerate(ec_rxn_ids):
+            rows_of_cobra[split_light_rxn_id(rxn_id)[1]].append(i)
+        cobra_ids = {r.id for r in model.reactions}
+        ambiguous = [r for r in update_rxns if r in id_to_idx and r in cobra_ids]
+        if ambiguous:
+            raise ValueError(
+                f"update_rxns contains IDs that are both ec.rxns IDs and "
+                f"reaction IDs: {ambiguous[:5]}"
+            )
+        unknown = [
+            r for r in update_rxns
+            if r not in id_to_idx and r not in rows_of_cobra
+        ]
         if unknown:
             raise ValueError(
-                f"update_rxns contains IDs not present in ec.rxns: "
-                f"{unknown[:5]}"
+                f"update_rxns contains IDs present neither in ec.rxns nor "
+                f"as reactions of the model: {unknown[:5]}"
             )
         selected_idx = np.array(
-            [id_to_idx[r] for r in update_rxns], dtype=int,
+            [
+                i
+                for r in update_rxns
+                for i in (
+                    [id_to_idx[r]] if r in id_to_idx else rows_of_cobra[r]
+                )
+            ],
+            dtype=int,
         )
 
     if selected_idx.size == 0:
         return
 
-    # Group the selected ec rows by the cobra reaction they belong to;
-    # the cobra reaction is what carries the LP constraint.
+    # The cobra reaction carries the LP constraint, so selecting one isozyme
+    # row updates the reaction as a whole: every ec row of that reaction
+    # competes for the cheapest cost, selected or not.
+    affected = {
+        split_light_rxn_id(ec_rxn_ids[idx])[1] for idx in selected_idx
+    }
     rows_by_cobra: dict[str, list[int]] = defaultdict(list)
-    for idx in selected_idx:
-        _, cobra_id = split_light_rxn_id(ec_rxn_ids[idx])
-        rows_by_cobra[cobra_id].append(int(idx))
+    for idx, ec_rxn_id in enumerate(ec_rxn_ids):
+        _, cobra_id = split_light_rxn_id(ec_rxn_id)
+        if cobra_id in affected:
+            rows_by_cobra[cobra_id].append(idx)
 
     pool_met = model.metabolites.get_by_id(POOL_ID)
     rxn_enz_mat_csr = model.ec.rxn_enz_mat.tocsr()

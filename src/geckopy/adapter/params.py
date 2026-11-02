@@ -8,7 +8,7 @@ geckopy-only extension with no MATLAB equivalent.
 Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
 """
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -54,6 +54,101 @@ class ComplexParams(BaseModel):
     taxonomic_id: Optional[int] = Field(
         default=None, description="Taxonomy ID for Complex Portal query"
     )
+
+
+class SpontaneousParams(BaseModel):
+    """Which reactions proceed without an enzyme.
+
+    Both rules may be given; a reaction is spontaneous if either matches.
+    GECKO (MATLAB) reads the same keys, so a project needs no code for this.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    name_contains: Optional[str] = Field(
+        default=None,
+        description="Reactions whose name contains this text are spontaneous.",
+    )
+    file: Optional[Path] = Field(
+        default=None,
+        description=(
+            "TSV of spontaneous reactions, relative to the project folder: "
+            "a header row, reaction identifiers in the first column and, "
+            "optionally, a second column where 1 or true marks the "
+            "spontaneous ones."
+        ),
+    )
+
+
+class MatlabParams(BaseModel):
+    """Settings that only GECKO (MATLAB) reads; geckopy ignores them.
+
+    They let one model_adapter.toml configure both tools.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    make_model_anaerobic: Optional[str] = Field(
+        default=None,
+        description="MATLAB function that constrains the ecModel to anaerobic growth.",
+    )
+    change_protein_biomass: Optional[str] = Field(
+        default=None,
+        description="MATLAB function that changes the protein content of the biomass.",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Further GECKO parameters, kept under their MATLAB names.",
+    )
+
+
+class KcatStageParams(BaseModel):
+    """One ``[[kcat_assignment.stage]]``: decides each reaction that is still
+    open, by the first listed source with a value (``select``) or by all
+    listed sources with a value, weighted by their reliability
+    (``combine``)."""
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["select", "combine"] = Field(default="select", description="What the stage does.")
+    sources: list[str] = Field(
+        min_length=1,
+        description=(
+            "Source file names (custom, ec_tree, dlkcat, okp_catapro, ...), the OKP "
+            "methods of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
+            "database_exact, database_top and database_bottom, which read brenda.tsv; "
+            "for select the first listed wins."
+        ),
+    )
+    criteria: Literal["max", "min", "median", "mean"] = Field(
+        default="max", description="Among several values of one source for a reaction."
+    )
+    top_origin_limit: int = Field(default=4, description="Origin limit of database_top.")
+    bottom_origin_limit: int = Field(default=6, description="Origin limit of database_bottom.")
+    wildcard_limit: int = Field(default=3, description="Wildcard limit of database_bottom.")
+
+
+class KcatAssignmentParams(BaseModel):
+    """How kcats are assigned from the kcat source files (``collect_kcats``)."""
+    model_config = ConfigDict(extra="forbid")
+
+    preset: Optional[Literal["brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic"]] = Field(
+        default=None,
+        description=(
+            "Kcat assignment preset; brenda_ec_tree is used when neither a preset nor "
+            "stages are given."
+        ),
+    )
+    isozymes: bool = Field(
+        default=True, description="Fill reactions without a kcat from their isozymes after the stages."
+    )
+    standard: bool = Field(default=True, description="Give the remaining reactions the standard kcat.")
+    stage: list[KcatStageParams] = Field(
+        default_factory=list, description="Stages instead of a preset."
+    )
+
+    @model_validator(mode="after")
+    def _preset_or_stages(self) -> "KcatAssignmentParams":
+        if self.preset is not None and self.stage:
+            raise ValueError("[kcat_assignment] gives both a preset and stages; give one of the two.")
+        return self
 
 
 class SourceGroupRule(BaseModel):
@@ -127,8 +222,8 @@ class EvotuneParams(BaseModel):
         description=(
             "Weight on the max-growth RMSE against the flux RMSE: "
             "(rmse_flux + w * rmse_max_growth) / (w + 1). At 2 the "
-            "max-growth conditions count double. MATLAB weights the "
-            "flux term instead, so pass 0.5 to reproduce its 2."
+            "max-growth conditions count double. Same weighting as "
+            "MATLAB's maxGrowthWeight."
         ),
     )
 
@@ -146,8 +241,7 @@ class EvotuneParams(BaseModel):
     # kcats, and only 69% of their large corrections even agree on the
     # direction of the change. At 0.03 the worst disagreement is 5.7x,
     # every correction beyond two-fold agrees in direction, and the fit
-    # gives up 4.6%. Set 0 to score on RMSE alone; a run reproducing
-    # MATLAB, which has no such term, must do so.
+    # gives up 4.6%. Set 0 to score on RMSE alone.
     prior_penalty_weight: float = Field(
         default=0.03,
         description=(
@@ -196,8 +290,9 @@ class OkpParams(BaseModel):
     method: str = Field(
         default="CataPro",
         description=(
-            "Predictor method: CataPro, CatPred, DLKcat, EITLEM, "
-            "KinForm-H, KinForm-L, UniKP (see GET /api/v1/methods/)."
+            "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
+            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "
+            "(see GET /api/v1/methods/)."
         ),
     )
     handle_long_sequences: str = Field(
@@ -219,6 +314,10 @@ class ModelParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     path: Path = Field(description="Root folder of this ecModel project")
+    project_format: Optional[int] = Field(
+        default=None,
+        description="Layout version of the project folder; geckopy upgrade and upgradeGECKOproject write 4.",
+    )
     conv_gem: Path = Field(description="Path to the conventional GEM SBML file")
 
     org_name: str = Field(description="Scientific name of the organism")
@@ -278,3 +377,10 @@ class ModelParameters(BaseModel):
     complex: ComplexParams = Field(default_factory=ComplexParams)
     evotune: EvotuneParams = Field(default_factory=EvotuneParams)
     okp: OkpParams = Field(default_factory=OkpParams)
+    spontaneous: SpontaneousParams = Field(default_factory=SpontaneousParams)
+    kcat_assignment: KcatAssignmentParams = Field(default_factory=KcatAssignmentParams)
+    kcat_sources: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Settings per kcat source file, e.g. kcat_sources.brenda.aggregation.",
+    )
+    matlab: MatlabParams = Field(default_factory=MatlabParams)

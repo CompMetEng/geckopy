@@ -73,18 +73,32 @@ from geckopy.ec_model.pipeline import (
 
 # Gather-kcats
 from geckopy.gather_kcats import (
+    EcStats,
     apply_kcat_list,
+    assign_kcats,
     assign_standard_kcat,
+    collect_kcats,
+    ec_stats_from_brenda,
     fetch_open_kinetics_predictor,
     fuzzy_kcat_matching,
     get_standard_kcat,  # deprecated; alias of assign_standard_kcat
+    kcats_from_brenda,
+    kcats_from_dlkcat,
+    kcats_from_ec_tree,
+    kcats_from_homologs,
+    kcats_from_okp,
+    load_kcat_source,
     merge_dlkcat_and_fuzzy_kcats,  # deprecated; alias of merge_kcats
     merge_kcats,
     read_dlkcat_output,
+    read_kcat_source,
     remove_standard_kcat,
+    review_assignment,
     run_dlkcat,
+    save_kcat_source,
     select_kcat_value,  # deprecated; alias of apply_kcat_list
     submit_open_kinetics_predictor,
+    update_kcat_sources,
     write_dlkcat_input,
 )
 
@@ -111,16 +125,22 @@ from geckopy.kcat_tuning import (
 
 # limit_proteins
 from geckopy.limit_proteins import (
+    ComplexFamilies,
     FlexEnzResult,
     GreedyRelaxResult,
+    LevelComplexResult,
     RelaxationStep,
     apply_flux_data_constraints,
     calculate_f_factor,
+    complex_families,
     constrain_enz_concs,
     constrain_flux_data,  # deprecated; alias of apply_flux_data_constraints
     fill_enz_concs,
     flexibilize_enz_concs,
     get_conc_control_coeffs,
+    level_complex_abundances,
+    level_complex_concs,
+    relax_enz_concs,
     relax_proteomics_greedy,
 )
 
@@ -145,13 +165,20 @@ from geckopy.utilities import (
     save_ec_model,
 )
 
+from geckopy.upgrade import convert_custom_kcats, upgrade_ec_model, upgrade_project
+
 __all__ = [
+    # Upgrades
+    "convert_custom_kcats",
+    "upgrade_ec_model",
+    "upgrade_project",
     # Adapter
     "ModelAdapter",
     "ModelParameters",
     # Core data + builder + per-enzyme accessor
     "EcData",
     "EcModel",
+    "EcStats",
     "Enzyme",
     "make_ec_model",
     # Databases (loaders + dataclasses)
@@ -183,15 +210,28 @@ __all__ = [
     "set_prot_pool_size",
     # Gather-kcats
     "apply_kcat_list",
+    "assign_kcats",
     "assign_standard_kcat",
+    "collect_kcats",
+    "ec_stats_from_brenda",
     "fetch_open_kinetics_predictor",
     "fuzzy_kcat_matching",
+    "kcats_from_brenda",
+    "kcats_from_dlkcat",
+    "kcats_from_ec_tree",
+    "kcats_from_homologs",
+    "kcats_from_okp",
+    "load_kcat_source",
     "merge_dlkcat_and_fuzzy_kcats",  # deprecated; alias of merge_kcats
     "merge_kcats",
     "read_dlkcat_output",
+    "read_kcat_source",
     "remove_standard_kcat",
+    "review_assignment",
     "run_dlkcat",
+    "save_kcat_source",
     "submit_open_kinetics_predictor",
+    "update_kcat_sources",
     "write_dlkcat_input",
     # get_enzyme_data
     "copy_ec_to_gem",
@@ -206,15 +246,21 @@ __all__ = [
     "sensitivity_tuning",
     "truncate_values",
     # limit_proteins
+    "ComplexFamilies",
     "FlexEnzResult",
     "GreedyRelaxResult",
+    "LevelComplexResult",
     "RelaxationStep",
     "apply_flux_data_constraints",
     "calculate_f_factor",
+    "complex_families",
     "constrain_enz_concs",
     "fill_enz_concs",
     "flexibilize_enz_concs",
     "get_conc_control_coeffs",
+    "level_complex_abundances",
+    "level_complex_concs",
+    "relax_enz_concs",
     "relax_proteomics_greedy",
     # utilities
     "AddNewRxnsResult",

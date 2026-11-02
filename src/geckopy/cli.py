@@ -12,6 +12,7 @@ Ported from GECKO MATLAB: src/geckomat/utilities/startGECKOproject.m
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -71,9 +72,19 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-# Default to a project-relative location (resolved against the current
-# working directory) rather than the install tree, which may be read-only.
-_DEFAULT_CACHE_DIR = Path("data") / "brenda" / "_cache"
+# The raw BRENDA bulk-JSON download is a disposable, re-fetchable, multi-
+# hundred-MB cache -- same OS user-cache-dir convention as raven-toolbox's
+# own binary cache (raven_toolbox.binaries._cache_dir), not the project
+# directory or the install tree (which may be read-only).
+def _default_cache_dir() -> Path:
+    base = os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")
+    return Path(base) / "geckopy" / "brenda"
+
+
+_DEFAULT_CACHE_DIR = _default_cache_dir()
+# The aggregated TSVs are a chosen project output, not a cache -- default to
+# a project-relative location (resolved against the current working
+# directory).
 _DEFAULT_OUT_DIR = Path("data") / "brenda"
 
 
@@ -103,6 +114,30 @@ def cmd_brenda_refresh(args: argparse.Namespace) -> int:
         # row; both are skipped to report just the data row count.
         n = sum(1 for _ in path.open("r", encoding="utf-8")) - 2
         print(f"  {path.name}: {n} rows")
+    return 0
+
+
+def cmd_upgrade(args: argparse.Namespace) -> int:
+    """List, or with --apply carry out, the steps that bring a GECKO 3
+    project to the GECKO 4 layout (see :func:`geckopy.upgrade.upgrade_project`)."""
+    import pandas as pd
+
+    from .adapter import ModelAdapter
+    from .upgrade import upgrade_project
+    from .utilities.load_ec_model import load_ec_model
+
+    ec_model = None
+    if args.ec_model:
+        adapter = ModelAdapter.from_folder(args.folder)
+        ec_model = load_ec_model(Path(args.ec_model).resolve(), adapter=adapter)
+    report = upgrade_project(args.folder, dry_run=not args.apply, ec_model=ec_model)
+    if report.empty:
+        print(f"{args.folder} has the current GECKO 4 layout.")
+        return 0
+    with pd.option_context("display.max_colwidth", 120, "display.width", 200):
+        print(report.to_string(index=False))
+    if not args.apply and (report["status"] == "to do").any():
+        print("Run geckopy upgrade with --apply to carry out the steps; originals go to legacy/<date>/.")
     return 0
 
 
@@ -178,6 +213,16 @@ def main(argv: list[str] | None = None) -> int:
         help="KEGG entry field to use as the gene matching key (default: kegg)",
     )
     kegg_parser.set_defaults(func=cmd_kegg_download)
+
+    upgrade_parser = sub.add_parser(
+        "upgrade", help="Bring a GECKO 3 project to the GECKO 4 layout (a dry run without --apply)"
+    )
+    upgrade_parser.add_argument("folder", help="Project folder")
+    upgrade_parser.add_argument("--apply", action="store_true", help="Carry out the steps")
+    upgrade_parser.add_argument(
+        "--ec-model", help="The full ecModel (YAML) the custom kcats and stored predictions are for",
+    )
+    upgrade_parser.set_defaults(func=cmd_upgrade)
 
     args = parser.parse_args(argv)
     return args.func(args)

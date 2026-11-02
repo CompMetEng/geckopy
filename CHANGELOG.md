@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `pfba_enzymes` with `fraction_of_optimum` below 1 lets the objective fall by that fraction of the magnitude of its optimum, for a negative optimum and for a minimised objective as for a maximised positive one, as MATLAB's `getPfbaEnzymes` does; it raised `Infeasible` for these objectives.
 * `ec_fseof` ranks the targets by the score `|slope| * |correlation|` rounded to 9 significant digits, with scores that are equal after rounding in model order, as GECKO's `ecFSEOF` does; scores that differ by solver noise used to decide the order.
 * `geckopy.kcat_tuning.evotune` exports `best_parsimonious`, `n_changed`, `parsimony_frontier` and `isozyme_tie_map`, the helpers behind the parsimony sweep and the tying of isozyme copies, which GECKO has as `bestParsimonious`, `nChanged`, `parsimonyFrontier` and `isozymeTieMap`.
 * `read_kcat_source` and `load_kcat_source` skip a row whose fields are all empty quoted fields (`""<TAB>""`), as they skip a row of tabs, and raise `ValueError` for a field that opens a double quote and does not close it. Before, the first was reported as an invalid row and the second was read as a row with a kcat that is not a number.

@@ -202,3 +202,126 @@ def test_enzyme_without_usage_reaction_is_left_out_with_a_warning(caplog):
         result = enzyme_usage(model, {"usage_prot_E": 3.0})
     assert result.prot_id == ["E"]
     assert "no usage reaction for the enzymes F" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# Demand ratio
+# --------------------------------------------------------------------------- #
+
+def test_demand_ratio_at_the_measurement():
+    """The enzyme runs at its measured concentration: ratio 1."""
+    model = _build_toy(enzyme_ub=5.0)
+    result = enzyme_usage(model, model.optimize().fluxes)
+    assert result.measured_protein == pytest.approx(5.0)
+    assert result.demanded_protein == pytest.approx(5.0)
+    assert result.demand_ratio == pytest.approx(1.0)
+    assert result.demand_ratio_active == pytest.approx(1.0)
+
+
+def test_demand_ratio_above_one_when_the_bound_is_relaxed():
+    """A usage bound above the measurement lets the solution use more of the
+    enzyme than was measured."""
+    model = _build_toy(enzyme_ub=5.0)
+    model.reactions.get_by_id("usage_prot_E").upper_bound = 10.0
+    result = enzyme_usage(model, model.optimize().fluxes)
+    assert result.abs_usage[0] == pytest.approx(10.0)
+    assert result.measured_protein == pytest.approx(5.0)
+    assert result.demand_ratio == pytest.approx(2.0)
+    assert result.demand_ratio_active == pytest.approx(2.0)
+
+
+def test_demand_ratio_of_an_inactive_measured_enzyme():
+    """Without flux the demand is 0, and no active enzyme is measured."""
+    model = _build_toy(enzyme_ub=5.0)
+    model.reactions.get_by_id("EX_A").lower_bound = 0.0
+    result = enzyme_usage(model, model.optimize().fluxes)
+    assert result.measured_protein == pytest.approx(5.0)
+    assert result.demand_ratio == pytest.approx(0.0, abs=1e-9)
+    assert result.measured_protein_active == 0.0
+    assert np.isnan(result.demand_ratio_active)
+
+
+def test_demand_ratio_is_nan_without_a_measured_concentration():
+    """An enzyme with a NaN concentration draws from the protein pool and is
+    not counted."""
+    model = _build_toy(enzyme_ub=5.0)
+    model.ec.concs[:] = np.nan
+    result = enzyme_usage(model, model.optimize().fluxes)
+    assert result.measured_protein == 0.0
+    assert result.demanded_protein == 0.0
+    assert np.isnan(result.demand_ratio)
+    assert np.isnan(result.demand_ratio_active)
+
+
+def test_demand_ratio_does_not_depend_on_include_zero():
+    model, fluxes = _build_mixed()
+    fluxes["usage_prot_F"] = 0.0
+    with_zero = enzyme_usage(model, fluxes)
+    without_zero = enzyme_usage(model, fluxes, include_zero=False)
+    assert with_zero.prot_id == ["E", "F", "G"]
+    assert without_zero.prot_id == ["E", "G"]
+    for name in (
+        "measured_protein", "measured_protein_active", "demanded_protein",
+        "demand_ratio", "demand_ratio_active",
+    ):
+        assert getattr(without_zero, name) == getattr(with_zero, name)
+    assert without_zero.measured_protein == pytest.approx(8.0)
+    assert without_zero.demand_ratio == pytest.approx(0.25)
+
+
+def test_report_carries_the_demand_ratios():
+    from geckopy.utilities import report_enzyme_usage
+
+    model = _build_toy(enzyme_ub=5.0)
+    model.reactions.get_by_id("usage_prot_E").upper_bound = 10.0
+    result = enzyme_usage(model, model.optimize().fluxes)
+    report = report_enzyme_usage(model, result)
+    assert report.demand_ratio == pytest.approx(2.0)
+    assert report.demand_ratio_active == pytest.approx(2.0)
+
+
+def _build_mixed():
+    """Enzymes E (measured 5), H (measured 4, no usage reaction), F (measured
+    3) and G (not measured), with usage fluxes 2, 1e-8 and 7."""
+    model = _build_toy(enzyme_ub=5.0)
+    for name in ("F", "G"):
+        usage = cobra.Reaction(f"usage_prot_{name}")
+        usage.upper_bound = 10.0
+        model.add_reactions([usage])
+    model.ec.enzymes[:] = ["E", "H", "F", "G"]
+    model.ec.concs = np.array([5.0, 4.0, 3.0, np.nan])
+    fluxes = {"usage_prot_E": 2.0, "usage_prot_F": 1e-8, "usage_prot_G": 7.0}
+    return model, fluxes
+
+
+def test_demand_ratio_over_measured_and_active_enzymes():
+    model, fluxes = _build_mixed()
+    result = enzyme_usage(model, fluxes)
+    assert result.prot_id == ["E", "F", "G"]
+    assert result.measured_protein == pytest.approx(8.0)
+    assert result.demanded_protein == pytest.approx(2.0 + 1e-8)
+    assert result.demand_ratio == pytest.approx((2.0 + 1e-8) / 8.0)
+    assert result.measured_protein_active == pytest.approx(5.0)
+    assert result.demand_ratio_active == pytest.approx(0.4)
+
+
+def test_demand_ratio_with_a_short_concentration_vector():
+    model, fluxes = _build_mixed()
+    model.ec.concs = np.array([5.0])
+    result = enzyme_usage(model, fluxes)
+    assert result.measured_protein == pytest.approx(5.0)
+    assert result.demand_ratio_active == pytest.approx(0.4)
+    model.ec.concs = np.array([])
+    result = enzyme_usage(model, fluxes)
+    assert np.isnan(result.demand_ratio)
+
+
+def test_report_carries_nan_demand_ratios():
+    from geckopy.utilities import report_enzyme_usage
+
+    model = _build_toy(enzyme_ub=5.0)
+    model.ec.concs[:] = np.nan
+    result = enzyme_usage(model, model.optimize().fluxes)
+    report = report_enzyme_usage(model, result)
+    assert np.isnan(report.demand_ratio)
+    assert np.isnan(report.demand_ratio_active)

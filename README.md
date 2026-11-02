@@ -16,7 +16,7 @@ Enzyme-constrained genome-scale metabolic modelling in Python: the Python port o
 
 An *ec*Model adds the limits of enzymes to a genome-scale model: each enzyme has a finite capacity (its kcat) and the cell has a finite protein budget. geckopy fetches kcats from BRENDA, predicts them with DLKcat, tunes them against growth and flux data with CMA-ES, applies custom curations and integrates proteomics.
 
-> **Status: beta (`4.0.0b1`).** The yeast-GEM tutorial runs end to end. The major and minor version follow GECKO, which is why it starts at 4.
+> **Status: beta (`4.0.0b2`).** The yeast-GEM tutorial runs end to end. The major and minor version follow GECKO, which is why it starts at 4.
 
 > **Not the older geckopy.** This is a new port of GECKO. It is unrelated to the earlier `geckopy` on PyPI (release 2.0.2 and earlier), described in Carrasco Muriel, Long & Sonnenschein, *Microbiology Spectrum* 11(6):e01705-23 (2023), [doi:10.1128/spectrum.01705-23](https://doi.org/10.1128/spectrum.01705-23).
 

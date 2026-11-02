@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.0.0b2 — 2026-11-02
 
 * `pfba_enzymes` with `fraction_of_optimum` below 1 lets the objective fall by that fraction of the magnitude of its optimum, for a negative optimum and for a minimised objective as for a maximised positive one, as MATLAB's `getPfbaEnzymes` does; it raised `Infeasible` for these objectives.
 * `ec_fseof` ranks the targets by the score `|slope| * |correlation|` rounded to 9 significant digits, with scores that are equal after rounding in model order, as GECKO's `ecFSEOF` does; scores that differ by solver noise used to decide the order.

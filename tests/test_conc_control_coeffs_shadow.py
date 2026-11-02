@@ -8,7 +8,6 @@ the rise the reduced cost predicts. An enzyme whose own bound does not bind has 
 import sys
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 from geckopy.limit_proteins import get_conc_control_coeffs

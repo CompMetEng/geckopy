@@ -416,7 +416,9 @@ def _okp_method(name: str, wanted: dict[str, Any]) -> str:
 
 
 def _same(a: Any, b: Any) -> bool:
-    norm = (lambda v: v.lower() if isinstance(v, str) else (int(v) if isinstance(v, bool) else v))
+    def norm(v: Any) -> Any:
+        return v.lower() if isinstance(v, str) else (int(v) if isinstance(v, bool) else v)
+
     return norm(a) == norm(b)
 
 

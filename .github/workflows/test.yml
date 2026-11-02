@@ -21,7 +21,7 @@ jobs:
         # Full Python range on Linux; a single Python on macOS/Windows to catch
         # OS-specific issues at low runner cost.
         os: [ubuntu-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         include:
           - { os: macos-latest, python-version: "3.12" }
           - { os: windows-latest, python-version: "3.12" }
@@ -35,6 +35,11 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # swiglpk (a cobra/optlang dependency) publishes no Python 3.15 wheel, so pip
+      # builds it from source, which needs the GLPK headers and SWIG.
+      - name: Install GLPK build dependencies
+        if: matrix.python-version == '3.15'
+        run: sudo apt-get update && sudo apt-get install -y libglpk-dev swig
       - name: Install
         run: pip install -e ".[dev,evotune]"
 

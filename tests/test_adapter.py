@@ -217,7 +217,6 @@ def _schema_leaves(model_cls, prefix=""):
     from pydantic import BaseModel
 
     leaves = {}
-    instance = model_cls.model_construct()
     for name, field in model_cls.model_fields.items():
         key = f"{prefix}{name}"
         annotation = field.annotation

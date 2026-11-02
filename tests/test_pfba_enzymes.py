@@ -112,3 +112,26 @@ def test_gecko_light_raises():
     model.ec.gecko_light = True
     with pytest.raises(NotImplementedError):
         pfba_enzymes(model)
+
+
+def test_fraction_of_a_negative_optimum_lets_the_objective_fall():
+    model = _ectestgem_ec_model_with_kcats()
+    # Maximising -R3 with R3 >= 1 gives an optimum of -1.
+    model.reactions.get_by_id("R3").lower_bound = 1.0
+    model.objective = {model.reactions.get_by_id("R3"): -1.0}
+    optimum = model.slim_optimize()
+    assert optimum == pytest.approx(-1.0)
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.status == "optimal"
+    assert -sol.fluxes["R3"] >= optimum * 1.1 - 1e-6
+
+
+def test_fraction_of_a_minimised_objective_lets_it_rise():
+    model = _ectestgem_ec_model_with_kcats()
+    model.reactions.get_by_id("R3").lower_bound = 1.0
+    model.objective = "R3"
+    model.objective_direction = "min"
+    optimum = model.slim_optimize()
+    sol = pfba_enzymes(model, fraction_of_optimum=0.9)
+    assert sol.status == "optimal"
+    assert sol.fluxes["R3"] <= optimum * 1.1 + 1e-6

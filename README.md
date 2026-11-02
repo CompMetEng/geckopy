@@ -58,4 +58,4 @@ If you have used geckopy in your work, please cite the GECKO protocol:
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+GPL-3.0. See [`LICENSE`](LICENSE).

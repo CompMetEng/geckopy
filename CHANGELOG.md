@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* geckopy is licensed under the GNU General Public License v3 (GPL-3.0), as RAVEN and raven-toolbox. `LICENSE`, the `license` field and the classifier of `pyproject.toml`, and the README state it. Releases up to 4.0.0b2 were published under the MIT licence.
+
 ## 4.0.0b2 — 2026-11-02
 
 * `pfba_enzymes` with `fraction_of_optimum` below 1 lets the objective fall by that fraction of the magnitude of its optimum, for a negative optimum and for a minimised objective as for a maximised positive one, as MATLAB's `getPfbaEnzymes` does; it raised `Infeasible` for these objectives.

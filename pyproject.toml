@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "geckopy"
-version = "4.0.0b1"
+version = "4.0.0b2"
 description = "Enzyme-constrained genome-scale metabolic modeling in Python, inspired by the GECKO Toolbox"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -44,10 +44,13 @@ dependencies = [
     # raven-toolbox provides the underlying model-manipulation primitives geckopy
     # extends, plus the ecModel YAML I/O (raven_toolbox.io.ec_data.EcData and the
     # ec-rxns / ec-enzymes / gecko_light sections in read/write_yaml_model).
-    # >=3.0.0b1: first release carrying convert_to_irreversible(..., rxns=...),
-    # which make_ec_model needs (#42). The "b1" in the specifier opts pip into
-    # matching pre-releases, so no --pre flag is needed downstream.
-    "raven-toolbox>=3.0.0b1",
+    # >=3.0.0b2: carries convert_to_irreversible(..., rxns=...), which
+    # make_ec_model needs (#42), raven_toolbox.utils.solver, which
+    # load_conventional_gem imports, and the `equality` option of
+    # raven_toolbox.analysis.fseof, which ec_fseof needs. The "b2" in the
+    # specifier opts pip into matching pre-releases, so no --pre flag is needed
+    # downstream.
+    "raven-toolbox>=3.0.0b2",
     "requests>=2.28",
     "ruamel.yaml>=0.17",
     "scipy>=1.10",

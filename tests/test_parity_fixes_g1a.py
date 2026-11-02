@@ -1,7 +1,6 @@
 """Behaviour that follows GECKO: truncate_values ties, the detail text of a kcat source file,
 and the defaults of fill_kcats_from_isozymes."""
 import numpy as np
-import pandas as pd
 import pytest
 
 from geckopy.ec_model.pipeline import fill_kcats_from_isozymes, set_kcat_for_reactions

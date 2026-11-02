@@ -1,5 +1,4 @@
 """Edge cases of get_conc_control_coeffs, fit_sigma and the docstring of fill_kcats_from_isozymes."""
-import numpy as np
 import pytest
 
 from geckopy.kcat_tuning import fit_sigma

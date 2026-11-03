@@ -85,6 +85,20 @@ def test_shared_subunits_stay_as_measured_and_missing_ones_are_filled():
     assert "F" in result.added
 
 
+def test_a_measured_zero_is_not_filled_with_the_complex_level():
+    """B is measured at 0 in a complex with A and C: it stays 0."""
+    model = EcModel("toy")
+    model.ec = EcData(
+        rxns=["R1"], kcat=np.ones(1), source=[""], notes=[""], eccodes=[""],
+        genes=["g_A", "g_B", "g_C"], enzymes=["A", "B", "C"], mw=np.full(3, 100.0),
+        sequence=[""] * 3, concs=np.array([2.0, 0.0, 4.0]),
+        rxn_enz_mat=sparse.csr_matrix(np.ones((1, 3))),
+    )
+    result = level_complex_concs(model)
+    np.testing.assert_allclose(model.ec.concs, [3.0, 0.0, 3.0], atol=1e-12)
+    assert result.added == []
+
+
 def test_filling_can_be_switched_off():
     model = _ec_only(np.full(len(ENZYMES), np.nan), ROWS)
     ids, _, _ = level_complex_abundances(model, ["D"], [1.0], fill_missing=False)
@@ -260,3 +274,53 @@ def test_per_complex_does_not_pick_a_large_complex_for_the_pool_price(tmp_path):
     for e in ("X1", "X2", "X3"):
         assert model.reactions.get_by_id(f"usage_prot_{e}").upper_bound == pytest.approx(1.25)
     assert model.optimize().objective_value >= 1.1 * 0.9975 - 1e-9
+
+
+def test_per_complex_does_not_report_a_measured_zero_subunit(tmp_path):
+    """X0 is measured at 0 in the complex of X1 and X2: it keeps its bound and
+    is not reported, and no ratio is NaN."""
+    model = _complex_toy(_adapter(tmp_path, gr_exp=2.0))
+    pool = model.metabolites.get_by_id("prot_pool")
+    x0 = cobra.Metabolite("prot_X0", compartment="c")
+    usage = cobra.Reaction("usage_prot_X0")
+    usage.add_metabolites({pool: -1.0, x0: 1.0})
+    usage.bounds = (0.0, 0.0)
+    model.add_reactions([usage])
+    model.ec.enzymes = ["X1", "X2", "X0"]
+    model.ec.genes = ["g_X1", "g_X2", "g_X0"]
+    model.ec.mw = np.array([100.0, 100.0, 100.0])
+    model.ec.sequence = ["", "", ""]
+    model.ec.concs = np.array([1.0, 3.0, 0.0])
+    model.ec.rxn_enz_mat = sparse.csr_matrix([[1.0, 1.0, 1.0]])
+    result = flexibilize_enz_concs(model, per_complex=True, verbose=False)
+    assert "X0" not in result.uniprot_ids
+    assert not np.isnan(result.ratio_incr).any()
+    assert model.reactions.usage_prot_X0.upper_bound == 0.0
+
+
+def test_a_complex_with_only_zero_subunits_is_skipped():
+    model = EcModel("toy")
+    model.ec = EcData(
+        rxns=["R1"], kcat=np.ones(1), source=[""], notes=[""], eccodes=[""],
+        genes=["g_A", "g_B", "g_C"], enzymes=["A", "B", "C"], mw=np.full(3, 100.0),
+        sequence=[""] * 3, concs=np.array([0.0, np.nan, np.nan]),
+        rxn_enz_mat=sparse.csr_matrix(np.ones((1, 3))),
+    )
+    result = level_complex_concs(model)
+    np.testing.assert_array_equal(model.ec.concs, [0.0, np.nan, np.nan])
+    assert len(result.skipped) == 1
+    assert result.added == []
+
+
+def test_per_complex_records_the_count_on_the_first_subunit_above_zero(tmp_path):
+    """X1 is measured at 0 with an open usage bound, X2 limits the complex. X2
+    is raised and carries the count; X1 is not reported."""
+    model = _complex_toy(_adapter(tmp_path, gr_exp=2.0))
+    model.ec.concs = np.array([0.0, 1.0])
+    model.reactions.usage_prot_X1.upper_bound = 1000.0
+    model.reactions.usage_prot_X2.upper_bound = 1.0
+    result = flexibilize_enz_concs(model, per_complex=True, verbose=False)
+    assert result.uniprot_ids == ["X2"]
+    assert list(result.frequence) == [1]
+    assert not np.isnan(result.ratio_incr).any()
+    assert model.reactions.usage_prot_X1.upper_bound == 1000.0

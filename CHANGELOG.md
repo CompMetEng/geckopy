@@ -4,6 +4,11 @@
 
 * `enzyme_usage` reports `measured_protein`, `demanded_protein` and `demand_ratio`, the usage of the enzymes with a measured concentration divided by their measured concentrations, and the same restricted to enzymes with a usage above 1e-7 mg/gDCW (`measured_protein_active`, `demand_ratio_active`). `report_enzyme_usage` carries `demand_ratio` and `demand_ratio_active`. GECKO's `getEnzymeUsage` and `reportEnzymeUsage` give the same values.
 * geckopy is licensed under the GNU General Public License v3 (GPL-3.0), as RAVEN and raven-toolbox. `LICENSE`, the `license` field and the classifier of `pyproject.toml`, and the README state it. Releases up to 4.0.0b2 were published under the MIT licence.
+* `load_prot_data` takes `zeros_as_measured`: by default an abundance of 0 is read as not measured (NaN) before any filter, also with `filter_data=False`, so the mean of a protein with a zero replicate leaves the zeros out; with `True` a 0 counts as a measured replicate, is kept in the mean and is exempt from `min_val` and `cut_lowest`, as GECKO's `loadProtData` option `zerosAsMeasured`.
+* `get_isozyme_coverage` reports the isozyme groups of `model.ec.rxns` that have both a measured and an unmeasured entry, and the enzymes that `zero_unmeasured_isozymes` can limit, as GECKO's `getIsozymeCoverage`.
+* `zero_unmeasured_isozymes` lowers the usage upper bound of the unmeasured isozymes of a reaction that has a measured isozyme, to 0 or to a detection limit (`method="detection_limit"`), as GECKO's `zeroUnmeasuredIsozymes`; it lowers the bounds in place and returns a DataFrame, and a lower bound above the new upper bound is lowered with it.
+* `level_complex_concs` and `level_complex_abundances` keep a subunit with a concentration of 0 at 0 instead of filling it with the level of its complex.
+* `flexibilize_enz_concs` warns about enzymes with a concentration of 0, which it cannot raise, and does not report them as flexibilized; with `per_complex=True` the count of a complex is recorded on its first subunit with a concentration above 0.
 
 ## 4.0.0b2 — 2026-11-02
 

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from geckopy.databases import load_prot_data
+from geckopy.databases import ProtData, load_prot_data
 
 
 # --------------------------------------------------------------------------- #
@@ -274,3 +274,125 @@ def test_loaded_data_can_feed_calculate_f_factor(tmp_path):
     f = calculate_f_factor(model, pd)
     # P1 in model contributes 10; total = 15. f = 10/15 ~= 0.667.
     assert f == pytest.approx(10.0 / 15.0)
+
+
+# --------------------------------------------------------------------------- #
+# zeros_as_measured
+# --------------------------------------------------------------------------- #
+
+_ZERO_ROWS = [
+    ["uniprot", "r1", "r2", "r3"],
+    ["Z1", "0", "0", "0"],
+    ["Z2", "0", "4", "6"],
+    ["Z3", "5", "5", "5"],
+]
+
+
+@pytest.mark.parametrize("filter_data", [True, False])
+def test_zero_is_not_measured_by_default(tmp_path, filter_data):
+    """Z1 is 0 in every replicate; Z2 is 0 in one replicate. Both are read as
+    not measured: Z1 is dropped, and the mean of Z2 is over the two values."""
+    p = tmp_path / "z.tsv"
+    _write_tsv(p, _ZERO_ROWS)
+    pd = load_prot_data(
+        p, [3], filter_data=filter_data, add_stdevs=0.0, cut_lowest=0.0,
+    )
+    assert pd.uniprot_ids == ["Z2", "Z3"]
+    np.testing.assert_allclose(pd.abundances, [[5.0], [5.0]], atol=1e-12)
+
+
+@pytest.mark.parametrize("filter_data", [True, False])
+def test_zeros_as_measured_keeps_zero(tmp_path, filter_data):
+    """With zeros_as_measured Z1 stays 0 and the 0 of Z2 enters its mean."""
+    p = tmp_path / "z.tsv"
+    _write_tsv(p, _ZERO_ROWS)
+    pd = load_prot_data(
+        p, [3], filter_data=filter_data, add_stdevs=0.0, cut_lowest=0.0,
+        zeros_as_measured=True,
+    )
+    assert pd.uniprot_ids == ["Z1", "Z2", "Z3"]
+    np.testing.assert_allclose(pd.abundances, [[0.0], [10.0 / 3.0], [5.0]], atol=1e-12)
+
+
+def test_measured_zero_is_exempt_from_min_val_and_cut_lowest(tmp_path):
+    """P1 is 0; P2 to P10 are 2 to 10. min_val 2.5 removes P2, then
+    cut_lowest 20 percent removes one of the eight positive values (P3) and
+    not P1."""
+    p = tmp_path / "z.tsv"
+    rows = [["uniprot", "r1", "r2", "r3"], ["P1", "0", "0", "0"]]
+    rows += [[f"P{k}", str(float(k)), str(float(k)), str(float(k))] for k in range(2, 11)]
+    _write_tsv(p, rows)
+    pd = load_prot_data(
+        p, [3], add_stdevs=0.0, min_val=2.5, cut_lowest=20.0, zeros_as_measured=True,
+    )
+    assert pd.uniprot_ids == ["P1"] + [f"P{k}" for k in range(4, 11)]
+    np.testing.assert_allclose(
+        pd.abundances[:, 0], [0.0] + [float(k) for k in range(4, 11)], atol=1e-12,
+    )
+    default = load_prot_data(
+        p, [3], add_stdevs=0.0, min_val=2.5, cut_lowest=20.0,
+    )
+    assert default.uniprot_ids == [f"P{k}" for k in range(4, 11)]
+
+
+def test_prot_data_source_reads_zero_as_not_measured_by_default():
+    source = ProtData(
+        uniprot_ids=["Z1", "Z2", "Z3"],
+        abundances=np.array([[0.0, 0.0, 0.0], [0.0, 4.0, 6.0], [5.0, 5.0, 5.0]]),
+    )
+    original = source.abundances.copy()
+    pd = load_prot_data(source, [3], add_stdevs=0.0, cut_lowest=0.0)
+    assert pd.uniprot_ids == ["Z2", "Z3"]
+    np.testing.assert_allclose(pd.abundances, [[5.0], [5.0]], atol=1e-12)
+    pd = load_prot_data(source, [3], add_stdevs=0.0, cut_lowest=0.0, zeros_as_measured=True)
+    assert pd.uniprot_ids == ["Z1", "Z2", "Z3"]
+    np.testing.assert_allclose(pd.abundances, [[0.0], [10.0 / 3.0], [5.0]], atol=1e-12)
+    np.testing.assert_array_equal(source.abundances, original)
+
+
+def test_max_missing_counts_a_zero_replicate_only_with_zeros_as_measured(tmp_path):
+    """A = [0, 5, 5] has two positive replicates of three, so max_missing 1.0
+    removes it by default; with zeros_as_measured all three are present, the
+    RSD is 2.887 / 3.333 = 0.87 and the mean is 10/3."""
+    p = tmp_path / "m.tsv"
+    _write_tsv(p, [
+        ["uniprot", "r1", "r2", "r3"],
+        ["A", "0", "5", "5"],
+        ["B", "5", "5", "5"],
+    ])
+    kwargs = dict(max_missing=1.0, add_stdevs=0.0, cut_lowest=0.0)
+    pd = load_prot_data(p, [3], **kwargs)
+    assert pd.uniprot_ids == ["B"]
+    pd = load_prot_data(p, [3], zeros_as_measured=True, **kwargs)
+    assert pd.uniprot_ids == ["A", "B"]
+    np.testing.assert_allclose(pd.abundances, [[10.0 / 3.0], [5.0]], atol=1e-12)
+
+
+def test_zero_gives_nan_in_one_condition_and_a_value_in_the_other(tmp_path):
+    p = tmp_path / "c.tsv"
+    _write_tsv(p, [
+        ["uniprot", "r1", "r2", "r3", "r4"],
+        ["P", "0", "0", "3", "5"],
+        ["Q", "2", "2", "2", "2"],
+    ])
+    kwargs = dict(add_stdevs=0.0, cut_lowest=0.0)
+    pd = load_prot_data(p, [2, 2], **kwargs)
+    assert pd.uniprot_ids == ["P", "Q"]
+    np.testing.assert_allclose(pd.abundances, [[np.nan, 4.0], [2.0, 2.0]], atol=1e-12)
+    pd = load_prot_data(p, [2, 2], zeros_as_measured=True, **kwargs)
+    np.testing.assert_allclose(pd.abundances, [[0.0, 4.0], [2.0, 2.0]], atol=1e-12)
+
+
+@pytest.mark.parametrize("zeros_as_measured", [False, True])
+def test_cut_lowest_removes_the_first_of_tied_values(tmp_path, zeros_as_measured):
+    """Ten values 1,1,2,2,...,5,5; cut_lowest 10 percent removes one value,
+    the first of the two lowest (P1)."""
+    p = tmp_path / "t.tsv"
+    _write_tsv(p, [
+        ["uniprot", "r1"],
+        *[[f"P{i}", str(float(v))] for i, v in enumerate([1, 1, 2, 2, 3, 3, 4, 4, 5, 5], 1)],
+    ])
+    pd = load_prot_data(
+        p, [1], add_stdevs=0.0, cut_lowest=10.0, zeros_as_measured=zeros_as_measured,
+    )
+    assert pd.uniprot_ids == [f"P{i}" for i in range(2, 11)]

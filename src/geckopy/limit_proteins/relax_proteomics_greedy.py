@@ -63,6 +63,9 @@ def relax_proteomics_greedy(
 ) -> GreedyRelaxResult:
     """Greedy relaxation of proteomics constraints until growth >= minimal_growth.
 
+    An enzyme with a concentration of 0 in ``model.ec.concs`` is a candidate
+    like any other and is relaxed in the same way.
+
     Parameters
     ----------
     model

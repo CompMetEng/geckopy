@@ -40,6 +40,13 @@ def constrain_enz_concs(
     ``prot_pool`` coefficient of -1, so a prior lower bound above the
     new upper bound does not conflict with it.
 
+    A NaN entry means that the enzyme was not measured, and its usage
+    draws from the protein pool. An entry of 0 means that the enzyme was
+    measured as absent: its usage upper bound is 0, which removes every
+    flux through the enzyme. ``flexibilize_enz_concs`` multiplies the
+    concentration and cannot raise a bound of 0;
+    ``relax_proteomics_greedy`` sets the bound back to its default.
+
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/constrainEnzConcs.m.
 

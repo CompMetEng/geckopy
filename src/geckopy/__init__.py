@@ -138,10 +138,12 @@ from geckopy.limit_proteins import (
     fill_enz_concs,
     flexibilize_enz_concs,
     get_conc_control_coeffs,
+    get_isozyme_coverage,
     level_complex_abundances,
     level_complex_concs,
     relax_enz_concs,
     relax_proteomics_greedy,
+    zero_unmeasured_isozymes,
 )
 
 # utilities
@@ -258,10 +260,12 @@ __all__ = [
     "fill_enz_concs",
     "flexibilize_enz_concs",
     "get_conc_control_coeffs",
+    "get_isozyme_coverage",
     "level_complex_abundances",
     "level_complex_concs",
     "relax_enz_concs",
     "relax_proteomics_greedy",
+    "zero_unmeasured_isozymes",
     # utilities
     "AddNewRxnsResult",
     "EnzymeUsageReport",

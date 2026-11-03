@@ -92,10 +92,7 @@ subunit at a time leave its subunits at unrelated levels, or raise a different
 subunit in each condition.
 
 - `level_complex_concs` (after `fill_enz_concs`, before `constrain_enz_concs`)
-  gives every complex one abundance: the median per copy over its measured
-  subunits, scaled back to each subunit by its copies in `ec.rxn_enz_mat`;
-  unmeasured subunits are filled. `level_complex_abundances` does the same on
-  molar data before it is written into the model.
+  gives every complex one abundance: the median per copy over its subunits with an abundance above 0, scaled back to each subunit by its copies in `ec.rxn_enz_mat`; unmeasured subunits are filled, and a subunit measured at 0 stays 0. `level_complex_abundances` does the same on molar data before it is written into the model.
 - `complex_families` defines the complexes. Two enzyme sets are one complex when
   they share at least two subunits and half the larger set (isozyme variants,
   the same complex on several reactions). A protein in three or more complexes,

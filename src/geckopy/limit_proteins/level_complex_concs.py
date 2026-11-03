@@ -83,7 +83,8 @@ class LevelComplexResult:
     shared
         Subunits left as measured because they belong to more than one complex.
     skipped
-        Complexes (as sorted subunit tuples) without any measured, non-shared subunit.
+        Complexes (as sorted subunit tuples) without a non-shared subunit with a
+        concentration above 0.
     """
 
     adjusted: list[str] = field(default_factory=list)
@@ -192,10 +193,11 @@ def level_complex_abundances(
     uniprot_ids, abundances
         Measured molar abundances (any molar unit; per subunit, not per complex).
     statistic
-        ``"median"`` or ``"mean"`` over the measured, non-shared subunits'
-        abundance divided by their copies.
+        ``"median"`` or ``"mean"`` over the abundance divided by the
+        copies of the non-shared subunits with an abundance above 0.
     fill_missing
-        Give unmeasured, non-shared subunits the complex's abundance.
+        Give unmeasured, non-shared subunits the complex's abundance. A
+        subunit with an abundance of 0 is measured as absent and stays 0.
     families
         Precomputed ``complex_families(model)``.
 
@@ -226,7 +228,7 @@ def level_complex_abundances(
                 if not np.isclose(values[enzyme], level):
                     result.adjusted.append(enzyme)
                 values[enzyme] = level
-            elif fill_missing:
+            elif fill_missing and values.get(enzyme) != 0:
                 if enzyme not in values:
                     order.append(enzyme)
                 values[enzyme] = level
@@ -254,7 +256,14 @@ def level_complex_concs(
     statistic
         ``"median"`` (default) or ``"mean"``.
     fill_missing
-        Give unmeasured, non-shared subunits the complex's concentration.
+        Give unmeasured, non-shared subunits the complex's concentration. A
+        subunit with a concentration of 0 is measured as absent and stays 0.
+
+    Returns
+    -------
+    LevelComplexResult
+        What changed. ``ec.concs`` has one abundance per complex, except for
+        subunits at 0, shared subunits and skipped complexes.
     """
     enzymes = list(model.ec.enzymes)
     mw = np.asarray(model.ec.mw, dtype=float)

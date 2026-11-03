@@ -130,6 +130,13 @@ def flexibilize_enz_concs(
     over-relaxing enzymes that the prior iterative pass increased more
     than necessary.
 
+    The usage upper bound of an enzyme is raised as a factor of its
+    concentration, so an enzyme with a concentration of 0 in
+    ``model.ec.concs`` stays at 0 and is never flexibilized. If such
+    enzymes exist, a warning lists them: a growth rate that is not
+    reached can then be caused by these enzymes, and
+    ``flexibilize_enz_concs`` reports no limiting enzyme for them.
+
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/flexibilizeEnzConcs.m.
 
@@ -164,7 +171,9 @@ def flexibilize_enz_concs(
         measured subunit of the picked complex by the same factor, count
         iterations per complex, and keep one factor per complex in the
         refinement pass, so that concentrations levelled by
-        ``level_complex_concs`` stay levelled. Off by default.
+        ``level_complex_concs`` stay levelled. The ``frequence`` of a
+        complex is recorded on its first subunit with a concentration above
+        0. Off by default.
 
     Returns
     -------
@@ -213,6 +222,19 @@ def flexibilize_enz_concs(
         raise ValueError(
             "No enzyme concentrations are measured (model.ec.concs is "
             "all-NaN). Run fill_enz_concs and constrain_enz_concs first."
+        )
+    measured_zero = [
+        model.ec.enzymes[i] for i in measured_idx if model.ec.concs[i] == 0
+    ]
+    if measured_zero:
+        listed = ", ".join(measured_zero[:10])
+        if len(measured_zero) > 10:
+            listed += f" and {len(measured_zero) - 10} more"
+        logger.warning(
+            "flexibilize_enz_concs: the enzymes %s have a concentration of 0 "
+            "in model.ec.concs. Their usage upper bound stays 0, because it "
+            "is raised as a factor of the concentration.",
+            listed,
         )
     proteins = [model.ec.enzymes[i] for i in measured_idx]
     n_proteins = len(proteins)
@@ -296,7 +318,12 @@ def flexibilize_enz_concs(
         else:
             unit = int(unit_of[int(np.argmax(scores))])
         members = units[unit]
-        max_idx = members[0]
+        # The count of a unit is recorded on its first member with a
+        # concentration above 0
+        max_idx = next(
+            (j for j in members if model.ec.concs[measured_idx[j]] > 0),
+            members[0],
+        )
         frequence[max_idx] += 1
         unit_frequence[unit] += 1
         if unit_frequence[unit] > iter_per_enzyme:
@@ -406,6 +433,10 @@ def _build_result(
     flex_mask = frequence > 0
     if touched is not None:
         flex_mask = flex_mask | touched
+    # An enzyme with a concentration of 0 keeps its bound and is not reported
+    flex_mask = flex_mask & np.array(
+        [model.ec.concs[j] != 0 for j in measured_idx], dtype=bool,
+    )
     flex_indices = np.where(flex_mask)[0]
     if len(flex_indices) == 0:
         return _maybe_add_pool(FlexEnzResult(), pool_old, pool_new)

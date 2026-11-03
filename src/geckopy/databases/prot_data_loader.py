@@ -28,6 +28,7 @@ def load_prot_data(
     max_missing: Union[float, list[float]] = 2.0 / 3.0,
     cut_lowest: float = 5.0,
     add_stdevs: float = 1.0,
+    zeros_as_measured: bool = False,
 ) -> ProtData:
     """Load (and optionally filter) absolute proteomics data.
 
@@ -38,6 +39,10 @@ def load_prot_data(
     condition 0's triplicate, next two are condition 1's duplicate).
     Levels are in mg/gDCW.
 
+    An abundance of 0 is read as not measured (NaN) before any filter,
+    unless ``zeros_as_measured`` is set. This applies to a file and to a
+    ``ProtData`` source, with ``filter_data`` True and False.
+
     For each condition, the per-replicate measurements are reduced
     to a single value per protein:
 
@@ -46,17 +51,23 @@ def load_prot_data(
 
        * **maxMissing:** rows with fewer than
          ``max_missing * n_replicates`` strictly-positive
-         measurements have all replicates set to NaN.
+         measurements (with ``zeros_as_measured``, measurements of 0
+         or above) have all replicates set to NaN.
        * **RSD:** rows whose ``std/mean > max_rsd`` are set to NaN.
        * **Collapse:** per-row ``mean + add_stdevs * std``.
-       * **minVal:** collapsed values below ``min_val`` -> NaN.
+       * **minVal:** collapsed values below ``min_val`` -> NaN (with
+         ``zeros_as_measured``, a collapsed value of 0 is kept).
        * **Bottom cut:** among non-NaN values, the lowest
-         ``cut_lowest`` percent are set to NaN.
+         ``cut_lowest`` percent are set to NaN (with
+         ``zeros_as_measured``, the values of 0 are left out of the
+         count and of the cut).
 
     2. ``filter_data=False`` just takes the per-row mean (NaN-safe).
 
     Rows that end up NaN in every condition are dropped, along with
-    their UniProt IDs.
+    their UniProt IDs. A protein that is not measured in a condition is
+    NaN in ``abundances`` and leaves the usage of its enzyme drawing from
+    the protein pool (see ``fill_enz_concs`` and ``constrain_enz_concs``).
 
     Ported from GECKO MATLAB:
     src/geckomat/utilities/loadProtData.m.
@@ -71,13 +82,14 @@ def load_prot_data(
         equal the number of replicate columns in the file.
     filter_data
         Whether to apply the filtering pipeline. When False, every
-        other parameter is unused.
+        other parameter except ``zeros_as_measured`` is unused.
     min_val
         Minimum collapsed value to keep.
     max_rsd
         Maximum relative standard deviation per row.
     max_missing
-        Minimum fraction of strictly-positive replicates required.
+        Minimum fraction of strictly-positive replicates required
+        (replicates of 0 or above with ``zeros_as_measured``).
         May be a single float (applied to all conditions) or a list
         of length ``len(repl_per_cond)``.
     cut_lowest
@@ -86,6 +98,20 @@ def load_prot_data(
     add_stdevs
         Number of standard deviations to add to the per-row mean
         when collapsing.
+    zeros_as_measured
+        Whether an abundance of 0 is a measurement. If False, a 0 is read
+        as not measured (NaN) before any filter, also in a ``ProtData``
+        source: the mean of a protein over its replicates leaves out the
+        zeros, and a protein with only zeros is removed, so it draws from
+        the protein pool. If True, a 0 counts as a measured replicate and
+        is kept in the mean; a protein whose replicates are all 0 is
+        returned as 0, is not removed by ``min_val`` or ``cut_lowest``, and
+        limits the usage of its enzyme to 0 in ``constrain_enz_concs``.
+        ``max_rsd`` and ``max_missing`` still apply to a protein with some
+        zero replicates. Proteomics reports a protein below the detection
+        limit as 0 or as missing. With True, a 0 is read as a protein that
+        is absent, for example in a deletion strain. Applies with
+        ``filter_data`` True and False.
 
     Returns
     -------
@@ -105,6 +131,8 @@ def load_prot_data(
     total_replicates = sum(repl_per_cond)
 
     uniprot_ids, abundances = _load_raw(source, total_replicates)
+    if not zeros_as_measured:
+        abundances[abundances == 0] = np.nan
 
     # Drop empty UniProt IDs.
     keep = [bool(uid) for uid in uniprot_ids]
@@ -128,6 +156,7 @@ def load_prot_data(
                 max_missing=_max_missing_for(max_missing, i),
                 cut_lowest=cut_lowest,
                 add_stdevs=add_stdevs,
+                zeros_as_measured=zeros_as_measured,
             )
         else:
             collapsed = _nanmean_axis1(cond_block)
@@ -252,6 +281,7 @@ def _filter_condition(
     max_missing: float,
     cut_lowest: float,
     add_stdevs: float,
+    zeros_as_measured: bool,
 ) -> np.ndarray:
     """Run the MATLAB filtering pipeline on one condition's
     (n_proteins, n_replicates) block. Returns a 1-D collapsed
@@ -261,7 +291,8 @@ def _filter_condition(
 
     # 1) maxMissing -- only when there's more than one replicate.
     if n_repl > 1:
-        positive_count = np.sum(cond > 0, axis=1)
+        present = cond >= 0 if zeros_as_measured else cond > 0
+        positive_count = np.sum(present, axis=1)
         threshold = max_missing * n_repl
         too_few = positive_count < threshold
         cond[too_few, :] = np.nan
@@ -283,16 +314,20 @@ def _filter_condition(
 
     # 4) minVal filter.
     too_small = collapsed < min_val
+    if zeros_as_measured:
+        too_small &= collapsed != 0
     collapsed[too_small] = np.nan
 
     # 5) Bottom-cut_lowest% filter.
     valid = ~np.isnan(collapsed)
+    if zeros_as_measured:
+        valid &= collapsed != 0
     n_valid = int(valid.sum())
     if n_valid > 0 and cut_lowest > 0:
         cut_n = int(math.floor(n_valid * cut_lowest / 100.0))
         if cut_n > 0:
             valid_indices = np.where(valid)[0]
-            order = valid_indices[np.argsort(collapsed[valid_indices])]
+            order = valid_indices[np.argsort(collapsed[valid_indices], kind="stable")]
             collapsed[order[:cut_n]] = np.nan
 
     return collapsed

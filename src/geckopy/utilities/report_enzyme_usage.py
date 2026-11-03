@@ -56,6 +56,14 @@ class EnzymeUsageReport:
     total_usage_flux
         The protein pool exchange capacity (mg/gDCW) used as the
         denominator for ``perc_usage``.
+    demand_ratio
+        ``demand_ratio`` of the usage data: the protein used of the enzymes
+        with a measured concentration divided by their measured
+        concentrations. Above 1, the solution needs more of those enzymes
+        than was measured.
+    demand_ratio_active
+        ``demand_ratio_active`` of the usage data: the same ratio over the
+        enzymes that carry flux in the solution.
     """
 
     high_cap_usage: pd.DataFrame = field(
@@ -65,6 +73,8 @@ class EnzymeUsageReport:
         default_factory=lambda: pd.DataFrame(columns=_TOP_ABS_COLUMNS)
     )
     total_usage_flux: float = 0.0
+    demand_ratio: float = float("nan")
+    demand_ratio_active: float = float("nan")
 
 
 def report_enzyme_usage(
@@ -229,6 +239,8 @@ def report_enzyme_usage(
         high_cap_usage=pd.DataFrame(high_rows, columns=_HIGH_CAP_COLUMNS),
         top_abs_usage=pd.DataFrame(top_rows, columns=_TOP_ABS_COLUMNS),
         total_usage_flux=total_pool,
+        demand_ratio=usage_data.demand_ratio,
+        demand_ratio_active=usage_data.demand_ratio_active,
     )
 
 

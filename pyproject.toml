@@ -35,11 +35,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
+    "cma>=3.3",
     # >=0.31.1: earlier cobra versions carry a Reaction.__copy__/__deepcopy__
     # override that recurses infinitely (RecursionError) on Python 3.14 for
     # any model with a reaction<->metabolite reference cycle -- i.e. any real
     # cobra model. Fixed upstream by deleting that override.
-    "cma>=3.3",
     "cobra>=0.31.1",
     "numpy>=1.21",
     "pandas>=2",

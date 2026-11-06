@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `geckopy.__version__` is the installed version of geckopy.
 * `cma` is a required dependency of geckopy and the extra `evotune` is removed. `import geckopy` imports `cma`.
 * `enzyme_usage` reports `measured_protein`, `demanded_protein` and `demand_ratio`, the usage of the enzymes with a measured concentration divided by their measured concentrations, and the same restricted to enzymes with a usage above 1e-7 mg/gDCW (`measured_protein_active`, `demand_ratio_active`). `report_enzyme_usage` carries `demand_ratio` and `demand_ratio_active`. GECKO's `getEnzymeUsage` and `reportEnzymeUsage` give the same values.
 * geckopy is licensed under the GNU General Public License v3 (GPL-3.0), as RAVEN and raven-toolbox. `LICENSE`, the `license` field and the classifier of `pyproject.toml`, and the README state it. Releases up to 4.0.0b2 were published under the MIT licence.

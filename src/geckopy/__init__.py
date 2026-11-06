@@ -31,6 +31,13 @@ The most-used names, grouped by stage of a typical workflow:
   live in raven-toolbox, see ``raven_toolbox.io.ec_data``)
 - **Per-enzyme proxy**: ``Enzyme`` (lazy view via ``model.enzymes``)
 """
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("geckopy")
+except PackageNotFoundError:  # running from a source tree without an install
+    __version__ = "0.0.0+unknown"
+
 # Adapter
 from geckopy.adapter import ModelAdapter, ModelParameters
 

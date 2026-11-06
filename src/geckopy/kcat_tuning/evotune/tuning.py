@@ -57,12 +57,12 @@ no such restriction.
 from __future__ import annotations
 
 import logging
+import warnings
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from itertools import combinations
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
-import cma
 import cobra
 import numpy as np
 import pandas as pd
@@ -76,6 +76,11 @@ from .parsimony import fold_change, n_changed
 from .priors import build_sigma0_log, classify_kcat_sources
 from .simulate import simulate_evotune_dataset
 from .tying import isozyme_tie_map
+
+with warnings.catch_warnings():
+    # cma warns when matplotlib is absent; the plotting functions of cma are not used here.
+    warnings.filterwarnings("ignore", message="Could not import matplotlib", category=UserWarning)
+    import cma
 
 if TYPE_CHECKING:
     from ...adapter import ModelAdapter

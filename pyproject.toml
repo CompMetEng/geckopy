@@ -39,6 +39,7 @@ dependencies = [
     # override that recurses infinitely (RecursionError) on Python 3.14 for
     # any model with a reaction<->metabolite reference cycle -- i.e. any real
     # cobra model. Fixed upstream by deleting that override.
+    "cma>=3.3",
     "cobra>=0.31.1",
     "numpy>=1.21",
     "pandas>=2",
@@ -57,7 +58,6 @@ dependencies = [
     "ruamel.yaml>=0.17",
     "scipy>=1.10",
     "tqdm>=4.65",
-    "cma>=3.3",
 ]
 
 [project.optional-dependencies]

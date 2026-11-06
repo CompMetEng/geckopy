@@ -41,7 +41,6 @@ least-trusted sources, has.
 
 - A working ecModel and `ModelAdapter` project (an existing
   `model_adapter.toml` and `models/*.yml`).
-- `cma` -- the CMA-ES search; `pip install geckopy` installs it.
 - Experimental data: at least one of a set of measured exchange fluxes
   per condition, or a set of measured maximum growth rates per carbon
   source. Both together works and is preferred -- flux data pins the

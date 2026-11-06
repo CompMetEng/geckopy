@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* `cma` is a required dependency of geckopy and the extra `evotune` is removed (was: `import geckopy` raised `ModuleNotFoundError: No module named 'cma'` without the extra since 4.0.0b2, because `review_assignment` imports a module of the `evotune` subpackage). `pip install geckopy[evotune]` still installs geckopy and `pip` prints a warning that the extra does not exist.
+* `cma` is a required dependency of geckopy and the extra `evotune` is removed. `import geckopy` imports `cma` through `geckopy.gather_kcats.review` and `geckopy.kcat_tuning.evotune`. `pip install geckopy[evotune]` installs geckopy, and pip prints a warning that the extra does not exist.
 * `enzyme_usage` reports `measured_protein`, `demanded_protein` and `demand_ratio`, the usage of the enzymes with a measured concentration divided by their measured concentrations, and the same restricted to enzymes with a usage above 1e-7 mg/gDCW (`measured_protein_active`, `demand_ratio_active`). `report_enzyme_usage` carries `demand_ratio` and `demand_ratio_active`. GECKO's `getEnzymeUsage` and `reportEnzymeUsage` give the same values.
 * geckopy is licensed under the GNU General Public License v3 (GPL-3.0), as RAVEN and raven-toolbox. `LICENSE`, the `license` field and the classifier of `pyproject.toml`, and the README state it. Releases up to 4.0.0b2 were published under the MIT licence.
 * `load_prot_data` takes `zeros_as_measured`: by default an abundance of 0 is read as not measured (NaN) before any filter, also with `filter_data=False`, so the mean of a protein with a zero replicate leaves the zeros out; with `True` a 0 counts as a measured replicate, is kept in the mean and is exempt from `min_val` and `cut_lowest`, as GECKO's `loadProtData` option `zerosAsMeasured`.

@@ -59,4 +59,4 @@ jobs:
       - name: Install without extras
         run: pip install -e .
       - name: Import geckopy
-        run: python -c "import geckopy, geckopy.kcat_tuning.evotune"
+        run: python -W "error:Could not import matplotlib:UserWarning" -c "import geckopy"

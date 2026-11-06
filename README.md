@@ -28,7 +28,7 @@ Both geckopy and raven-toolbox are pre-releases, so pip needs `--pre`:
 pip install --pre geckopy
 ```
 
-Extras: `geckopy[tutorial]` (matplotlib), `geckopy[evotune]` (cma, for kcat tuning) and `geckopy[dev]` (pytest and ruff). Python 3.11 or newer.
+Extras: `geckopy[tutorial]` (matplotlib), `geckopy[dev]` (pytest and ruff). Python 3.11 or newer.
 
 ## Quick start
 

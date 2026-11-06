@@ -41,7 +41,22 @@ jobs:
         if: matrix.python-version == '3.15'
         run: sudo apt-get update && sudo apt-get install -y libglpk-dev swig
       - name: Install
-        run: pip install -e ".[dev,evotune]"
+        run: pip install -e ".[dev]"
 
       - name: Run pytest
         run: pytest -q
+
+  import-without-extras:
+    name: import without the optional extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install without extras
+        run: pip install -e .
+      - name: Import geckopy
+        run: python -c "import geckopy, geckopy.kcat_tuning.evotune"

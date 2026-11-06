@@ -57,6 +57,7 @@ dependencies = [
     "ruamel.yaml>=0.17",
     "scipy>=1.10",
     "tqdm>=4.65",
+    "cma>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -67,9 +68,6 @@ dev = [
 ]
 tutorial = [
     "matplotlib>=3.5",
-]
-evotune = [
-    "cma>=3.3",
 ]
 
 [project.urls]

@@ -4,13 +4,6 @@ See ``docs/evotune_kcat_tuning.md`` for the walkthrough:
 :func:`~.tuning.screen_kcat_leverage`, then
 :func:`~.tuning.select_tunable_mask`, then
 :func:`~.tuning.cmaes_kcat_tuning`.
-
-Modules in this package that need ``cma`` import it unconditionally --
-it's a hard requirement here, gated one level up instead (see
-``kcat_tuning/__init__.py``) so importing plain
-``geckopy.kcat_tuning`` never requires the optional
-``evotune`` extra. Install it with
-``pip install geckopy[evotune]``.
 """
 from .data import EvotuneData, load_evotune_data
 from .distance import (

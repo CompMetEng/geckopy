@@ -3,7 +3,7 @@
 In a typical chemostat experiment you measure exchange fluxes
 (substrate uptake, byproduct secretion, biomass growth rate)
 under one or more growth conditions. This function takes a
-``FluxData`` (parsed from ``fluxData.tsv``), picks one condition,
+``FluxData`` (parsed from ``fluxData.tsv``), selects one condition,
 and applies those measurements as bounds on the matching
 exchange reactions in the model.
 
@@ -43,7 +43,7 @@ def apply_flux_data_constraints(
     Sets the biomass reaction bounds to the measured growth rate and
     each exchange reaction in ``flux_data.exch_rxn_ids`` to its
     measured flux for the chosen condition. Also zeros out the
-    adapter's preferred carbon source so the data drives the choice.
+    adapter's preferred carbon source so the data determines the choice.
 
     Ported from GECKO MATLAB:
     src/geckomat/limit_proteins/constrainFluxData.m.

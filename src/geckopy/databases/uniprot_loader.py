@@ -142,7 +142,7 @@ def load_uniprot_tsv(
     mw_da: list[float] = []
     sequences: list[str] = []
     # One Entry per source row (before gene-cell splitting), so duplicate
-    # detection sees each row exactly once regardless of how many genes it
+    # detection counts each row exactly once regardless of how many genes it
     # expands to.
     source_row_ids: list[str] = []
 

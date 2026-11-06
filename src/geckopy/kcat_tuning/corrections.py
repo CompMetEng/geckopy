@@ -22,7 +22,7 @@ from typing import Optional, Sequence
 import numpy as np
 
 # Isozyme copies of one reaction are stored as separate ec rows with a
-# suffix; the underlying reaction carries the name.
+# suffix; the underlying reaction has the name.
 _ISOZYME_SUFFIX = "_EXP_"
 
 
@@ -144,7 +144,7 @@ def corrections_tsv(rows: Sequence[Correction]) -> str:
 def annotate_from_model(model, rxn_ids: Sequence[str]) -> dict[str, list[str]]:
     """Names, EC codes and sources for ``rxn_ids``, read off an ecModel.
 
-    An isozyme copy carries a ``_EXP_n`` suffix that the underlying
+    An isozyme copy has a ``_EXP_n`` suffix that the underlying
     reaction does not, so the name is looked up under the stripped id.
     Anything absent is reported as ``""``.
     """

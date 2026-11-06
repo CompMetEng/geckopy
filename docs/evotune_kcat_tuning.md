@@ -71,7 +71,7 @@ fructose    NaN    0.338    NaN                -1000              ...   1       
 `Ptot` is measured protein content (`NaN` if not measured), each
 `<met> (<rxn>)` column is a measured or fixed flux for that exchange
 reaction, `evotuneRMSEweight` scales how much that row counts toward
-the RMSE (usually `1`), and `source` is free text carried through for
+the RMSE (usually `1`), and `source` is free text kept unchanged for
 your own bookkeeping. `evotuneZeroExch.tsv` is simpler -- a `Rxns`
 header, then one reaction ID per line.
 
@@ -110,7 +110,7 @@ What each knob means:
   before it moves that kcat far. `custom` (curated by hand) at 0.1 is
   three times more trusted than an unlabelled prediction at 0.3. This
   is the one section with no universal default -- your model's own
-  source labels decide it.
+  source labels determine it.
 - **`max_growth_weight`** (default `1.0`). The combined score is
   `(rmse_flux + w * rmse_max_growth) / (w + 1)`. At `2`, growth-rate
   error counts double against flux error -- useful when growth rate is
@@ -130,7 +130,7 @@ What each knob means:
   `sigma0_log` and of the objective itself --
   `tune_prior_penalty_weight` runs a candidate sweep and reports fit
   cost against cross-seed reproducibility so it doesn't have to be
-  picked blind (see its docstring; it costs one full tuning run per
+  chosen without information (see its docstring; it costs one full tuning run per
   candidate per seed, so treat it as an occasional calibration step,
   not part of routine tuning).
 - **`tie_isozymes`** (default `true`). Several ecModel reactions are
@@ -163,10 +163,10 @@ no tuning happens yet. The result is a table, one row per kcat or tied
 group, ranked by that leverage weighted by trust: the reaction ID, how
 many isozyme copies it covers, its source group, its current value,
 its leverage, and `cum_leverage_share` -- the running fraction of
-total leverage carried by this row and every row above it. The top
+total leverage accounted for by this row and every row above it. The top
 rows are what a curator should look at first, independent of whether
 you ever run a tuning search: on ecYeastGEM, a handful of kcats
-routinely carry the majority of what any tuning run could achieve, and
+routinely account for the majority of what any tuning run could achieve, and
 they tend to be implausible database values rather than genuine
 biology.
 
@@ -222,7 +222,7 @@ come back in input order, and looking odd is all you get. `coverage`
 (a share of flagged leverage) or `top` (a row count) then truncates the
 report: on ecYeastGEM, tightening the checks themselves does not work
 half as well as this does, since `coverage=0.8` cuts 2575 unfiltered
-rows to 33, and the first row alone carries half.
+rows to 33, and the first row alone accounts for half.
 
 ## Step 5: Tune
 
@@ -247,7 +247,7 @@ or an absolute leverage value, so the same setting means a comparable
 thing on a different model. Pass `tunable_mask` directly instead if
 you want to fix the set yourself.
 
-`model` is mutated in place: on return, every tunable kcat carries the
+`model` is mutated in place: on return, every tunable kcat has the
 best value CMA-ES found, and the model's kcat constraints are already
 applied -- nothing further is needed before simulating or saving it.
 Beyond `target_impact_share`, the only other knobs are `popsize`
@@ -286,7 +286,7 @@ Before trusting a tuned kcat, check more than the final RMSE:
    tools for this: `n_changed`, `fold_change`, `source_movement`.
 2. **Impact share** -- `parsimony.impact_share` reports what fraction
    of the total achievable improvement the changed kcats actually
-   carry, distinguishing "few, large, and consequential" from mere
+   account for, distinguishing "few, large, and consequential" from mere
    sparsity. This is a different, unweighted quantity from
    `screen_kcat_leverage`'s trust-weighted `cum_leverage_share`.
 3. **Reproducibility.** Rerun with a different `seed`. Large

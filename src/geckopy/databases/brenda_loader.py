@@ -19,7 +19,7 @@ kcat and SA have seven tab-delimited columns: EC number, substrate
 (``*`` for SA), organism, value-max, value-median, n (number of raw
 measurements aggregated), references (semicolon-joined PMIDs or
 ``*``). MW has six columns (single value, no aggregation choice). A
-``#`` header line carries the BRENDA release version; the line after
+``#`` header line contains the BRENDA release version; the line after
 it is the TSV column header (also skipped).
 """
 from __future__ import annotations
@@ -345,7 +345,7 @@ def _sa_view_from_wide(wide: pd.DataFrame, value_col: str) -> pd.DataFrame:
 
 
 def _join_sa_with_mw(sa: pd.DataFrame, mw: pd.DataFrame) -> pd.DataFrame:
-    """Join SA + MW on (EC, organism) case-insensitive, first MW match wins.
+    """Join SA + MW on (EC, organism) case-insensitive, the first MW match is kept.
 
     For each SA row, find the first MW row with the same EC and
     organism (case-insensitive). If found, emit a row with the

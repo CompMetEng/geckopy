@@ -86,7 +86,7 @@ print(f"ecModel: {len(ec_model.reactions)} reactions, "
 
 # %% [markdown]
 # **STEP 12-13** Annotate with complex data. The Complex Portal
-# JSON is shipped at `data/ComplexPortal.json`; the downloader
+# JSON is included at `data/ComplexPortal.json`; the downloader
 # `geckopy.databases.get_complex_data` would refresh it.
 
 # %%
@@ -150,7 +150,7 @@ find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 
 # %% [markdown]
 # **STEP 23** Prepare DLKcat input file. The `data/DLKcat.tsv`
-# shipped here already has predicted kcat values; uncomment to
+# included here already has predicted kcat values; uncomment to
 # regenerate (this discards existing predictions).
 #
 # ```python
@@ -163,7 +163,7 @@ find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 
 # %% [markdown]
 # **STEP 24** Run DLKcat. (External tool; not invoked here. The
-# shipped `data/DLKcat.tsv` already has output from a previous run.)
+# included `data/DLKcat.tsv` already has output from a previous run.)
 
 # %% [markdown]
 # **STEP 25** Load DLKcat output from `data/DLKcat.tsv`, kept as

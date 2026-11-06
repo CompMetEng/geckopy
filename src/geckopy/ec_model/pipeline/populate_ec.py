@@ -195,7 +195,7 @@ def populate_enzyme_data(
         if kegg_idx is None:
             unmatched.append(gene)
             continue
-        # KEGG fallback hit. Prefer the UniProt accession carried on the
+        # KEGG fallback hit. Prefer the UniProt accession given in the
         # KEGG row; fall back to the bare KEGG gene id when empty.
         kegg_uniprot = kegg_db.uniprot_ids[kegg_idx]
         if kegg_uniprot:
@@ -337,7 +337,7 @@ def allocate_ec_and_coupling_light(model: "EcModel") -> list[str]:
     into ec instead:
 
     - Each cobra reaction with N isozymes (i.e. ``len(gpr_to_dnf(rxn.gpr))
-      == N``) produces N rows in ec.rxns. Row k carries the id
+      == N``) produces N rows in ec.rxns. Row k has the id
       ``"{k:03d}_{rxn.id}"`` (1-indexed, three-digit zero-padded counter).
     - Row k's slice of ``ec.rxn_enz_mat`` is 1.0 for each gene in that
       isozyme's AND-clause; other genes are 0.

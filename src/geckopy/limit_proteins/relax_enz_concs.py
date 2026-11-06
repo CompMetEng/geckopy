@@ -7,7 +7,7 @@ is ranked and on the order in which they are found; on a large model
 with noisy proteomics, small changes to that ranking can change the
 result. ``relax_enz_concs`` asks the question once instead: what is the
 smallest set of fold increases of the measured caps (and, if necessary,
-of the protein pool) that lets the model reach the target growth rate?
+of the protein pool) that allows the model to reach the target growth rate?
 
 Every measured enzyme's cap becomes ``usage <= conc * (1 + x)`` and the
 sum of the ``x`` is minimised under ``growth >= exp_growth``. The protein

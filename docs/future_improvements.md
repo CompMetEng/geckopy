@@ -39,20 +39,20 @@ fast, and so we have a list of things to retest when we upgrade.
   kernels.** Even a trivial 2-worker pool with a `lambda x: x*2`
   task hangs forever — no error, no timeout. The original plan for
   parallel `ec_fva` called for `spawn` because it's the only context
-  available on Windows. Workaround: pick the context based on the
+  available on Windows. Workaround: select the context based on the
   platform — `fork` on POSIX (which is also faster, no module
   re-import), `spawn` on Windows. See `geckopy.utilities.ec_fva.ec_fva`.
 
 - **`ruamel.yaml`'s `ScalarInt` / `ScalarFloat` leak out of cobra
   YAML loads.** After loading a YAML model with cobra, attributes
   like `Metabolite.charge` are ruamel scalar types (subclasses of
-  int/float that carry YAML formatting metadata). The ruamel
+  int/float that have YAML formatting metadata). The ruamel
   safe-dumper has no representer for them, so writing the model
   back out fails with `RepresenterError: cannot represent an
   object: 0`. Workaround: walk the assembled document and coerce
   everything to plain Python primitives just before writing. See
-  `geckopy.utilities.save_ec_model._to_native`. This bites any
-  YAML-to-YAML round-trip of a cobra-loaded model.
+  `geckopy.utilities.save_ec_model._to_native`. This affects any
+  write of a cobra-loaded model back to YAML.
 
 ## Deferred migrations
 
@@ -131,7 +131,7 @@ Notable items:
   org-SA (output rank 5) BEFORE any-organism-no-substrate-kcat
   (output rank 4). When both are available for a reaction, MATLAB
   returns the org-SA result and reports its origin as 5, even though
-  the docstring's origin ranking implies origin 4 should win. Either
+  the docstring's origin ranking implies origin 4 should be kept. Either
   swap the search order so any-no-subs-kcat is tried before org-SA,
   or update the docstring to match the search order. geckopy
   replicates the current MATLAB behavior, both within one EC number

@@ -5,7 +5,7 @@ without any GECKO additions. This is the model that
 ``make_ec_model`` extends into an ecModel.
 
 This helper reads that file from the path set in the adapter
-(``adapter.params.conv_gem``). The extension picks the reader:
+(``adapter.params.conv_gem``). The extension selects the reader:
 ``.yml``/``.yaml`` via raven-toolbox's ``read_yaml_model`` (which,
 unlike cobra's reader, keeps RAVEN fields such as per-reaction
 ``eccodes``), ``.json`` via

@@ -2,7 +2,7 @@
 
 Thin backward-compatible wrapper around :func:`merge_kcats`, kept for the
 common DLKcat + fuzzy-BRENDA case and for parity with the MATLAB name.
-New code should call :func:`merge_kcats` directly, which also handles
+New code should call :func:`merge_kcats` directly, which also accepts
 single lists that mix several sources (e.g. an OpenKineticsPredictor
 result with BRENDA / Sabio-RK / CataPro rows).
 

@@ -4,7 +4,7 @@ Ported from GECKO MATLAB: src/geckomat/change_model/applyKcatConstraints.m.
 Supports both the full and gecko-light formulations. The two share the
 clear-then-write idempotency contract but write to different metabolites:
 full models write per-enzyme ``prot_<id>`` coefficients on each ec.rxn;
-light models pick the lowest-cost isozyme per cobra reaction and write a
+light models select the lowest-cost isozyme per cobra reaction and write a
 single ``prot_pool`` coefficient there.
 """
 from __future__ import annotations
@@ -268,7 +268,7 @@ def _apply_kcat_constraints_light(
     if selected_idx.size == 0:
         return
 
-    # The cobra reaction carries the LP constraint, so selecting one isozyme
+    # The cobra reaction has the LP constraint, so selecting one isozyme
     # row updates the reaction as a whole: every ec row of that reaction
     # competes for the cheapest cost, selected or not.
     affected = {

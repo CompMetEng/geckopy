@@ -53,7 +53,7 @@ def convert_custom_kcats(
 
     The kcats are those :func:`~geckopy.ec_model.pipeline.apply_custom_kcats`
     gives the ecModel, including which of two entries for the same reaction
-    wins: one row per reaction, keyed by conventional reaction and enzyme set
+    is kept: one row per reaction, keyed by conventional reaction and enzyme set
     (see :func:`~geckopy.gather_kcats.ec_rxn_keys`), with the entry's notes in
     the note column. The ``stoicho`` column is left out: complex
     stoichiometry comes from ``apply_complex_data``. Unlike

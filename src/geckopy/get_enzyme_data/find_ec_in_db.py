@@ -114,9 +114,9 @@ def find_ec_in_db(
       ``gene_to_protein_indices``. Missing keys count as no DB match.
     * Filter to proteins with non-empty ``db_eccodes``.
     * If those proteins agree on a single EC string (or there is only
-      one protein), pick the lightest-MW one's string. NaN MWs are
+      one protein), select the lightest-MW one's string. NaN MWs are
       treated as +inf so a NaN-only group falls back to the first.
-    * If they disagree, pick the first distinct string in DB order
+    * If they disagree, select the first distinct string in DB order
       (matching MATLAB ``unique('stable')``) and emit a
       ``logger.warning`` listing the gene as a conflict.
 

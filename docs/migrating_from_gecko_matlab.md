@@ -16,7 +16,7 @@ them require you to change your model files.
 > geckopy also follows — see
 > [GECKO 3 to GECKO 4](https://gecko-docs.readthedocs.io/en/latest/gecko3-to-gecko4.html)
 > for the full list. Throughout this guide, individual functions that
-> are affected by those 3→4 changes carry a **`[3→4]`** marker; that
+> are affected by those 3→4 changes have a **`[3→4]`** marker; that
 > marker is geckopy's signal that the function's behaviour or schema
 > differs from what GECKO 3 did, not a Python-vs-MATLAB difference.
 
@@ -194,7 +194,7 @@ like `data_col` (default `0`) and `condition` (in `apply_flux_data_constraints`)
 Implemented end-to-end. `make_ec_model(model, adapter, gecko_light=True)`
 produces a working light ecModel; `apply_kcat_constraints`,
 `set_kcat_for_reactions`, and the `Enzyme` proxy's read paths all
-handle the light layout. The per-enzyme prot-pool analyses (proteomics
+work on the light layout. The per-enzyme prot-pool analyses (proteomics
 integration via `constrain_enz_concs`, `flexibilize_enz_concs`,
 `pfba_enzymes`) and the isozyme-aggregating helpers
 (`fill_kcats_from_isozymes`) raise `NotImplementedError` on a light
@@ -420,11 +420,11 @@ empty-ecModel guard, provenance injection). See
 [raven_integration.md](raven_integration.md) for the split, and
 [yaml_format.md](yaml_format.md) for the schema reference.
 
-**BRENDA data files.** **`[3→4]`** GECKO 4 / geckopy ship
+**BRENDA data files.** **`[3→4]`** GECKO 4 / geckopy include
 `kcat.tsv` / `sa.tsv` / `mw.tsv` (refreshed from the BRENDA bulk
 JSON; bare EC numbers, plain organism names, `#` release header,
 `references` column). GECKO 3's `max_KCAT.txt` etc. are no longer
-read. **`[Py]`** geckopy additionally ships both **max** and
+read. **`[Py]`** geckopy additionally includes both **max** and
 **median** rows per (ec, substrate, organism) triple in one file,
 distinguished by an `aggregation` column. The default
 `kcat_aggregate_brenda = "max"` preserves MATLAB-GECKO behaviour.
@@ -438,7 +438,7 @@ See [kcat_aggregation.md](kcat_aggregation.md).
 
 The port found and fixed several GECKO 3 bugs (EC-code assignment,
 sigma fitting, standard-kcat subsystem means, duplicate EC codes,
-…); **`[3→4]`** GECKO 4 carries the same fixes, so the two toolboxes
+…); **`[3→4]`** GECKO 4 includes the same fixes, so the two toolboxes
 agree. The full per-function divergence list lives on the
 [GECKO vs. geckopy](https://gecko-docs.readthedocs.io/en/latest/gecko-to-geckopy.html) page
 of gecko-docs.readthedocs.io, plus [future_improvements.md](future_improvements.md)
@@ -453,7 +453,7 @@ for the MATLAB-side items the port surfaced.
 - **Forward-direction protein reactions** (`usage_prot_*` /
   `prot_pool_exchange`).
 - **Refreshed BRENDA TSV schema** (geckopy adds the max+median
-  variant; MATLAB ships only max so far).
+  variant; MATLAB includes only max so far).
 
 ### geckopy-only (no MATLAB counterpart)
 

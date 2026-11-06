@@ -42,7 +42,7 @@ from geckopy import (
 # %% [markdown]
 # ## STAGE 1: Expansion from a starting GEM to a light ecModel
 #
-# **STEP 8** Load the adapter. ecTestGEM ships in ``examples/`` so the
+# **STEP 8** Load the adapter. ecTestGEM is included in ``examples/`` so the
 # tutorial is self-contained; no local ``model_adapter.toml`` is needed.
 
 # %%
@@ -103,7 +103,7 @@ print(f"Reactions containing 'prot': "
 # pipeline). Here we set a couple of kcats by hand to demonstrate the
 # light dispatch.
 #
-# In a light model the ``ec.rxns`` IDs carry a ``###_`` prefix, which is
+# In a light model the ``ec.rxns`` IDs have a ``###_`` prefix, which is
 # part of the ID for ``set_kcat_for_reactions``, as in GECKO's
 # ``setKcatForReactions``: ``"001_R2"`` targets exactly that isozyme row,
 # so you can set different kcats per isozyme, and the bare cobra ID
@@ -124,7 +124,7 @@ for rid in ec_model.ec.rxns:
 # **STEP 31** Push the kcats into the S-matrix.
 #
 # Light ``apply_kcat_constraints`` differs from the full version: for
-# each cobra reaction it picks the *cheapest* isozyme (smallest
+# each cobra reaction it selects the *cheapest* isozyme (smallest
 # ``MW_sum / kcat``) across all its ``###_`` rows, then writes a single
 # ``-MW_sum / (kcat * 3600)`` coefficient at ``S[prot_pool, rxn]``. No
 # per-enzyme constraints are written.

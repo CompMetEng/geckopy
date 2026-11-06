@@ -1,6 +1,6 @@
 # kcat aggregation: how far is `max` from `median` on BRENDA?
 
-The BRENDA files (toolbox-assets release `brenda-2026.1-1`) carry **both** the per-(ec, substrate,
+The BRENDA files (toolbox-assets release `brenda-2026.1-1`) contain **both** the per-(ec, substrate,
 organism) max and the per-triple median of all raw measurements that
 fell into the triple. They live in the same `kcat.tsv` / `sa.tsv` file
 distinguished by an `aggregation` column; `load_brenda_data` splits
@@ -40,7 +40,7 @@ Across those:
 |---|---:|---:|---:|
 | within-triple `log10(max / median)` | 0.05 / 0.16 / 0.28 | **0.26** | 0.58 |
 
-So within a triple the max sits typically ~1.8× above the median;
+So within a triple the max is typically ~1.8× above the median;
 4.8 % of multi-measurement triples have max ≥ 10× the median, 1.2 %
 have max ≥ 100×. Small effect — *within* a triple BRENDA measurements
 are usually close enough that picking max vs median doesn't move the
@@ -76,7 +76,7 @@ median-of-medians:
 | `maxmax ≥ 100× medmed` | 24.2 % |
 | `maxmax ≥ 1 000× medmed` | 8.6 % |
 
-For 60 % of well-measured ECs, the shipped default kcat is ≥ 10× the
+For 60 % of well-measured ECs, the included default kcat is ≥ 10× the
 typical BRENDA assay; for 8.6 % it is ≥ 1 000× above. Most of that
 comes from the runtime aggregation layer (`maxmax / maxmed` ≈ 1.38),
 with a small further bias from the snapshot layer (`maxmed / medmed`
@@ -143,7 +143,7 @@ ec_code	substrate	organism	kcat_max	kcat_median	n	references
 ```
 
 One **wide** row per (ec, substrate, organism) triple. `kcat_max` and
-`kcat_median` carry the two statistics computed from the raw
+`kcat_median` contain the two statistics computed from the raw
 measurements that fell into the triple. `n` is the count of raw
 measurements aggregated (so `n=1` rows have max == median, as above).
 `sa.tsv` has the same shape with `sa_max` / `sa_median` columns.

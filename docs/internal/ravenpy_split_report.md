@@ -15,7 +15,7 @@ geckopy   — everything specific to enzyme-constrained GEMs (depends on ravenpy
 
 The test applied to every function below: **"Would a researcher working on a plain
 GEM (no enzyme constraints) ever want this?"** If yes → `ravenpy`. If it only makes
-sense once a model carries kcats / a protein pool / enzyme usage → `geckopy`.
+sense once a model contains kcats / a protein pool / enzyme usage → `geckopy`.
 
 A second, sharper test for the borderline cases: **does the function actually read or
 write the `ec` substructure, or does it just operate on a `cobra.Model`?** Many
@@ -33,7 +33,7 @@ wrapper left in geckopy." Those are called out explicitly.
 ## Tier A — move as-is (clearly generic, little/no coupling)
 
 These operate on a `cobra.Model` (or raw data) and have obvious value for non-ec GEMs.
-Several already carry docstrings naming their RAVEN MATLAB origin.
+Several already have docstrings naming their RAVEN MATLAB origin.
 
 ### Structural model surgery — `ec_model/pipeline/preprocess.py`, `expand.py`
 | function | what it does | why generic |
@@ -208,7 +208,7 @@ For completeness, these are correctly ec-specific and should **not** move:
 ## Suggested migration order
 
 1. **Tier A structural surgery** (`preprocess.py`, `expand.py`) — zero `.ec` coupling,
-   already RAVEN-annotated, immediate win.
+   already RAVEN-annotated, immediately usable.
 2. **Tier A databases + `flux_data`/proteomics + `apply_flux_data_constraints`** — but
    first do the **adapter split** (Tier C) so they don't drag the ec adapter along.
 3. **Tier B EC-code assignment and FSEOF** — refactor to operate on `cobra.Model`,

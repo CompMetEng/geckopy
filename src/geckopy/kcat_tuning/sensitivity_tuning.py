@@ -118,7 +118,7 @@ class TunedKcatsResult:
         leverage of its own to offer -- every bump was, by
         construction, the bottleneck at the time it was made -- so
         without ``leverage`` rows fall back to ordering by fold change.
-        ``rxn_names`` already carries resolved names, so there is no
+        ``rxn_names`` already contains resolved names, so there is no
         need for ``annotate_from_model`` here.
         """
         return build_corrections(
@@ -147,7 +147,7 @@ def sensitivity_tuning(
     2. If growth didn't increase since the last iteration, warns and
        breaks (likely a substrate / pool constraint, not a kcat one).
     3. If growth reached the target, returns.
-    4. Otherwise picks the ``usage_prot_*`` reaction with the highest
+    4. Otherwise selects the ``usage_prot_*`` reaction with the highest
        flux (= most-produced enzyme), excluding any whose UniProt ID
        is in ``prot_to_ignore``.
     5. Finds the catalysed reaction consuming the most of that
@@ -158,7 +158,7 @@ def sensitivity_tuning(
        ``"sensitivityTuning"``.
     7. Re-applies kcat constraints for that single reaction.
 
-    On a gecko-light model each iteration instead picks the reaction with
+    On a gecko-light model each iteration instead selects the reaction with
     the most flux through the protein pool, multiplies the kcat of all its
     isozyme rows by ``fold_change`` and re-applies the constraint of that
     reaction; ``ec.notes`` and ``ec.source`` are left as they are.
@@ -177,7 +177,7 @@ def sensitivity_tuning(
     fold_change
         Per-iteration kcat multiplier.
     prot_to_ignore
-        UniProt IDs whose usage rxns are excluded from being picked
+        UniProt IDs whose usage rxns are excluded from being selected
         as the limiting enzyme, matched without regard to case. An ID with
         no usage reaction raises ``ValueError`` on a full model; on a
         gecko-light model it is ignored.
@@ -336,7 +336,7 @@ def sensitivity_tuning(
 
         # Find the catalysed rxn consuming the most of this protein.
         # Consumption: S[prot, rxn] < 0 with positive flux -> negative product.
-        # We pick the rxn with the most-negative S[prot] * flux.
+        # The rxn with the most-negative S[prot] * flux is selected.
         target_rxn = None
         target_value = 0.0
         for rxn in prot_met.reactions:

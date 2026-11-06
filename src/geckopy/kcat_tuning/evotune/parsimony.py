@@ -58,9 +58,9 @@ def source_movement(
 
     Two medians are reported per source, separating how *many* kcats a
     result moves from how *far* it moves them. ``median_fold`` is taken
-    over every kcat of the source; where most of a source sits at its
+    over every kcat of the source; where most of a source is at its
     prior -- which a restrictive ``tunable_mask`` guarantees -- it
-    saturates at 1.0 and carries no information about the tier.
+    saturates at 1.0 and gives no information about the tier.
     ``median_fold_moved`` conditions on the kcats that did move, and so
     stays informative at any sparsity.
 
@@ -112,16 +112,16 @@ def impact_share(
     drmse: np.ndarray,
     rel_tol: float = 0.02,
 ) -> float:
-    """Fraction of the total screened impact carried by changed kcats.
+    """Fraction of the total screened impact that the changed kcats account for.
 
     ``drmse`` is each kcat's one-at-a-time effect on the distance. A
     result that changes many parameters the data barely responds to
     scores low here even when it changes few of them; one that changes
     a handful of load-bearing parameters scores high. Distinguishes
     "few, large, and consequential" from mere sparsity -- on the full
-    ecYeastGEM run the shrunk blend changes 560 kcats but carries only
+    ecYeastGEM run the shrunk blend changes 560 kcats but accounts for only
     28% of the available impact, while 301 changes chosen by the screen
-    carry 69%.
+    account for 69%.
     """
     drmse = np.asarray(drmse, dtype=float)
     total = drmse.sum()
@@ -146,7 +146,7 @@ def identifiability_mask(
     measured effect of an unlabelled one to qualify.
 
     This uses only the *ranking* of the sigmas across sources, which is
-    the part that carries meaning -- their absolute values are a
+    the part that has meaning -- their absolute values are a
     convention. One global ``threshold`` sets the overall strictness;
     the per-source differentiation is derived, not tuned.
     """
@@ -239,7 +239,7 @@ def best_parsimonious(
 
     Defaults to 2%, which is the scale of the alternate-optimum noise
     measured on this model -- below that, two vectors are not
-    meaningfully different in fit, so the sparser one wins. A point with
+    meaningfully different in fit, so the sparser one is selected. A point with
     a NaN RMSE is never chosen and does not set the best RMSE; when every
     RMSE is NaN no point qualifies and ``ValueError`` is raised.
     """

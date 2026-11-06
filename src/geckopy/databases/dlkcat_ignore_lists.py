@@ -61,7 +61,7 @@ def load_dlkcat_ignore_lists(
 
     Looks for ``DLKcatIgnoreMets.tsv`` and ``DLKcatCurrencyMets.tsv``
     in ``project_data_folder`` first; falls back to the defaults
-    shipped inside ``geckopy.data`` for any file missing from the
+    included in ``geckopy.data`` for any file missing from the
     project folder.
 
     The two files are independent: the project folder may override
@@ -76,7 +76,7 @@ def load_dlkcat_ignore_lists(
     project_data_folder
         Project's ``data/`` folder, typically
         ``adapter.params.path / "data"``. If ``None`` (or the file
-        is absent there), the geckopy-shipped default is used.
+        is absent there), the default included with geckopy is used.
 
     Returns
     -------
@@ -120,7 +120,7 @@ def load_dlkcat_ignore_lists(
 
 
 def _resolve_path(project_data_folder, filename: str):
-    """Project file if present; else the shipped default."""
+    """Project file if present; else the included default."""
     if project_data_folder is not None:
         candidate = Path(project_data_folder) / filename
         if candidate.is_file():

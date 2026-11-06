@@ -16,8 +16,8 @@ the per-complex options for all of them are described at the end.
 | Origin | GECKO MATLAB `flexibilizeEnzConcs.m` (faithful port) | legacy geckopy, Carrasco et al. 2023 |
 | Which enzyme to relax | largest **control coefficient** (how much each measured enzyme's bound limits growth, from `get_conc_control_coeffs`: the reduced cost of its usage bound, or a finite difference where the solver exposes no duals) | largest **\|shadow price\|** (LP dual of the usage upper bound) |
 | Solves per selection | one LP solve plus one check solve per enzyme with a nonzero coefficient (one solve per candidate protein where the solver exposes no duals) | a **single** `slim_optimize` exposes all duals (cheap) |
-| Relaxation step | **gradual**: usage `ub ← conc·(1 + fold_change·k)`; the same enzyme can be picked repeatedly and loosened a bit more each time | **all-or-nothing**: usage `ub ← default_upper_bound` (≈ unconstrained) in one shot |
-| Tighten-back | yes — a refinement pass minimises the protein pool at `exp_growth` and **drops** enzymes whose true usage is below their original conc (un-relaxes over-relaxed ones) | none — each picked enzyme stays fully unconstrained |
+| Relaxation step | **gradual**: usage `ub ← conc·(1 + fold_change·k)`; the same enzyme can be selected repeatedly and loosened a bit more each time | **all-or-nothing**: usage `ub ← default_upper_bound` (≈ unconstrained) in one shot |
+| Tighten-back | yes: a refinement pass minimises the protein pool at `exp_growth` and **drops** enzymes whose true usage is below their original conc (un-relaxes over-relaxed ones) | none: each selected enzyme stays fully unconstrained |
 | Result stringency | **tight** (minimal, proteomics-faithful relaxation) | **loose** (tends to over-relax) |
 | Pool fallback | yes — relaxes `prot_pool_exchange` when no single enzyme helps | no |
 | Scope | measured enzymes only (`~isnan(concs)`) | any currently-constrained enzyme (`ub < default`) |
@@ -51,7 +51,7 @@ follow-ups would make them more interchangeable:
    output is not systematically looser than `flexibilize_enz_concs` (this is
    the over-relaxation point in the modeling-intent review, §3.3).
 2. Align the failure convention — currently one returns a `converged=False`
-   result and the other raises; pick one so callers don't special-case each.
+   result and the other raises; select one so callers don't special-case each.
 
 ## `relax_enz_concs`: the least total relaxation, in one LP
 

@@ -203,7 +203,7 @@ def _forward_reduced_cost(rxn, flux: Optional[float] = None) -> Optional[float]:
     scipy path needs it to confirm that the stored result is that solution.
 
     ``reaction.reduced_cost`` is the forward variable's value minus the reverse
-    variable's, and the reverse variable of a usage reaction carries the opposite
+    variable's, and the reverse variable of a usage reaction has the opposite
     sign, so it is twice the sensitivity to the upper bound; the forward variable
     alone is that sensitivity.
     """

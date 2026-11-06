@@ -2,15 +2,15 @@
 
 Standard FBA finds *some* flux distribution that maximises the
 objective. Parsimonious FBA (pFBA) goes one step further: among
-all flux distributions that achieve the maximum, it picks the one
+all flux distributions that achieve the maximum, it selects the one
 with the smallest total flux. This is the classical pFBA from
-cobra-py — it doesn't know about enzymes.
+cobra-py, which does not use enzyme information.
 
 ``pfba_enzymes`` is the enzyme-aware version: among all
-biomass-optimal flux distributions, it picks the one that uses the
+biomass-optimal flux distributions, it selects the one that uses the
 least enzyme mass (the smallest sum of ``usage_prot_*`` fluxes,
 weighted by the cost coefficients in the LP). For ecModels this is
-usually what you want, because it picks the most parsimonious
+usually what you want, because it selects the most parsimonious
 *proteome*, not just the most parsimonious *fluxes*.
 
 Ported from the legacy geckopy package described in Carrasco et al.
@@ -134,7 +134,7 @@ def pfba_enzymes(
         )
         m.objective.set_linear_coefficients({v: 1.0 for v in variables})
         # Usage fluxes are already mass-scaled (the catalysed-reaction
-        # coupling carries MW/(kcat*3600) and prot_pool is in mg/gDW), so a
+        # coupling has MW/(kcat*3600) and prot_pool is in mg/gDW), so a
         # unit-weighted sum minimises total enzyme mass.
         if m.slim_optimize(error_value=None) is None:
             raise cobra.exceptions.OptimizationError(

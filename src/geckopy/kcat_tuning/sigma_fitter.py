@@ -8,7 +8,7 @@ is 0.5; this function fits a better one.
 
 The algorithm: try a range of sigma values, set the protein-pool
 bound at each, solve the model, compare the predicted growth
-rate to the experimental one, pick the sigma that minimises the
+rate to the experimental one, select the sigma that minimises the
 difference. The default scan is the 0.01 grid of GECKO's
 ``sigmaFitter``; the objective reaction's bounds are opened to
 ``[0, 1000]`` first, and stay open on the fitted model.
@@ -98,14 +98,14 @@ def fit_sigma(
     n_sigma_steps: int = 100,
     method: Literal["grid", "bisect"] = "grid",
 ) -> SigmaFitterResult:
-    """Sweep sigma and pick the one matching ``growth_rate`` best.
+    """Sweep sigma and select the one matching ``growth_rate`` best.
 
     ``method="grid"`` (default) is the sweep of GECKO's ``sigmaFitter``:
     sigma ``i / n`` for ``i = 1..n`` (every grid point evaluated), and the
-    first grid point with the smallest error wins. For a target that growth
+    first grid point with the smallest error is kept. For a target that growth
     cannot reach this is the first sigma of the growth plateau when the
     plateau values are identical; values that differ by solver noise can move
-    the pick to a later grid point, as in ``sigmaFitter.m``. A model that
+    the selection to a later grid point, as in ``sigmaFitter.m``. A model that
     cannot grow at any sigma gives the first grid point, ``1 / n_sigma_steps``.
     ``method="bisect"`` exploits that growth is monotone non-decreasing in
     sigma and finds the best sigma, to a resolution of 1e-6 and not on the

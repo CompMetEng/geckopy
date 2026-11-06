@@ -35,7 +35,7 @@ def set_kcat_for_reactions(
     - Any other ID matches every ec.rxns entry whose ID, after removing a
       trailing ``_EXP_<n>``, equals it. So in a full model ``"R2"``
       matches ``R2``, ``R2_EXP_1`` and ``R2_EXP_2``. In a gecko-light
-      model the ec.rxns IDs carry a ``###_`` prefix (``001_R2``), which
+      model the ec.rxns IDs have a ``###_`` prefix (``001_R2``), which
       is part of the ID: ``"R2"`` matches nothing there and
       ``"001_R2"`` matches that one row.
     - An ID that matches nothing is ignored.

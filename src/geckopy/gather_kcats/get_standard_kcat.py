@@ -163,7 +163,7 @@ def _first_subsystem(rxn: cobra.Reaction) -> str:
     """Return the first subsystem token (split on `;`) or empty string.
 
     Tolerates both string (MATLAB-style ``;``-joined) and list
-    (cobra-py YAML round-trip) representations of ``rxn.subsystem``.
+    (cobra-py YAML written and read back) representations of ``rxn.subsystem``.
     """
     sub = rxn.subsystem
     if not sub:

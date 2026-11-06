@@ -17,7 +17,7 @@ geckopy keeps three application-level concerns:
 3. **Empty-ecModel guard + provenance injection** — fast-fail when the
    caller forgot to run ``make_ec_model``; write a small ``metaData``
    block (date, ecModel format, geckopy release, description) so saved
-   files carry provenance information.
+   files contain provenance information.
 
 The provenance/description metadata is written only into the saved
 YAML; the in-memory model's ``notes`` are mutated only transiently for

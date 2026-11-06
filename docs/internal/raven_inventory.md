@@ -2,7 +2,7 @@
 
 GECKO MATLAB is built on top of
 [RAVEN](https://github.com/CompMetEng/RAVEN), a MATLAB toolkit
-for genome-scale metabolic modelling. RAVEN handles all the
+for genome-scale metabolic modelling. RAVEN does all the
 low-level work: parsing SBML files, editing reactions and
 metabolites, solving FBAs, manipulating gene-protein-reaction
 rules, and so on.
@@ -109,7 +109,7 @@ their job is already handled inside cobra-py / optlang.
 
 | Function | Why it's not ported |
 |---|---|
-| `solveLP(..., minFlux, hsSol)` hot-start | MATLAB-specific solver state; optlang / cobra-py handle warm-start internally |
+| `solveLP(..., minFlux, hsSol)` hot-start | MATLAB-specific solver state; optlang / cobra-py do warm-start internally |
 | `setRavenSolver(...)` | MATLAB CPLEX / Gurobi setup; cobra-py uses `model.solver = "gurobi"` |
 | `importExcelModel`, `checkFileExistence`, dialog UI prompts | File I/O glue, not algorithmic |
 | `convertCharArray`, `dispEM` | MATLAB cell-array and struct utilities |
@@ -127,7 +127,7 @@ The compartment-manipulation functions
 (`mergeCompartments`, `copyToCompartments`) and `removeBadRxns`
 are next on the list but get called in fewer places.
 
-The YAML reader/writer is its own concern. geckopy already picked
+The YAML reader/writer is its own concern. geckopy already uses
 a canonical cobra-py-compatible schema (see
 [yaml_format.md](yaml_format.md)), so the RAVEN-dialect reader is
 really only useful for backward compatibility with legacy files.

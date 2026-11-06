@@ -1,6 +1,6 @@
 """Assign kcats from the kcat source files, as model_adapter.toml sets.
 
-``collect_kcats`` decides one kcat per reaction from the source files in
+``collect_kcats`` selects one kcat per reaction from the source files in
 ``data/kcats`` without changing the model; ``assign_kcats`` applies the
 decisions; ``update_kcat_sources`` gathers the source files the
 configuration needs. GECKO (MATLAB) has the same functions as
@@ -299,7 +299,7 @@ def collect_kcats(
     :func:`assign_kcats` applies the decisions.
 
     The order is a preset or ``[[kcat_assignment.stage]]`` tables. A stage
-    decides the reactions that are still open:
+    assigns a kcat to the reactions that are still open:
 
     - ``select``: the first listed source with a value (see
       :func:`merge_kcats`). Sources are source file names and the BRENDA

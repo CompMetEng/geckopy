@@ -50,7 +50,7 @@ class ModelAdapter:
     Subclass only when a particular organism needs custom logic
     (e.g. an unusual way to identify spontaneous reactions, or a
     bespoke gene-id mapping that the default UniProt-table-driven
-    one can't handle).
+    one does not support).
     """
 
     def __init__(self, params: ModelParameters):

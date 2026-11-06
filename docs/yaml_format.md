@@ -25,7 +25,7 @@ calls cobrapy for the cobra-shaped portion and parses the GECKO
 ## Design goals
 
 1. **Identical to cobrapy.** The cobra-shaped portion is exactly what
-   `cobra.io.model_to_dict` / `model_from_dict` round-trips; no custom
+   `cobra.io.model_to_dict` / `model_from_dict` write and read back; no custom
    parser, no custom schema.
 2. **Round-trippable with MATLAB GECKO.** RAVEN's `writeYAMLmodel`
    and `readYAMLmodel` emit and accept this same format.
@@ -117,7 +117,7 @@ entry here. Fields:
 
 | Field | Type | Required? | Notes |
 |---|---|---|---|
-| `id` | string | yes | Matches a model reaction id; may carry `_EXP_<N>` and/or `_REV` suffixes |
+| `id` | string | yes | Matches a model reaction id; may have `_EXP_<N>` and/or `_REV` suffixes |
 | `kcat` | number | yes | Turnover number in s^-1; write NaN as `.nan` |
 | `source` | string | optional | Where the kcat came from (`"brenda"`, `"dlkcat"`, `"manual"`, ...). Default `""` |
 | `notes` | string | optional | Free-form note. Default `""` |

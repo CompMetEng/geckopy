@@ -47,8 +47,8 @@ def met_smiles(metabolite) -> str:
 
     cobra stores an annotation value as the object it was assigned, and
     returns a *list* for a model read back from a file: a metabolite
-    annotated in memory by :func:`find_met_smiles` carries ``"CCO"``,
-    and the same metabolite after a save/load round trip carries
+    annotated in memory by :func:`find_met_smiles` has ``"CCO"``,
+    and the same metabolite after it is saved and loaded has
     ``["CCO"]``. Readers that assume a string get a list that compares
     equal to nothing and is not hashable.
 

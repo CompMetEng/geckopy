@@ -66,7 +66,7 @@ tests/
   [project.optional-dependencies]
   wildkcat = ["wildkcat>=<min-ver>", "python-dotenv>=1"]
   ```
-  Pick `<min-ver>` from the first PyPI release that ships the
+  Select `<min-ver>` from the first PyPI release that includes the
   programmatic entry point we depend on (see step 1 below).
 - [src/geckopy/gather_kcats/__init__.py](../../src/geckopy/gather_kcats/__init__.py)
   — re-export `gather_kcats_wildkcat` **inside a lazy import**
@@ -100,7 +100,7 @@ tests/
   `(rxn_id, ec_number, substrate_name | substrate_inchi |
   substrate_smiles, organism)`.
 - Record the **output schema** WILDkCAT emits and which columns
-  carry kcat (s^-1 vs min^-1 — confirm and unit-convert in
+  contain kcat (s^-1 vs min^-1; confirm and unit-convert in
   the adapter if needed).
 
 ### 2. `config.py`
@@ -123,7 +123,7 @@ tests/
   same first positional arg, same return type, no surprises.
 - Build the WILDkCAT input table by walking `model.ec.rxns`:
   - `rxn_id` <- `model.ec.rxns[i]` (preserve the `ec_` prefix
-    for light models so the adapter can round-trip)
+    for light models so the adapter can read the id back)
   - `ec_number` <- `model.ec.eccodes[i]`
   - `substrate` <- substrate name(s) from the EC reaction's
     metabolites; reuse the substrate-extraction logic that
@@ -192,7 +192,7 @@ tab-completion until the optional dep is present.
   [README.md](../../README.md) how to enable it.
 - Target test count after this PR: 172 (current) + ~12 new.
 
-### 7. Benchmark helper (optional, can ship in the same PR)
+### 7. Benchmark helper (optional, can be included in the same PR)
 
 `src/geckopy/gather_kcats/benchmark.py`:
 
@@ -228,7 +228,7 @@ decision has nothing to stand on.
 - Removing or deprecating [fuzzy_kcat_matching](../../src/geckopy/gather_kcats/fuzzy_kcat_matching/)
   or DLKcat wrappers. Tracked for a follow-up after benchmarks.
 - Wrapping CataPro standalone (Strategy D). The full WILDkCAT
-  pipeline already drives CataPro.
+  pipeline already runs CataPro.
 - Promoting `gather_kcats_wildkcat` to top-level `geckopy.*`.
 - Changing the MATLAB GECKO side.
 

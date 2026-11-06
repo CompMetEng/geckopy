@@ -26,7 +26,7 @@ optimum; floating-point math differs between Python and MATLAB).
 
 ## Data model
 
-`EcModel` subclasses `cobra.Model` and carries an extra `.ec`
+`EcModel` subclasses `cobra.Model` and has an extra `.ec`
 attribute. `.ec` is an `EcData` dataclass that holds the kcat
 array, enzyme list, MW array, the sparse reaction-enzyme coupling
 matrix, and a few other vectors. See

@@ -1,7 +1,7 @@
 """Support for optlang's scipy (HiGHS) solver interface.
 
 The scipy interface of optlang differs from the other interfaces in ways that matter for an
-ecModel, and this module handles them.
+ecModel, and this module works around them.
 
 Index map after a removal
     ``scipy_interface.Problem`` keeps a map from variable name to column. After a variable is
@@ -41,7 +41,7 @@ Solution after a solve
     After a solve that finds no optimum (infeasible, unbounded) the scipy interface returns
     ``None`` for every primal value and raises for the objective, so ``cobra.Model.optimize``
     fails with a ``TypeError`` instead of returning a solution with that status. The subclass
-    returns NaN for both, so the solution carries the status and NaN values.
+    returns NaN for both, so the solution has the status and NaN values.
 
 Duals
     The scipy interface raises for ``Constraint.dual`` and ``Variable.dual`` but keeps the
@@ -64,7 +64,7 @@ try:
     from optlang import scipy_interface as _scipy_interface
     from optlang.util import SolverTolerances
     from scipy.optimize import linprog
-except ImportError:  # pragma: no cover - optlang always ships the interface
+except ImportError:  # pragma: no cover - optlang always includes the interface
     _scipy_interface = None
 
 __all__ = [

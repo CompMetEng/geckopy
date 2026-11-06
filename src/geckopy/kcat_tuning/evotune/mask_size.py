@@ -3,7 +3,7 @@
 :func:`~.tuning.select_tunable_mask`'s ``target_impact_share`` selects a
 comparable *share* of leverage on any model -- that is the point of a
 relative cutoff over a fixed count or a fixed leverage value. It does not
-follow that the same share sits at a comparable point on the *fit*
+follow that the same share is at a comparable point on the *fit*
 curve: how concentrated a model's leverage is, and how quickly its fit
 stops improving as more parameters join the search, are different
 properties of the model and the data, and they do not move together.
@@ -17,7 +17,7 @@ this module automates.
 The two functions here are meant to be used together but stay separate:
 :func:`sweep_tunable_mask_size` only measures (it runs
 :func:`~.tuning.cmaes_kcat_tuning` at each requested share and reports
-what came back); :func:`recommend_target_impact_share` only decides,
+what came back); :func:`recommend_target_impact_share` only recommends,
 from measurements already in hand. Passing a sweep's own points through
 the second lets a different stopping rule be tried without re-tuning.
 """
@@ -84,7 +84,7 @@ class MaskSizePoint:
     @property
     def rmse_sd(self) -> float:
         """Sample standard deviation across seeds; ``nan`` with fewer
-        than two -- a single seed carries no information about noise,
+        than two -- a single seed gives no information about noise,
         and pretending otherwise (e.g. reporting 0) understates it."""
         return float(np.std(self.rmse, ddof=1)) if len(self.rmse) > 1 else float("nan")
 
@@ -122,7 +122,7 @@ def sweep_tunable_mask_size(
 
     The defaults are a coarse scout, not a guarantee of finding the
     true optimum: five or six points cannot resolve a curve whose real
-    knee sits inside one of the gaps between them, and how wide that
+    knee lies inside one of the gaps between them, and how wide that
     gap needs to be to matter is exactly what a first sweep is for
     finding out. Look at ``n_selected`` after a first sweep -- if
     consecutive shares jump by a large multiple in parameter count
@@ -143,7 +143,7 @@ def sweep_tunable_mask_size(
     cheapest possible scout of the shape; widen to more once a
     promising region is known, since that is where seed noise is most
     likely to matter (fit values close enough together for it to
-    decide the comparison).
+    determine the result of the comparison).
 
     Parameters
     ----------
@@ -213,7 +213,7 @@ def _local_sd(a: MaskSizePoint, b: MaskSizePoint) -> Optional[float]:
     land on different local optima across seeds), and borrowing an
     unrelated point's spread to judge this pair would let noise from
     somewhere else in the sweep, that has nothing to do with this
-    specific comparison, decide it."""
+    specific comparison, determine its result."""
     sds = [p.rmse_sd for p in (a, b) if not np.isnan(p.rmse_sd)]
     if not sds:
         return None

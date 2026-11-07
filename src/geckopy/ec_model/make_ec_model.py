@@ -159,7 +159,7 @@ def make_ec_model(
         Pre-loaded KeggDB. Optional fallback source for protein
         information and EC numbers. When provided, stage 7 fills
         genes that UniProt missed (with ``ec.enzymes`` set to the
-        UniProt accession carried in the KEGG row, or to the KEGG
+        UniProt accession held in the KEGG row, or to the KEGG
         gene id when that accession is empty), and the EC-number
         lookup (``fill_eccodes_from_database``) consults KEGG when
         the UniProt result is empty or ends with ``-``. If None, the

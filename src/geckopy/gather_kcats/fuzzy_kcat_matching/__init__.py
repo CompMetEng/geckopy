@@ -108,7 +108,7 @@ def fuzzy_kcat_matching(
        * any organism + SA (output origin 6)
 
        When the EC has any wildcard, substrate-matching levels are
-       skipped (the substrate field of an EC carries the catalytic
+       skipped (the substrate field of an EC holds the catalytic
        specificity that wildcards already discard).
 
     Across the multiple EC tokens of one reaction, the best match is
@@ -118,14 +118,14 @@ def fuzzy_kcat_matching(
 
     The model's organism is read from
     ``model.adapter.params.org_name``. When BRENDA has no exact
-    organism match, ``phyl_dist`` is used to pick the BRENDA row(s)
+    organism match, ``phyl_dist`` is used to select the BRENDA row(s)
     for the phylogenetically closest organism(s) (with genus fallback
     for organisms missing from KEGG).
 
     The six levels are tried in the fixed order listed above, not in
     order of output rank: org + SA (origin 5) is tried before any
     organism + any substrate + KCAT (origin 4), so when both would
-    match, org + SA wins even though origin 4 would otherwise be
+    match, org + SA is kept even though origin 4 would otherwise be
     considered the better rank.
 
     Match statistics (counts per origin and per wildcard level) are
@@ -157,7 +157,7 @@ def fuzzy_kcat_matching(
         ``model.adapter.params.kcat_aggregate_brenda``, which itself
         defaults to ``"max"``.
 
-        The choice drives both aggregation layers consistently: it picks
+        The choice sets both aggregation layers consistently: it selects
         the matching snapshot view (``brenda.kcat_for(aggregate)`` /
         ``brenda.sa_for(aggregate)``) and applies the same reduction
         across whichever rows survive the EC + organism + substrate
@@ -221,7 +221,7 @@ def fuzzy_kcat_matching(
         return _empty_result_df()
 
     # The snapshot stores both max and median aggregations per
-    # (ec, substrate, organism) triple; pick the view that matches the
+    # (ec, substrate, organism) triple; select the view that matches the
     # requested per-query aggregation so both layers are consistent.
     brenda_kcat = brenda.kcat_for(aggregate)
     brenda_sa = brenda.sa_for(aggregate)

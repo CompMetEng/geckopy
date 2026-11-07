@@ -4,7 +4,7 @@ An ``EcModel`` *is* a cobra model (it subclasses ``cobra.Model``),
 so everything you know how to do with cobra still works: solve
 FBAs, edit reactions, inspect metabolites, etc.
 
-It carries two extra attributes on top of cobra:
+It has two extra attributes on top of cobra:
 
 - ``ec``: an ``EcData`` holding the enzyme-related arrays (kcats,
   enzyme MW, the reaction-enzyme coupling matrix, ...).
@@ -114,7 +114,7 @@ class EcModel(cobra.Model):
         """Copy the model, including an independent ``ec`` substructure.
 
         ``cobra.Model.copy`` rebuilds the reactions, metabolites and genes
-        but carries every other attribute over **by reference**, so without
+        but copies every other attribute **by reference**, so without
         this override ``model.copy().ec`` would be the same ``EcData``
         object as ``model.ec``: writing a kcat on the copy would silently
         change the original. For the same reason the copy's ``enzymes``

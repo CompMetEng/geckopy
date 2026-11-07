@@ -66,7 +66,7 @@ def apply_kcat_list(
     The contributing entry's provenance is recorded in
     ``model.ec.source`` via :func:`format_kcat_source`: a lowercase
     string whose first token is the source and whose bracketed detail,
-    for a fuzzy BRENDA match, carries the wildcard level and origin
+    for a fuzzy BRENDA match, contains the wildcard level and origin
     (e.g. ``"brenda (wc=0, origin=1)"``). If the list has no
     ``wildcard_level`` / ``origin`` columns the source is the bare
     token.

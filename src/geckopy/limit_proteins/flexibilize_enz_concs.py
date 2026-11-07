@@ -7,7 +7,7 @@ enzymes end up too tightly capped to feed the network.
 
 ``flexibilize_enz_concs`` fixes that automatically. It computes a
 control coefficient per enzyme (how much each enzyme's bound is
-limiting growth), picks the worst one, multiplies its upper bound
+limiting growth), selects the worst one, multiplies its upper bound
 by ``fold_change``, re-solves, and repeats until growth reaches
 the target. The result records which enzymes were loosened and by
 how much, so a curator can review.
@@ -17,7 +17,7 @@ package: same goal, different algorithm. This one ranks by control
 coefficient, relaxes gradually, and runs a tighten-back pass, so it
 yields the *minimal* (most proteomics-faithful) relaxation but is
 slower. ``relax_proteomics_greedy`` ranks by shadow price and fully
-unconstrains each picked enzyme — faster, but looser. See
+unconstrains each selected enzyme, which is faster but looser. See
 ``docs/relaxation_methods.md`` for the full comparison.
 
 Ported from GECKO MATLAB:
@@ -86,7 +86,7 @@ class FlexEnzResult:
     ratio_incr
         ``flex_concs / old_concs``; ``inf`` where ``old_concs`` is 0.
     frequence
-        Number of loop iterations in which each enzyme was picked as
+        Number of loop iterations in which each enzyme was selected as
         the most limiting one.
     """
 
@@ -153,10 +153,10 @@ def flexibilize_enz_concs(
         ``model.adapter.params.gr_exp``.
     fold_change
         Controls how much the limiting enzyme's usage upper bound
-        grows each time it is picked: on its ``k``-th pick, the
+        grows each time it is selected: on its ``k``-th selection, the
         bound is set to ``original_conc * (1 + fold_change * k)``.
     iter_per_enzyme
-        Maximum number of times the same enzyme may be picked before
+        Maximum number of times the same enzyme may be selected before
         warning and breaking. ``0`` means no limit.
     bio_rxn
         Biomass reaction id. Defaults to ``params.bio_rxn`` from the
@@ -168,7 +168,7 @@ def flexibilize_enz_concs(
         rank enzymes and complexes by the growth gained per fold of
         raising all their caps together (a levelled complex binds on all
         subunits at once, so no single subunit shows a gain), raise every
-        measured subunit of the picked complex by the same factor, count
+        measured subunit of the selected complex by the same factor, count
         iterations per complex, and keep one factor per complex in the
         refinement pass, so that concentrations levelled by
         ``level_complex_concs`` stay levelled. The ``frequence`` of a
@@ -545,8 +545,8 @@ def _unit_scores(
             if (scores > 0).any():
                 return scores
             scores = np.zeros(len(units))
-    # No dual singles a unit out (none exposed, or the protein pool binds as
-    # well and carries the whole price): probe each candidate with the pool
+    # No dual identifies a unit (none exposed, or the protein pool binds as
+    # well and accounts for the whole price): probe each candidate with the pool
     # lifted, so the probe finds the caps that limit once the pool is relaxed.
     pool_rxn = model.reactions.get_by_id(POOL_EXCHANGE_ID)
     with model:

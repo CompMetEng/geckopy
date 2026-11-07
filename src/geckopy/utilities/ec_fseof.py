@@ -182,7 +182,7 @@ def _biomass_optimal_target_flux(
     """The production-target reaction's flux at biomass-optimum.
 
     Matches ``ecFSEOF.m``'s ``iniTarget``: the scan's floor is where the
-    model actually sits before any production is enforced, which can be
+    model actually is before any production is enforced, which can be
     near zero for a target with no baseline flux -- not a fixed fraction
     of the theoretical maximum.
     """

@@ -430,7 +430,7 @@ def cmaes_kcat_tuning(
     ----------
     model
         EcModel with a populated ``ec.kcat``. Mutated in place: on
-        return, tunable rows carry the best kcat vector CMA-ES found,
+        return, tunable rows hold the best kcat vector CMA-ES found,
         with kcat constraints already applied.
     tunable_mask, screen, target_impact_share
         Control which kcats are searched over, in order of precedence.
@@ -631,7 +631,7 @@ def tune_prior_penalty_weight(
     verbose: bool = True,
 ) -> pd.DataFrame:
     """Sweep ``prior_penalty_weight`` and report the fit/reproducibility
-    trade-off, so the value doesn't have to be picked blind.
+    trade-off, so the value need not be selected without information.
 
     ``prior_penalty_weight`` charges for moving a kcat away from its
     prior, and mainly exists to keep large corrections reproducible
@@ -882,7 +882,7 @@ def _score_kcat_vector(
         max_growth_weight=max_growth_weight,
     )
     # The search may run on a penalised objective, but the plain RMSE
-    # is always carried alongside it so a run stays comparable to
+    # is always recorded alongside it so a run stays comparable to
     # MATLAB's and to runs at other penalties.
     objective = rmse
     if prior_penalty_weight and kcat0 is not None and sigma0_log is not None:

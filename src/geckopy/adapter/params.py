@@ -101,8 +101,8 @@ class MatlabParams(BaseModel):
 
 
 class KcatStageParams(BaseModel):
-    """One ``[[kcat_assignment.stage]]``: decides each reaction that is still
-    open, by the first listed source with a value (``select``) or by all
+    """One ``[[kcat_assignment.stage]]``: assigns a kcat to each reaction that is still
+    open, from the first listed source with a value (``select``) or from all
     listed sources with a value, weighted by their reliability
     (``combine``)."""
     model_config = ConfigDict(extra="forbid")

@@ -202,7 +202,7 @@ def evotune_distance(
     max_growth_weight
         Relative weight of the max-growth dataset against the flux
         dataset, giving ``(rmse_flux + w * rmse_max_grate) / (w + 1)``.
-        At 2 the eight max-growth conditions carry twice the weight of
+        At 2 the eight max-growth conditions have twice the weight of
         the 33 flux conditions, which is the intended emphasis here:
         the max-growth set is where the carbon-source diversity lives,
         while 30 of the 33 flux conditions are glucose.

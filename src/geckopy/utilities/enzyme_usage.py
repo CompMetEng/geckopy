@@ -41,7 +41,7 @@ class EnzymeUsageResult:
     ub
         Upper bound of each ``usage_prot_<X>`` reaction.
     fluxes
-        The original input flux distribution (carried through for
+        The original input flux distribution (kept unchanged for
         downstream use, e.g. by ``report_enzyme_usage``).
     measured_protein
         Sum of the measured concentrations in ``model.ec.concs`` (mg/gDCW)

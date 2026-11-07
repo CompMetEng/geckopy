@@ -199,7 +199,7 @@ class Enzyme:
         ``rxn_enz_mat[:, self.index]``, intersected with reactions
         still present in the cobra model.
 
-        For gecko-light models, each ec row carries a ``###_`` prefix
+        For gecko-light models, each ec row has a ``###_`` prefix
         identifying its isozyme; the prefix is stripped before the cobra
         lookup so two isozyme rows of the same cobra reaction return a
         single ``cobra.Reaction``.

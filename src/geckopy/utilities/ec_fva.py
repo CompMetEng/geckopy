@@ -54,7 +54,7 @@ _WORKER_MODEL: "EcModel | None" = None
 def _init_worker(model: "EcModel") -> None:
     """Pool initializer: store one EcModel copy per worker process.
 
-    ``model`` arrives already deserialised -- ``ProcessPool`` handles
+    ``model`` arrives already deserialised -- ``ProcessPool`` does the
     serialisation itself, including a Windows-specific performance
     workaround (opencobra/cobrapy#997), so it's passed as-is rather than
     pre-pickled.
@@ -167,7 +167,7 @@ def ec_fva(
         # Parallel path via cobra.util.ProcessPool -- the same primitive
         # cobrapy's own flux_variability_analysis/single_reaction_deletion
         # use for "repeated FBA on slightly-perturbed model copies, in
-        # parallel". It handles serialising ec_model to each worker
+        # parallel". It serialises ec_model for each worker
         # (including the Windows-specific performance workaround from
         # opencobra/cobrapy#997) and tears the pool down gracefully
         # (close()+join(), not an abrupt terminate()) on exit.

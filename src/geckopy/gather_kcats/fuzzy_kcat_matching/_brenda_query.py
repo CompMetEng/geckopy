@@ -2,7 +2,7 @@
 
 Given an EC token (possibly with wildcards), a list of substrates,
 and the BRENDA kcat/SA tables, these helpers find candidate rows,
-filter them, pick a kcat, and (for the iterative version) escalate
+filter them, select a kcat, and (for the iterative version) escalate
 wildcards on misses.
 
 The six MATLAB search levels (org+subs+kcat, any+subs+kcat,
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 # above this are clipped, matching MATLAB.
 DIFFUSION_LIMIT = 1e7
 
-# "No match" wildcard count; a large value that never wins
-# min-comparisons against real wildcard counts.
+# "No match" wildcard count; a large value that is never the smaller one
+# in comparisons with real wildcard counts.
 NO_MATCH_WC = 1000
 
 
@@ -151,7 +151,7 @@ def match_kcat(
     collapsed to one value.
 
     Returns ``(kcat_in_1_per_s, num_matched_rows)``, where ``kcat`` is
-    the value picked by ``aggregate``. ``num_matched == 0`` means no
+    the value selected by ``aggregate``. ``num_matched == 0`` means no
     rows survived the filters.
     """
     rows = find_ec_rows(ec_token, ec_indices)

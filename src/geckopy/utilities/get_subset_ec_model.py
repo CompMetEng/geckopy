@@ -66,7 +66,7 @@ def get_subset_ec_model(
        MATLAB's ``removeGenes`` and ``removeReactions`` do.
     7. Trim the corresponding rows of
        ``model.ec.rxns/kcat/source/notes/eccodes/rxn_enz_mat``. In a
-       gecko-light model the ec reaction ids carry a ``001_`` prefix that
+       gecko-light model the ec reaction ids have a ``001_`` prefix that
        is not part of the reaction id.
 
     Ported from GECKO MATLAB:
@@ -74,8 +74,8 @@ def get_subset_ec_model(
 
     If any ``usage_prot_*`` reaction's upper bound differs from the
     default (1000), a warning is logged: protein-concentration
-    constraints on ``big_ec_model`` may not carry over meaningfully
-    to the subset.
+    constraints on ``big_ec_model`` may not remain meaningful
+    for the subset.
 
     Parameters
     ----------
@@ -127,7 +127,7 @@ def get_subset_ec_model(
                 break
 
     # --- 3. Copy the model ---
-    # cobra.Model.copy() doesn't know about the `ec` substructure, so
+    # cobra.Model.copy() does not treat the `ec` substructure specially, so
     # deep-copy it explicitly to avoid mutating the input model.
     small = big_ec_model.copy()
     small.ec = copy.deepcopy(big_ec_model.ec)
@@ -176,7 +176,7 @@ def get_subset_ec_model(
 
         # Drop the protein-pool machinery (usage_prot_<X> reaction and
         # prot_<X> metabolite) for accessions no longer used by any kept
-        # enzyme row, so the subset carries no orphaned enzyme constraints.
+        # enzyme row, so the subset contains no orphaned enzyme constraints.
         # An accession shared by a kept gene (duplicate accession) is
         # retained.
         kept_accessions = set(small.ec.enzymes)

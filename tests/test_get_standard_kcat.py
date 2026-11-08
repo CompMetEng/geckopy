@@ -386,6 +386,7 @@ def test_reaction_without_gpr_gets_standard(tmp_path):
     assign_standard_kcat(model, _uniprot([100.0]))
     assert "r1" in model.ec.rxns
     assert "r2" in model.ec.rxns
+    assert model.ec.source[list(model.ec.rxns).index("r1")] == "standard"
 
 
 def test_reaction_with_gpr_but_no_ec_entry_gets_standard(tmp_path):

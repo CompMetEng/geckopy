@@ -23,6 +23,7 @@ from ..ec_model.pipeline.apply_custom_kcats import apply_custom_kcats
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
+from .kcat_source_format import format_kcat_source, is_standard_source
 from .kcat_sources import load_kcat_source, read_kcat_source
 from .kcats_from import _brenda_release, _measurements, kcats_from_brenda, kcats_from_dlkcat, kcats_from_ec_tree, kcats_from_okp
 from .merge_kcats import _strip_okp_prefix, merge_kcats, normalize_source
@@ -204,7 +205,7 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
                                                  combined["n"], combined["spread_log10"]):
                 i = index[rxn]
                 ec.kcat[i] = kcat
-                ec.source[i] = f"combined (sd={sdv:.2f}, n={nsrc})"
+                ec.source[i] = format_kcat_source("combined", {"sd": f"{sdv:.2f}", "n": int(nsrc)})
                 stage[i], candidates[i], spread[i], sd[i] = str(s), nsrc, spr, sdv
             continue
         lists: list[pd.DataFrame] = []
@@ -266,7 +267,7 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
         spread = np.concatenate([spread, np.full(extra, np.nan)])
         sd = np.concatenate([sd, np.full(extra, np.nan)])
         for i, src in enumerate(ec.source):
-            if src == "standard" and ec.kcat[i] > 0:
+            if is_standard_source(src) and ec.kcat[i] > 0:
                 stage[i] = "standard"
 
     decisions = pd.DataFrame({

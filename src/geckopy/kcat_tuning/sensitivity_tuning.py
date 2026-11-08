@@ -25,7 +25,6 @@ src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence
 
@@ -39,6 +38,7 @@ from ..ec_model.constants import (
 )
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.populate_ec import split_light_rxn_id
+from ..gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 from .corrections import Correction, corrections as build_corrections
 
 if TYPE_CHECKING:
@@ -48,25 +48,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_TUNING_SOURCE = "sensitivityTuning"
+_TUNING_METHOD = "sensitivity"
 # Growth is considered stalled when an iteration improves it by no more
 # than this (absolute, 1/h). Using a tolerance instead of exact equality
 # avoids spinning on sub-numerical-noise increases.
 _GROWTH_STALL_TOL = 1e-9
-
-
-def _num2str(value: float) -> str:
-    """A scalar as MATLAB's ``num2str`` prints it: integers as such, other
-    values with ``max(floor(log10(abs(x))) + 5, 5)`` significant digits."""
-    value = float(value)
-    if math.isnan(value):
-        return "NaN"
-    if math.isinf(value):
-        return "Inf" if value > 0 else "-Inf"
-    if value == int(value):
-        return str(int(value))
-    digits = max(math.floor(math.log10(abs(value))) + 5, 5)
-    return f"{value:.{digits}g}"
 
 
 @dataclass
@@ -153,15 +139,16 @@ def sensitivity_tuning(
     5. Finds the catalysed reaction consuming the most of that
        enzyme's pseudometabolite and multiplies that reaction's
        ``ec.kcat`` by ``fold_change``. A tuned kcat has no upper limit.
-    6. Annotates ``ec.notes`` with the original kcat (printed as MATLAB's
-       ``num2str`` does) and source, unless the source is already
-       ``"sensitivityTuning"``.
+    6. Extends the tuning status of ``ec.source`` with ``sensitivity``
+       (the origin and detail are kept; the kcat before the first tuning
+       is recorded as ``prior`` unless the source already has one).
     7. Re-applies kcat constraints for that single reaction.
 
     On a gecko-light model each iteration instead selects the reaction with
     the most flux through the protein pool, multiplies the kcat of all its
     isozyme rows by ``fold_change`` and re-applies the constraint of that
-    reaction; ``ec.notes`` and ``ec.source`` are left as they are.
+    reaction; the tuning status of ``ec.source`` is extended for each of those
+    rows as above.
 
     Ported from GECKO MATLAB:
     src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
@@ -297,6 +284,7 @@ def sensitivity_tuning(
                 break
             ec_rows = step
             for i in ec_rows:
+                _mark_tuned(model, i)
                 model.ec.kcat[i] = float(model.ec.kcat[i]) * fold_change
             apply_kcat_constraints(model, update_rxns=[model.ec.rxns[ec_rows[0]]])
             if ec_rows[0] not in tuned_ec_indices:
@@ -366,20 +354,9 @@ def sensitivity_tuning(
             break
         ec_idx = model.ec.rxns.index(target_rxn.id)
 
-        # Record the pre-tune kcat/source the first time this reaction is
-        # tuned, and annotate notes (idempotently).
-        if model.ec.source[ec_idx] != _TUNING_SOURCE:
-            old_note = model.ec.notes[ec_idx]
-            new_note = (
-                f"preTuneKcat={_num2str(model.ec.kcat[ec_idx])} | "
-                f"source:{model.ec.source[ec_idx]}"
-            )
-            model.ec.notes[ec_idx] = (
-                f"{old_note}; {new_note}" if old_note else new_note
-            )
-
-        model.ec.kcat[ec_idx] = float(model.ec.kcat[ec_idx]) * fold_change
-        model.ec.source[ec_idx] = _TUNING_SOURCE
+        kcat_before = float(model.ec.kcat[ec_idx])
+        _mark_tuned(model, ec_idx)
+        model.ec.kcat[ec_idx] = kcat_before * fold_change
         apply_kcat_constraints(model, update_rxns=[target_rxn.id])
 
         if ec_idx not in tuned_ec_indices:
@@ -392,6 +369,20 @@ def sensitivity_tuning(
         )
 
     return _build_result(model, tuned_ec_indices, input_kcat, input_source)
+
+
+def _mark_tuned(model: "EcModel", ec_idx: int) -> None:
+    """Add the tuning method to the source of one ec row.
+
+    The kcat before the first tuning is the prior. Called before the kcat
+    changes.
+    """
+    previous = parse_kcat_source(model.ec.source[ec_idx])
+    model.ec.source[ec_idx] = format_kcat_source(
+        previous.origin, previous.detail,
+        dict.fromkeys((*previous.tuned, _TUNING_METHOD)),
+        previous.prior if previous.prior is not None else float(model.ec.kcat[ec_idx]),
+    )
 
 
 def _usage_ids_to_ignore(

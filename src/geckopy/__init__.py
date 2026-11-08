@@ -81,12 +81,14 @@ from geckopy.ec_model.pipeline import (
 # Gather-kcats
 from geckopy.gather_kcats import (
     EcStats,
+    KcatSource,
     apply_kcat_list,
     assign_kcats,
     assign_standard_kcat,
     collect_kcats,
     ec_stats_from_brenda,
     fetch_open_kinetics_predictor,
+    format_kcat_source,
     fuzzy_kcat_matching,
     get_standard_kcat,  # deprecated; alias of assign_standard_kcat
     kcats_from_brenda,
@@ -97,6 +99,7 @@ from geckopy.gather_kcats import (
     load_kcat_source,
     merge_dlkcat_and_fuzzy_kcats,  # deprecated; alias of merge_kcats
     merge_kcats,
+    parse_kcat_source,
     read_dlkcat_output,
     read_kcat_source,
     remove_standard_kcat,
@@ -218,12 +221,14 @@ __all__ = [
     "set_kcat_for_reactions",
     "set_prot_pool_size",
     # Gather-kcats
+    "KcatSource",
     "apply_kcat_list",
     "assign_kcats",
     "assign_standard_kcat",
     "collect_kcats",
     "ec_stats_from_brenda",
     "fetch_open_kinetics_predictor",
+    "format_kcat_source",
     "fuzzy_kcat_matching",
     "kcats_from_brenda",
     "kcats_from_dlkcat",
@@ -233,6 +238,7 @@ __all__ = [
     "load_kcat_source",
     "merge_dlkcat_and_fuzzy_kcats",  # deprecated; alias of merge_kcats
     "merge_kcats",
+    "parse_kcat_source",
     "read_dlkcat_output",
     "read_kcat_source",
     "remove_standard_kcat",

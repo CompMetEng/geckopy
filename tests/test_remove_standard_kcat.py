@@ -261,6 +261,38 @@ def test_filled_zero_kcat_reset_to_zero(tmp_path):
     assert model.ec.source[r2_idx] == ""
 
 
+def test_tuned_standard_kcat_is_kept(tmp_path):
+    """A standard kcat with a tuning status was changed on purpose: it is
+    not reset, while one with the bare origin is."""
+    adapter = _adapter(tmp_path)
+    model = _build_model_with_pool(
+        adapter,
+        [("r1", [("A", -1.0, "alpha", "c"), ("B", 1.0, "beta", "c")], "g1"),
+         ("r2", [("B", -1.0, "beta", "c"), ("C", 1.0, "gamma", "c")], "g2"),
+         ("r3", [("C", -1.0, "gamma", "c"), ("D", 1.0, "delta", "c")], "g3")],
+        ec_rxns=["r1", "r2", "r3"],
+        ec_kcats=[10.0, 0.0, 0.0],
+        ec_genes=["g1", "g2", "g3"], ec_enzymes=["g1", "g2", "g3"],
+        ec_mws=[100.0, 100.0, 100.0],
+        rxn_to_ec_genes=[[0], [1], [2]],
+    )
+    assign_standard_kcat(model, _uniprot([100.0]), fill_zero_kcat=True)
+    r2_idx = model.ec.rxns.index("r2")
+    r3_idx = model.ec.rxns.index("r3")
+    tuned = "standard | tuned=cmaes (prior=7.5)"
+    model.ec.source[r2_idx] = tuned
+    kcat_r2 = float(model.ec.kcat[r2_idx])
+
+    remove_standard_kcat(model)
+
+    r2_idx = model.ec.rxns.index("r2")
+    r3_idx = model.ec.rxns.index("r3")
+    assert model.ec.source[r2_idx] == tuned
+    assert model.ec.kcat[r2_idx] == kcat_r2
+    assert model.ec.source[r3_idx] == ""
+    assert model.ec.kcat[r3_idx] == 0.0
+
+
 # --------------------------------------------------------------------------- #
 # Round-trip
 # --------------------------------------------------------------------------- #

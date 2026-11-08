@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
+from .kcat_source_format import is_standard_source
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -35,7 +36,8 @@ def remove_standard_kcat(model: "EcModel") -> None:
        ec fields.
     2. The "standard" entry is dropped from all per-enzyme ec fields,
        and its column is removed from ``rxn_enz_mat``.
-    3. Remaining ec.rxns rows where ``source == "standard"`` (these
+    3. Remaining ec.rxns rows whose ``source`` has the origin ``standard``
+       and no tuning status (these
        are rxns whose existing kcat was filled by
        ``fill_zero_kcat=True``, but linked to a real enzyme) have
        their ``kcat`` reset to 0 and ``source`` cleared.
@@ -109,14 +111,17 @@ def _remove_standard_pseudoenzyme(model: "EcModel") -> None:
 
 
 def _reset_standard_source_rxns(model: "EcModel") -> list[str]:
-    """Reset rows where source='standard' to kcat=0 and source=''.
+    """Reset the rows of the standard kcat to kcat=0 and source=''.
+
+    A row counts when its source has the origin ``standard`` and no tuning
+    status.
 
     Returns the affected reaction IDs so the caller can re-apply kcat
     constraints to clean up the S matrix.
     """
     affected: list[str] = []
     for i, src in enumerate(model.ec.source):
-        if src == "standard":
+        if is_standard_source(src):
             model.ec.kcat[i] = 0.0
             model.ec.source[i] = ""
             affected.append(model.ec.rxns[i])

@@ -69,6 +69,7 @@ import pandas as pd
 from cobra.util import ProcessPool
 
 from ...ec_model.pipeline.apply_kcat import apply_kcat_constraints
+from ...gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 from ..corrections import Correction, corrections as build_corrections
 from .data import EvotuneData, load_evotune_data
 from .distance import evotune_distance, compute_excarbon
@@ -431,7 +432,9 @@ def cmaes_kcat_tuning(
     model
         EcModel with a populated ``ec.kcat``. Mutated in place: on
         return, tunable rows hold the best kcat vector CMA-ES found,
-        with kcat constraints already applied.
+        with kcat constraints already applied. The ``ec.source`` of
+        every row whose kcat changed gets the tuning method ``cmaes``,
+        with the kcat before the first tuning as ``prior``.
     tunable_mask, screen, target_impact_share
         Control which kcats are searched over, in order of precedence.
         Pass ``tunable_mask`` to fix the set yourself. Otherwise, a
@@ -599,6 +602,14 @@ def cmaes_kcat_tuning(
                 break
 
     model.ec.kcat[tunable_idx] = best_vec
+    for i, before, after in zip(tunable_idx, kcat0, best_vec):
+        if after != before:
+            previous = parse_kcat_source(model.ec.source[i])
+            model.ec.source[i] = format_kcat_source(
+                previous.origin, previous.detail,
+                dict.fromkeys((*previous.tuned, "cmaes")),
+                previous.prior if previous.prior is not None else float(before),
+            )
     if ec_rxn_ids_tunable:
         apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
 
@@ -703,9 +714,11 @@ def tune_prior_penalty_weight(
             model, screen, target_impact_share=target_impact_share)
 
     prior_kcat = model.ec.kcat.copy()
+    prior_source = list(model.ec.source)
 
     def _reset():
         model.ec.kcat[:] = prior_kcat
+        model.ec.source[:] = prior_source
         apply_kcat_constraints(model, update_rxns=model.ec.rxns)
 
     try:

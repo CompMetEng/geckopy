@@ -69,6 +69,18 @@ def test_build_sigma0_log_uses_group_values_and_default_fallback():
     assert sigma0_log.tolist() == pytest.approx([0.4, 0.2, 0.5, 0.3])
 
 
+def test_a_tuning_status_does_not_hide_the_source():
+    params = EvotuneParams(
+        source_groups={"brenda": SourceGroupRule(sources=["brenda"])},
+        sigma0_log_source={"brenda": 0.2},
+        sigma0_log_default=0.3,
+    )
+    for source in ("brenda | tuned=cmaes (prior=6.55)",
+                   "BRENDA (wc=0, origin=2) | tuned=sensitivity+cmaes (prior=5.48)"):
+        assert classify_kcat_source(source, params) == "brenda"
+    assert classify_kcat_source("brendax | tuned=cmaes (prior=1)", params) == UNLABELLED_GROUP
+
+
 def test_a_fuzzy_match_detail_does_not_hide_the_source():
     """``ec.source`` carries the wildcard/origin detail; the tier is the
     source token in front of it."""

@@ -179,6 +179,24 @@ def test_partial_match_above_threshold_logs(caplog):
     assert "C_partial" in caplog.text
 
 
+def test_superset_and_partial_both_proposed(caplog):
+    """As applyComplexData, a reaction gets a superset and a partial proposal."""
+    ec_model = _ectestgem_ec_model()
+    data = [
+        ComplexPortalEntry(complex_id="C_super", name="superset", species="t",
+                           gene_names=["G1", "G2", "G_extra"], protein_ids=["P1", "P2", "P_extra"],
+                           stoichiometry=[1, 1, 1]),
+        ComplexPortalEntry(complex_id="C_partial", name="partial", species="t",
+                           gene_names=["G1"], protein_ids=["P1"], stoichiometry=[1]),
+    ]
+    with caplog.at_level(logging.WARNING):
+        apply_complex_data(ec_model, complex_data=data, apply=False, min_match_to_propose=0.5)
+    r2 = [r.getMessage() for r in caplog.records if "reaction R2_EXP_1 " in r.getMessage()]
+    assert len(r2) == 2
+    assert "C_super" in r2[0] and "superset" in r2[0]
+    assert "C_partial" in r2[1] and "partial" in r2[1]
+
+
 def test_single_enzyme_reaction_not_proposed(caplog):
     """Single-enzyme reactions are not eligible for proposed complexes,
     since their stoichiometry is already unambiguous."""

@@ -40,10 +40,10 @@ OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H"
 #: OKP methods that read whole reactions (substrate set, and products for TurNup)
 #: instead of enzyme-substrate pairs; kcats_from_okp submits pairs only.
 REACTION_OKP_METHODS = ("CatPred", "TurNup")
-#: The OKP methods of the ``okp`` source group by default: those that read
-#: enzyme-substrate pairs and have combination parameters (CatRange predicts
-#: classes, and has none).
-DEFAULT_OKP_METHODS = tuple(m for m in OKP_METHODS if m != "CatRange" and m not in REACTION_OKP_METHODS)
+#: The OKP methods of the ``okp`` source group by default; a project lists others in
+#: ``[kcat_sources.okp] methods`` (those that read enzyme-substrate pairs and have
+#: combination parameters: not CatRange, which predicts classes, nor the reaction methods).
+DEFAULT_OKP_METHODS = ("KinForm-H",)
 
 
 def okp_file(method: str) -> str:
@@ -306,7 +306,7 @@ def collect_kcats(
       ``combined (sd=<log10 sd>, n=<sources>)``.
 
     In both, ``okp`` stands for the OKP methods of ``[kcat_sources.okp]
-    methods`` (default: all methods with combination parameters).
+    methods`` (default: KinForm-H).
 
     The presets:
 

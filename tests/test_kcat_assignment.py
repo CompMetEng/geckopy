@@ -246,3 +246,12 @@ def test_update_kcat_sources_dlkcat_via_okp(tmp_path, monkeypatch):
     report = update_kcat_sources(base, adapter=adapter).set_index("source")
     assert report.loc["dlkcat", "status"] == "failed"
     assert "API key" in report.loc["dlkcat", "note"]
+
+
+def test_default_okp_methods_are_kinform_h_and_a_project_list_is_kept(tmp_path):
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_methods
+
+    _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
+    assert okp_methods(kcat_assignment_config(adapter)) == ["KinForm-H"]
+    adapter.params.kcat_sources["okp"] = {"methods": ["CataPro", "UniKP"]}
+    assert okp_methods(kcat_assignment_config(adapter)) == ["CataPro", "UniKP"]

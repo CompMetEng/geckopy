@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* The `okp` source group of the presets is the OpenKineticsPredictor method KinForm-H alone by default, instead of the eight methods with combination parameters; a project that sets `[kcat_sources.okp] methods` keeps its list. `update_kcat_sources` then gathers `okp_kinform_h.tsv` only. GECKO uses the same default.
 * The default of `okp.method` (the OpenKineticsPredictor method of `kcats_from_okp` without `method`) is `KinForm-H` instead of `CataPro`, as in GECKO.
 * `submit_open_kinetics_predictor`, `fetch_open_kinetics_predictor`, `build_okp_input_csv` and `parse_okp_output` are private (`_submit_open_kinetics_predictor` and so on) and no longer exported from `geckopy`, `geckopy.gather_kcats` or `geckopy.gather_kcats.open_kinetics_predictor`: `kcats_from_okp` and `kcats_from_dlkcat(via="okp")` submit and fetch OpenKineticsPredictor jobs. GECKO moves its OKP engine functions into `kcatsFromOKP` in the same way. `OKPClient` and `OKPError` stay public.
 * `run_dlkcat` and `read_dlkcat_output` are deprecated aliases that warn with a `DeprecationWarning`; `kcats_from_dlkcat(..., via="docker")` and `kcats_from_dlkcat(..., via="file")` run the same code. GECKO's `runDLKcat` and `readDLKcatOutput` are deprecated in the same way. `write_dlkcat_input` stays public.

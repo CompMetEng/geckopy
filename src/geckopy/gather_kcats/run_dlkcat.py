@@ -1,5 +1,8 @@
 """Invoke DLKcat (via Docker) to predict kcat values for a model.
 
+``kcats_from_dlkcat(..., via="docker")`` runs it; ``run_dlkcat`` is a
+deprecated alias.
+
 Ported from GECKO MATLAB:
 src/gather_kcats/runDLKcat.m.
 """
@@ -7,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import warnings
 import subprocess
 import tempfile
 from pathlib import Path
@@ -21,6 +25,25 @@ _OUTPUT_FILENAME = "DLKcatOutput.tsv"
 
 
 def run_dlkcat(
+    input_path: str | Path,
+    *,
+    output_path: Optional[str | Path] = None,
+    docker_image: str = _DEFAULT_DOCKER_IMAGE,
+    timeout: Optional[float] = None,
+) -> Path:
+    """Deprecated: use ``kcats_from_dlkcat(..., via="docker")``.
+
+    Runs DLKcat as :func:`_run_dlkcat` does, after a ``DeprecationWarning``.
+    """
+    warnings.warn(
+        'run_dlkcat is deprecated; use kcats_from_dlkcat(..., via="docker").',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _run_dlkcat(input_path, output_path=output_path, docker_image=docker_image, timeout=timeout)
+
+
+def _run_dlkcat(
     input_path: str | Path,
     *,
     output_path: Optional[str | Path] = None,

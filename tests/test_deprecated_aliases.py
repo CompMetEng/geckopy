@@ -190,3 +190,18 @@ def test_sigma_fitter_alias_passes_method(monkeypatch):
         warnings.simplefilter("ignore", DeprecationWarning)
         module.sigma_fitter(object(), method="bisect")
     assert seen["method"] == "bisect"
+
+
+def test_dlkcat_entry_points_are_deprecated_aliases(monkeypatch, tmp_path):
+    """run_dlkcat and read_dlkcat_output warn and forward to the code
+    kcats_from_dlkcat runs."""
+    import importlib
+
+    run_module = importlib.import_module("geckopy.gather_kcats.run_dlkcat")
+    read_module = importlib.import_module("geckopy.gather_kcats.read_dlkcat_output")
+    seen = []
+    monkeypatch.setattr(run_module, "_run_dlkcat", lambda path, **kwargs: seen.append(("run", path)))
+    monkeypatch.setattr(read_module, "_read_dlkcat_output", lambda model, path, **kwargs: seen.append(("read", path)))
+    _assert_deprecated(run_module.run_dlkcat, tmp_path / "in.tsv", expected_substring='via="docker"')
+    _assert_deprecated(read_module.read_dlkcat_output, None, tmp_path / "out.tsv", expected_substring='via="file"')
+    assert seen == [("run", tmp_path / "in.tsv"), ("read", tmp_path / "out.tsv")]

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `run_dlkcat` and `read_dlkcat_output` are deprecated aliases that warn with a `DeprecationWarning`; `kcats_from_dlkcat(..., via="docker")` and `kcats_from_dlkcat(..., via="file")` run the same code. GECKO's `runDLKcat` and `readDLKcatOutput` are deprecated in the same way. `write_dlkcat_input` stays public.
 * `apply_custom_kcats` is deprecated and warns with a `DeprecationWarning`; `convert_custom_kcats` (or `geckopy upgrade`) turns `data/customKcats.tsv` into `data/kcats/custom.tsv`. `collect_kcats` and `assign_kcats` no longer apply `data/customKcats.tsv`: when a stage lists custom, `data/kcats/custom.tsv` does not exist and `data/customKcats.tsv` does, they raise `ValueError` naming `convert_custom_kcats`. The decisions no longer have the stage `custom`. GECKO's `applyCustomKcats` and `collectKcats` do the same.
 * `download_uniprot` and `load_uniprot_tsv` download reviewed and unreviewed entries by default (`reviewed=False`), as the adapter default `uniprot.reviewed = false`; they downloaded reviewed entries only.
 * `get_conc_control_coeffs` raises `ValueError` when the solve of the model as given is not optimal (for example infeasible), as GECKO's `getConcControlCoeffs` raises `getConcControlCoeffs:infeasible`; it returned no analysed proteins and zero coefficients.

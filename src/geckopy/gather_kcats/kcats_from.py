@@ -25,8 +25,8 @@ from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_sources import format_number, kcat_source_file, save_kcat_source
 from .open_kinetics_predictor import fetch_open_kinetics_predictor, submit_open_kinetics_predictor
 from .open_kinetics_predictor.parse_output import parse_okp_output
-from .read_dlkcat_output import read_dlkcat_output
-from .run_dlkcat import run_dlkcat
+from .read_dlkcat_output import _read_dlkcat_output
+from .run_dlkcat import _run_dlkcat
 from .write_dlkcat_input import write_dlkcat_input
 
 if TYPE_CHECKING:
@@ -327,14 +327,14 @@ def kcats_from_dlkcat(
             )
         write_dlkcat_input(model, dlkcat_file, load_dlkcat_ignore_lists(data_dir),
                            ec_rxns=ec_rxns, overwrite=True)
-        run_dlkcat(dlkcat_file)
+        _run_dlkcat(dlkcat_file)
         run_file.write_text(f"ecRxns: {len(set(ec_rxns))}\n" if ec_rxns is not None else "",
                             encoding="utf-8", newline="\n")
     elif not dlkcat_file.is_file():
         raise FileNotFoundError(
             f"No DLKcat output at {dlkcat_file}. Use via='okp' to predict the kcats."
         )
-    kcat_list = read_dlkcat_output(model, dlkcat_file)
+    kcat_list = _read_dlkcat_output(model, dlkcat_file)
     if save:
         parameters = {"run": via == "docker"}
         if run_file.is_file():

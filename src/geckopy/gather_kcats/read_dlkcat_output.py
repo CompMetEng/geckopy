@@ -1,11 +1,15 @@
 """Read a DLKcat predictions TSV into a kcat_list DataFrame.
 
+``kcats_from_dlkcat(..., via="file")`` reads it; ``read_dlkcat_output`` is a
+deprecated alias.
+
 Ported from GECKO MATLAB:
 src/gather_kcats/readDLKcatOutput.m.
 """
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,6 +35,25 @@ _OUTPUT_COLUMNS = [
 
 
 def read_dlkcat_output(
+    model: "EcModel",
+    file_path: str | Path,
+    *,
+    strict: bool = False,
+) -> pd.DataFrame:
+    """Deprecated: use ``kcats_from_dlkcat(..., via="file")``.
+
+    Reads the file as :func:`_read_dlkcat_output` does, after a
+    ``DeprecationWarning``.
+    """
+    warnings.warn(
+        'read_dlkcat_output is deprecated; use kcats_from_dlkcat(..., via="file").',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _read_dlkcat_output(model, file_path, strict=strict)
+
+
+def _read_dlkcat_output(
     model: "EcModel",
     file_path: str | Path,
     *,

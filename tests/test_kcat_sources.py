@@ -168,7 +168,7 @@ def test_kcats_from_dlkcat_and_okp_write_files(tmp_path, monkeypatch):
     data.mkdir()
     (data / "DLKcat.tsv").write_text("placeholder\n", encoding="utf-8")
     dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "read_dlkcat_output", lambda model, path: dlkcat)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
     _, done = kcats_from_dlkcat(full)
     assert done
     records, meta = read_kcat_source(data / "kcats" / "dlkcat.tsv")
@@ -428,7 +428,7 @@ def test_kcats_from_dlkcat_via(tmp_path, monkeypatch):
     # With the file, the default reads it and does not contact OKP.
     (data / "DLKcat.tsv").write_text("placeholder\n", encoding="utf-8")
     dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "read_dlkcat_output", lambda model, path: dlkcat)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
     kcat_list, done = kcats_from_dlkcat(full)
     assert done and len(kcat_list) == len(dlkcat) and len(calls) == 2
     kcats_from_dlkcat(full, via="okp")
@@ -459,9 +459,9 @@ def test_kcats_from_dlkcat_run_is_docker(tmp_path, monkeypatch):
     ran = []
     monkeypatch.setattr(kcats_from_module.shutil, "which", lambda name: "/bin/docker")
     monkeypatch.setattr(kcats_from_module, "write_dlkcat_input", lambda *a, **k: ran.append("write"))
-    monkeypatch.setattr(kcats_from_module, "run_dlkcat", lambda path: ran.append("run"))
+    monkeypatch.setattr(kcats_from_module, "_run_dlkcat", lambda path: ran.append("run"))
     dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "read_dlkcat_output", lambda model, path: dlkcat)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
     _, done = kcats_from_dlkcat(full, run=True)
     assert done and ran == ["write", "run"]
     _, meta = read_kcat_source(tmp_path / "data" / "kcats" / "dlkcat.tsv")

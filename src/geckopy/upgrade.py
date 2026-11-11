@@ -56,8 +56,8 @@ def convert_custom_kcats(
     is kept: one row per reaction, keyed by conventional reaction and enzyme set
     (see :func:`~geckopy.gather_kcats.ec_rxn_keys`), with the entry's notes in
     the note column. The ``stoicho`` column is left out: complex
-    stoichiometry comes from ``apply_complex_data``. Unlike
-    ``apply_custom_kcats``, ``custom.tsv`` also applies to light ecModels.
+    stoichiometry comes from ``apply_complex_data``. The conversion needs the
+    full ecModel; ``custom.tsv`` applies to full and light ecModels.
 
     Parameters
     ----------
@@ -80,7 +80,7 @@ def convert_custom_kcats(
     from .gather_kcats.kcat_sources import _geckopy_version, ec_rxn_keys, format_number
 
     if model.ec.gecko_light:
-        raise ValueError("apply_custom_kcats does not work on light ecModels; give the full ecModel. "
+        raise ValueError("convert_custom_kcats needs the full ecModel. "
                          "The custom.tsv written applies to light ecModels too.")
     adapter = resolve_adapter(model, adapter, purpose="convert_custom_kcats needs the project folder")
     project = Path(adapter.params.path)

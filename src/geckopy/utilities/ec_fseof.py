@@ -24,8 +24,8 @@ ec-specific concerns on top of raven's general-purpose FSEOF:
 
 The selection method and output shape come from raven-toolbox: each
 reaction's flux is regressed against the enforced product flux across
-the scan, and a reaction is a target if ``|correlation| >=
-correlation_threshold`` and ``|slope| >= flux_eps``. Targets are
+the scan, and a reaction is a target if its flux is not constant across
+the scan and ``|correlation| >= correlation_threshold``. Targets are
 classified as ``amplify`` / ``knockdown`` / ``knockout``. See
 :class:`raven_toolbox.analysis.fseof.FSEOFResult` for the full output
 schema.
@@ -104,10 +104,9 @@ def ec_fseof(
         A reaction is a target when ``|corr(flux, enforced)| >=`` this
         value. Default 0.9.
     flux_eps
-        Minimum ``|slope|`` (flux change per enforced-flux step) for
-        a reaction to count as responsive; below this it is treated
-        as flat regardless of correlation, so it cannot become a
-        target. Default 1e-6.
+        Tolerance below which the theoretical maximum of the production
+        target flux is treated as zero (the scan then raises
+        ``ValueError``). It gates only that check. Default 1e-6.
 
     Returns
     -------

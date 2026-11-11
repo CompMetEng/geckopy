@@ -3,9 +3,9 @@
 After ``make_ec_model`` + ``apply_kcat_constraints``, the model
 often can't reach the experimental growth rate because one or two
 kcat values are unrealistically low (BRENDA's database has many
-small or wrong entries). The right long-term fix is manual
-curation, but as a quick automated workaround
-``sensitivity_tuning`` does the following loop:
+small or wrong entries). ``sensitivity_tuning`` is the standard
+kcat tuning (``cmaes_kcat_tuning`` is the advanced one); it runs the
+following loop:
 
 1. Solve the model.
 2. If we reached the target growth rate, stop.
@@ -20,7 +20,7 @@ rate is ``adapter.params.gr_exp`` (the experimental growth rate
 from the adapter config).
 
 Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
+src/kcat_tuning/sensitivityTuning.m.
 """
 from __future__ import annotations
 
@@ -169,7 +169,7 @@ def sensitivity_tuning(
     reaction; ``ec.notes`` and ``ec.source`` are left as they are.
 
     Ported from GECKO MATLAB:
-    src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
+    src/kcat_tuning/sensitivityTuning.m.
 
     Parameters
     ----------

@@ -2,7 +2,7 @@
 protein database.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/getECfromDatabase.m.
+src/get_enzyme_data/getECfromDatabase.m.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def fill_eccodes_from_database(
     up in a UniProt database.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/getECfromDatabase.m.
+    src/get_enzyme_data/getECfromDatabase.m.
 
     For each entry of ``model.ec.rxns`` selected by ``ec_rxns``:
 

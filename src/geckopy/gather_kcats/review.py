@@ -12,7 +12,7 @@ the model it was tuned on.
 Two design choices, both from measurement rather than taste.
 
 **Rank by leverage, and cut the report there.** On ecYeastGEM the
-checks below flag around 1900 of 4834 kcats, which is a report nobody
+checks below flag a large share of the kcats, a report nobody
 reads. Tightening the checks does not fix that: raising the EC-maximum
 gap from three-fold to ten-fold still returns 216 entries and drops
 *all six* of the high-leverage ones, because looking odd and mattering

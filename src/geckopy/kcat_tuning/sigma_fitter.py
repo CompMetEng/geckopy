@@ -14,7 +14,7 @@ difference. The default scan is the 0.01 grid of GECKO's
 ``[0, 1000]`` first, and stay open on the fitted model.
 
 Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
+src/kcat_tuning/sigmaFitter.m.
 """
 from __future__ import annotations
 
@@ -120,7 +120,7 @@ def fit_sigma(
     is re-applied to ``model`` before return.
 
     Ported from GECKO MATLAB:
-    src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
+    src/kcat_tuning/sigmaFitter.m.
 
     Parameters
     ----------

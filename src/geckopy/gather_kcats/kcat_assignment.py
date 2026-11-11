@@ -365,7 +365,9 @@ def collect_kcats(
         ``decisions`` has one row per ``model.ec`` reaction: ``ec_rxn``,
         ``stage`` (the stage number, ``custom``, ``isozymes``, ``standard``,
         or empty without a kcat), ``source``, ``kcat``, ``candidates`` (values
-        the deciding source had) and ``spread_log10``. ``report`` has the
+        the deciding source had), ``spread_log10`` (their range, in log10
+        units) and ``sd_log10`` (the uncertainty of a combined kcat, a standard
+        deviation in log10 units; NaN for the other stages). ``report`` has the
         ``preset``, the ``missing`` source files and, per source file, its
         load report. ``ec_model`` is a copy of the model with the decided
         kcats, before ``apply_kcat_constraints``.

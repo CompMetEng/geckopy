@@ -14,14 +14,14 @@ the per-complex options for all of them are described at the end.
 | aspect | `flexibilize_enz_concs` | `relax_proteomics_greedy` |
 |---|---|---|
 | Origin | GECKO MATLAB `flexibilizeEnzConcs.m` (faithful port) | legacy geckopy, Carrasco et al. 2023 |
-| Which enzyme to relax | largest **control coefficient** (how much each measured enzyme's bound limits growth, from `get_conc_control_coeffs`: the reduced cost of its usage bound, or a finite difference where the solver exposes no duals) | largest **\|shadow price\|** (LP dual of the usage upper bound) |
+| Which enzyme to relax | largest **control coefficient** (how much each measured enzyme's bound limits growth, from `get_conc_control_coeffs`: the reduced cost of its usage bound, or a finite difference where the solver exposes no duals) | largest **\|shadow price\|** (LP dual of the `prot_<id>` metabolite of the enzyme) |
 | Solves per selection | one LP solve plus one check solve per enzyme with a nonzero coefficient (one solve per candidate protein where the solver exposes no duals) | a **single** `slim_optimize` exposes all duals (cheap) |
 | Relaxation step | **gradual**: usage `ub ← conc·(1 + fold_change·k)`; the same enzyme can be selected repeatedly and loosened a bit more each time | **all-or-nothing**: usage `ub ← default_upper_bound` (≈ unconstrained) in one shot |
 | Tighten-back | yes: a refinement pass minimises the protein pool at `exp_growth` and **drops** enzymes whose true usage is below their original conc (un-relaxes over-relaxed ones) | none: each selected enzyme stays fully unconstrained |
 | Result stringency | **tight** (minimal, proteomics-faithful relaxation) | **loose** (tends to over-relax) |
 | Pool fallback | yes — relaxes `prot_pool_exchange` when no single enzyme helps | no |
 | Scope | measured enzymes only (`~isnan(concs)`) | any currently-constrained enzyme (`ub < default`) |
-| Non-convergence | returns a partial `FlexEnzResult` + warning (global iteration cap) | **raises** `RuntimeError` |
+| Non-convergence | returns a partial `FlexEnzResult` + warning (global iteration cap) | returns `converged=False` when no candidate is left; **raises** `RuntimeError` when `max_iterations` relaxations leave growth below the target |
 | Result type | `FlexEnzResult` (relaxed enzymes, per-enzyme `frequence`, ratios) | `GreedyRelaxResult` (relaxed→orig-conc dict, step trace, `converged`) |
 
 ## Interpretation
@@ -38,7 +38,7 @@ the per-complex options for all of them are described at the end.
   ranks all enzymes by shadow price, and fully unconstraining the worst offender
   usually moves growth a lot. The cost is that it **over-relaxes** (no
   tighten-back), so the resulting model is less constrained than necessary, and
-  it gives up (raises) rather than degrading gracefully.
+  it raises when `max_iterations` relaxations do not reach the target.
 
 ## Recommendation
 
@@ -50,8 +50,9 @@ follow-ups would make them more interchangeable:
 1. Give `relax_proteomics_greedy` an optional tighten-back / graded step so its
    output is not systematically looser than `flexibilize_enz_concs` (this is
    the over-relaxation point in the modeling-intent review, §3.3).
-2. Align the failure convention — currently one returns a `converged=False`
-   result and the other raises; select one so callers don't special-case each.
+2. Align the failure convention: at its iteration cap `flexibilize_enz_concs`
+   returns a partial result with a warning and `relax_proteomics_greedy`
+   raises; select one so callers don't special-case each.
 
 ## `relax_enz_concs`: the least total relaxation, in one LP
 

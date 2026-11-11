@@ -79,7 +79,9 @@ def relax_proteomics_greedy(
         all currently proteomics-constrained enzymes.
     max_iterations
         Safety cap on the number of relaxations; raises ``RuntimeError``
-        when growth is still below ``minimal_growth`` after that many.
+        when growth is still below ``minimal_growth`` after that many and
+        candidates remain. When no candidate is left, a warning is logged
+        and the result has ``converged=False``.
     default_upper_bound
         Value to restore on a relaxed usage reaction. Matches the
         default set by ``add_protein_usage_reactions``.
@@ -148,6 +150,12 @@ def relax_proteomics_greedy(
         return GreedyRelaxResult(
             relaxed=relaxed, trace=trace,
             final_growth=float(growth), converged=True,
+        )
+    if not candidates:
+        logger.warning("No more candidates to relax; stopping")
+        return GreedyRelaxResult(
+            relaxed=relaxed, trace=trace,
+            final_growth=float(growth), converged=False,
         )
     raise RuntimeError(
         f"Did not converge in {max_iterations} iterations "

@@ -21,7 +21,7 @@ the per-complex options for all of them are described at the end.
 | Result stringency | **tight** (minimal, proteomics-faithful relaxation) | **loose** (tends to over-relax) |
 | Pool fallback | yes — relaxes `prot_pool_exchange` when no single enzyme helps | no |
 | Scope | measured enzymes only (`~isnan(concs)`) | any currently-constrained enzyme (`ub < default`) |
-| Non-convergence | returns a partial `FlexEnzResult` + warning (global iteration cap) | returns `converged=False` when no candidate is left; **raises** `RuntimeError` when `max_iterations` relaxations leave growth below the target |
+| Non-convergence | returns a partial `FlexEnzResult` + warning (global iteration cap) | returns `converged=False` when no candidate is left; **raises** `RuntimeError` when `max_iterations` relaxations leave growth below the target and candidates remain |
 | Result type | `FlexEnzResult` (relaxed enzymes, per-enzyme `frequence`, ratios) | `GreedyRelaxResult` (relaxed→orig-conc dict, step trace, `converged`) |
 
 ## Interpretation
@@ -38,7 +38,8 @@ the per-complex options for all of them are described at the end.
   ranks all enzymes by shadow price, and fully unconstraining the worst offender
   usually moves growth a lot. The cost is that it **over-relaxes** (no
   tighten-back), so the resulting model is less constrained than necessary, and
-  it raises when `max_iterations` relaxations do not reach the target.
+  it raises when `max_iterations` relaxations do not reach the target while
+  candidates remain.
 
 ## Recommendation
 

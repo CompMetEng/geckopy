@@ -178,3 +178,15 @@ def test_merge_dlkcat_and_fuzzy_kcats_alias_emits_warning():
         and "merge_kcats" in str(w.message)
         for w in recorded
     )
+
+
+def test_sigma_fitter_alias_passes_method(monkeypatch):
+    import importlib
+
+    module = importlib.import_module("geckopy.kcat_tuning.sigma_fitter")
+    seen = {}
+    monkeypatch.setattr(module, "fit_sigma", lambda model, **kwargs: seen.update(kwargs))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        module.sigma_fitter(object(), method="bisect")
+    assert seen["method"] == "bisect"

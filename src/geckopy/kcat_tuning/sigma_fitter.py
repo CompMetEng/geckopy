@@ -266,6 +266,7 @@ def sigma_fitter(
     p_tot: Optional[float] = None,
     f: Optional[float] = None,
     n_sigma_steps: int = 100,
+    method: Literal["grid", "bisect"] = "grid",
 ) -> SigmaFitterResult:
     """Deprecated alias for :func:`fit_sigma`.
 
@@ -283,5 +284,5 @@ def sigma_fitter(
     return fit_sigma(
         model,
         growth_rate=growth_rate, p_tot=p_tot, f=f,
-        n_sigma_steps=n_sigma_steps,
+        n_sigma_steps=n_sigma_steps, method=method,
     )

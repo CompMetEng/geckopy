@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `ec_fseof` follows `ecFSEOF.m` in its labels, default and gene targets. `target_type` is `OE`, `KD` or `KO` instead of `amplify`, `knockdown` or `knockout`. `n_steps` defaults to 16 instead of 10. It returns an `EcFSEOFResult`, raven-toolbox's `FSEOFResult` whose `gene_targets` has one row per gene with the columns `gene`, `name`, `slope` (the mean absolute slope of its target reactions), `action`, `essentiality` and `reactions`, ordered by slope: a gene with several actions is `OE` when one of them is `OE`, otherwise `KO` when it is not essential and `KD` when it is, essential meaning that growth is infeasible or below 1e-8 with the usage of its enzymes blocked and the production fixed at the last enforced level. `gene_targets` had the columns `gene`, `target_type` (the actions joined by `;`), `reactions` and `max_abs_slope`.
 * `ec_fseof` raises `ValueError` when the flux of the production target at maximum growth is not below the top of the scan, as GECKO's `ecFSEOF` raises `ecFSEOF:noRange`; the scan used to run on levels that do not rise and returned no targets.
 * A `[kcat_sources.<name>]` table of model_adapter.toml overrides only the keys it sets of the preset's settings for that source, as in GECKO; it replaced them, so `[kcat_sources.brenda]` without `aggregation` under a median preset gathered BRENDA with the default aggregation (the maximum).
 * The deprecated alias `sigma_fitter` takes `method` and passes it to `fit_sigma`.

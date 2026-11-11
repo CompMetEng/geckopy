@@ -248,25 +248,24 @@ def test_targets_have_expected_columns(tmp_path):
 
 def test_r_prod_classified_as_amplify(tmp_path):
     """As the enforced EX_PROD flux rises, R_PROD's flux rises with it;
-    raven's regression-based selection labels that ``amplify``."""
+    that is labelled ``OE``, as in ecFSEOF.m."""
     adapter = _adapter(tmp_path)
     model = _build_fseof_model(adapter)
     result = ec_fseof(model, "EX_PROD", n_steps=8)
     rprod = result.targets[result.targets["reaction"] == "R_PROD"]
     assert len(rprod) == 1, "R_PROD must be classified as a target"
-    assert rprod.iloc[0]["target_type"] == "amplify"
+    assert rprod.iloc[0]["target_type"] == "OE"
 
 
 def test_r_bio_classified_as_knockdown(tmp_path):
     """R_BIO's flux falls as biomass loses budget to the enforced
-    product flux — raven labels that ``knockdown`` (or ``knockout``
-    when the fall is to ~0)."""
+    product flux, labelled ``KD`` (or ``KO`` when the fall is to ~0)."""
     adapter = _adapter(tmp_path)
     model = _build_fseof_model(adapter)
     result = ec_fseof(model, "EX_PROD", n_steps=8)
     rbio = result.targets[result.targets["reaction"] == "R_BIO"]
     assert len(rbio) == 1
-    assert rbio.iloc[0]["target_type"] in ("knockdown", "knockout")
+    assert rbio.iloc[0]["target_type"] in ("KD", "KO")
 
 
 # --------------------------------------------------------------------------- #
@@ -341,9 +340,8 @@ def test_usage_prot_rxns_dropped_from_targets(tmp_path):
 
 
 def test_gene_targets_property_recomputes_off_filtered_targets(tmp_path):
-    """raven's FSEOFResult.gene_targets is a @property over .targets;
-    once we filter usage_prot_* from targets, the per-gene rollup
-    inherits the filter automatically."""
+    """The gene targets are built from the filtered targets, so usage_prot_*
+    reactions do not enter them."""
     adapter = _adapter(tmp_path)
     model = _build_fseof_model(adapter)
     result = ec_fseof(model, "EX_PROD", n_steps=6)
@@ -455,3 +453,44 @@ def test_scores_equal_to_nine_digits_keep_model_order():
     grouped = module._group_transport_targets(result, model).targets
 
     assert list(grouped["reaction"]) == ["R1", "R2", "R3"]
+
+
+# --------------------------------------------------------------------------- #
+# ecFSEOF.m's labels, default and gene targets
+# --------------------------------------------------------------------------- #
+
+def test_default_n_steps_is_16(tmp_path):
+    result = ec_fseof(_build_fseof_model(_adapter(tmp_path)), "EX_PROD")
+    assert len(result.enforced) == 16
+
+
+def test_gene_targets_follow_ecfseof(tmp_path):
+    result = ec_fseof(_build_fseof_model(_adapter(tmp_path)), "EX_PROD", n_steps=8)
+    genes = result.gene_targets.set_index("gene")
+    assert list(result.gene_targets.columns) == ["gene", "name", "slope", "action", "essentiality", "reactions"]
+    assert genes.loc["g_PROD", "action"] == "OE"
+    assert genes.loc["g_BIO", "action"] in ("KD", "KO")
+    assert genes.loc["g_PROD", "reactions"] == "R_PROD"
+    slope = result.targets.set_index("reaction").loc["R_PROD", "slope"]
+    assert genes.loc["g_PROD", "slope"] == pytest.approx(abs(slope))
+
+
+def test_gene_actions_are_reconciled_as_in_ecfseof(tmp_path):
+    """Several actions: OE wins; otherwise KO for a gene that is not essential
+    and KD for an essential one. The mean absolute slope orders the genes."""
+    import importlib
+
+    module = importlib.import_module("geckopy.utilities.ec_fseof")
+    model = _build_fseof_model(_adapter(tmp_path))
+    model.reactions.get_by_id("TR_A").gene_reaction_rule = "g_X"
+    targets = pd.DataFrame({
+        "reaction": ["R_PROD", "R_BIO", "TR_A", "R_BIO", "TR_A", "R_PROD"],
+        "genes": [["g_PROD"], ["g_BIO"], ["g_BIO"], ["g_X"], ["g_X"], ["g_PROD"]],
+        "target_type": ["OE", "KO", "KD", "KO", "KD", "KD"],
+        "slope": [4.0, -1.0, -3.0, -1.0, -1.0, -2.0],
+    })
+    genes = module._gene_targets(model, targets, "biomass", "EX_PROD", 50.0)
+    assert list(genes["gene"]) == ["g_PROD", "g_BIO", "g_X"]
+    assert list(genes["action"]) == ["OE", "KD", "KO"]
+    assert list(genes["essentiality"]) == ["essential", "essential", ""]
+    assert list(genes["slope"]) == [3.0, 2.0, 1.0]

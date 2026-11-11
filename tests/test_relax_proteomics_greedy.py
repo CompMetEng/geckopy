@@ -91,6 +91,16 @@ def test_enzyme_set_filter():
     assert set(result.relaxed.keys()).issubset(only)
 
 
+def test_target_reached_by_the_last_allowed_relaxation_converges():
+    """The relaxation made at max_iterations is checked before raising."""
+    model, target = _ec_with_tight_concs(growth_target=0.001)
+    needed = len(relax_proteomics_greedy(model.copy(), minimal_growth=target, max_iterations=20).relaxed)
+    assert needed >= 1
+    result = relax_proteomics_greedy(model, minimal_growth=target, max_iterations=needed)
+    assert result.converged
+    assert len(result.relaxed) == needed
+
+
 def test_max_iterations_raises():
     """Setting max_iterations=1 on a model needing more raises."""
     model, _ = _ec_with_tight_concs()

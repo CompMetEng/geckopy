@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `relax_proteomics_greedy` checks the growth after the last relaxation it is allowed and returns a converged result when that relaxation reaches `minimal_growth`; it raised `RuntimeError` after `max_iterations` relaxations without checking the last one. GECKO's `relaxProteomicsGreedy` does the same.
 * `get_complex_data` without a taxonomic ID (`taxonomic_id=None`) logs a warning and returns no complexes, without a query or a file written, as GECKO's `getComplexData` does; it raised `ValueError`.
 * `geckopy init` writes a `.gitignore` with `data/okpApiKey.txt` in the new project, and the geckopy repository ignores `okpApiKey.txt`, so the OpenKineticsPredictor API key file stays out of git. The help said the file was git-ignored, which was not the case.
 * `kcats_from_dlkcat` takes `via`: `"okp"` predicts with the DLKcat method of OpenKineticsPredictor (as `kcats_from_okp`), `"file"` reads `data/DLKcat.tsv` and `"docker"` runs DLKcat locally. The default is `"file"` when `data/DLKcat.tsv` exists and `"okp"` otherwise; `run=True` is the same as `via="docker"`. It returns `(kcat_list, done)` as `kcats_from_okp` does, with `kcat_list` `None` while an OKP job runs, and takes `wait`. `update_kcat_sources` gathers `dlkcat` through OKP when `data/DLKcat.tsv` is missing, needs an OKP API key for it and reports `pending` while the job runs, where it needed Docker. GECKO's `kcatsFromDLKcat` has the same option.

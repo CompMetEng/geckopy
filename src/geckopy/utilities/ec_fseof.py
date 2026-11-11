@@ -46,6 +46,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Optional
 
+from cobra.exceptions import OptimizationError
+from cobra.flux_analysis import pfba
 from raven_toolbox.analysis.fseof import FSEOFResult, fseof
 from ..solver_support import optimize_model
 
@@ -57,6 +59,8 @@ logger = logging.getLogger(__name__)
 
 _USAGE_PROT_PREFIX = "usage_prot_"
 _STANDARD_GENE = "standard"
+# The fraction of the optimum pFBA keeps, as in raven-toolbox's fseof (RAVEN's solveLP).
+_PFBA_FRACTION = 0.999999
 
 
 def ec_fseof(
@@ -123,6 +127,13 @@ def ec_fseof(
         :class:`raven_toolbox.analysis.fseof.FSEOFResult` for the full
         field list (``scan``, ``enforced``, ``targets``, plus the
         ``amplification`` / ``knockout`` / ``gene_targets`` properties).
+
+    Raises
+    ------
+    ValueError
+        If the production target cannot carry flux, or if its flux at
+        maximum growth is not below the top of the scan (``max_fraction``
+        of its maximum), as GECKO's ``ecFSEOF`` raises ``ecFSEOF:noRange``.
     """
     from ..adapter import resolve_param
     bio_rxn_id = resolve_param(
@@ -134,6 +145,13 @@ def ec_fseof(
         _check_cs_consistency(model, bio_rxn_id, cs_rxn)
 
     min_target = _biomass_optimal_target_flux(model, bio_rxn_id, prod_target_rxn)
+    max_target = _scan_ceiling(model, prod_target_rxn, max_fraction)
+    # A blocked target (ceiling 0) is left to fseof, which raises its own error.
+    if max_target > 0 and min_target >= max_target:
+        raise ValueError(
+            f"ec_fseof: the flux of {prod_target_rxn!r} at maximum growth ({min_target:g}) is not "
+            f"below the top of the scan ({max_target:g}), so there is no range to scan."
+        )
 
     result = fseof(
         model, prod_target_rxn,
@@ -191,6 +209,18 @@ def _biomass_optimal_target_flux(
         if sol.status != "optimal":
             return 0.0
         return float(sol.fluxes.get(prod_target_rxn_id, 0.0))
+
+
+def _scan_ceiling(model: "EcModel", prod_target_rxn_id: str, max_fraction: float) -> float:
+    """The top of the scan, as raven-toolbox's ``fseof`` and ``ecFSEOF.m`` take it:
+    ``max_fraction`` of the target flux in the pFBA solution that maximises the target."""
+    with model:
+        model.objective = prod_target_rxn_id
+        try:
+            flux = pfba(model, fraction_of_optimum=_PFBA_FRACTION).fluxes[prod_target_rxn_id]
+        except OptimizationError:
+            return 0.0
+    return float(flux) * max_fraction
 
 
 def _gated_reaction(model: "EcModel", rxn_id: str) -> bool:

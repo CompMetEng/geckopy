@@ -154,6 +154,19 @@ def test_no_production_headroom_raises(tmp_path):
         ec_fseof(model, "EX_PROD")
 
 
+def test_no_range_to_scan_raises(tmp_path, monkeypatch):
+    """As ecFSEOF:noRange: production at maximum growth at or above the top of
+    the scan raises before the scan."""
+    import importlib
+
+    module = importlib.import_module("geckopy.utilities.ec_fseof")
+    monkeypatch.setattr(module, "fseof", lambda *a, **k: pytest.fail("scanned"))
+    model = _build_fseof_model(_adapter(tmp_path))
+    model.reactions.get_by_id("EX_PROD").lower_bound = 95.0  # the top of the scan is 90
+    with pytest.raises(ValueError, match="no range to scan"):
+        ec_fseof(model, "EX_PROD")
+
+
 # --------------------------------------------------------------------------- #
 # Carbon-source sanity-check warning
 # --------------------------------------------------------------------------- #

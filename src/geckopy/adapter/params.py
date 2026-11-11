@@ -288,7 +288,7 @@ class OkpParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method: str = Field(
-        default="CataPro",
+        default="KinForm-H",
         description=(
             "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
             "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "

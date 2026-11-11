@@ -29,7 +29,7 @@ evotune.max_generations	evotune.maxGenerations	150	Maximum number of CMA-ES gene
 evotune.max_growth_weight	evotune.maxGrowthWeight	1.0	Weight of the maximum-growth RMSE against the flux RMSE
 evotune.prior_penalty_weight	evotune.priorPenaltyWeight	0.03	Weight of the prior term in the search objective
 evotune.tie_isozymes	evotune.tieIsozymes	true	Give isozyme copies of one reaction a single kcat
-okp.method	okp.method	"CataPro"	OpenKineticsPredictor method
+okp.method	okp.method	"KinForm-H"	OpenKineticsPredictor method
 okp.handle_long_sequences	okp.handleLongSequences	"truncate"	How OpenKineticsPredictor handles sequences that are too long
 okp.include_similarity_columns	okp.includeSimilarityColumns	true	Return similarity to the method's training data
 okp.canonicalize_substrates	okp.canonicalizeSubstrates	true	Canonicalize substrate SMILES before prediction

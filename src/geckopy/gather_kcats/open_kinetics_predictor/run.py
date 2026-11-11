@@ -71,7 +71,7 @@ def _submit_open_kinetics_predictor(
         ``data/okpApiKey.txt`` (see the module docstring).
     method
         Predictor method. Resolved as: this arg -> ``params.okp.method``
-        -> ``'CataPro'``.
+        -> ``'KinForm-H'``.
     ec_rxns
         Optional iterable of reaction IDs to include (default all).
     only_with_smiles

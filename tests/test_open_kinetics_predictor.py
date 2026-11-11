@@ -324,7 +324,7 @@ def test_submit_writes_csv_and_metadata(tmp_path, monkeypatch):
     assert (data_dir / "OKP.csv").read_text().startswith("Protein Sequence,Substrate")
     meta = (data_dir / "OKP_job.txt").read_text()
     assert "jobId: JOB42" in meta
-    assert "method: CataPro" in meta
+    assert "method: KinForm-H" in meta
 
 
 def test_submit_missing_key_raises(tmp_path, monkeypatch):
@@ -340,7 +340,7 @@ def test_fetch_completed_downloads_and_parses(tmp_path, monkeypatch):
     model = _ec_model(adapter)
     monkeypatch.setenv("OKP_API_KEY", "ak_test")
     (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: JOB42\nmethod: CataPro\n")
+    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: JOB42\nmethod: KinForm-H\n")
     session = _FakeSession([
         ("/status/", _FakeResponse(200, {"status": "Completed"})),
         ("/result/", _FakeResponse(200, text=_OKP_RESULT_CSV)),
@@ -400,7 +400,7 @@ def test_fetch_reads_job_id_from_metadata(tmp_path, monkeypatch):
     model = _ec_model(adapter)
     monkeypatch.setenv("OKP_API_KEY", "ak_test")
     (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: FROMFILE\nmethod: CataPro\n")
+    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: FROMFILE\nmethod: KinForm-H\n")
     session = _FakeSession([
         ("/status/FROMFILE/", _FakeResponse(200, {"status": "Completed"})),
         ("/result/FROMFILE/", _FakeResponse(200, text=_OKP_RESULT_CSV)),

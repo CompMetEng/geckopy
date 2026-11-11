@@ -88,7 +88,9 @@ def test_cli_init_produces_loadable_adapter_after_filling_required(tmp_path):
     assert adapter.params.org_name == "Testus testus"
     # Defaults kick in for fields the user did not uncomment.
     assert adapter.params.sigma == 0.5
-    assert adapter.params.kegg.id == "sce"
+    # The organism identifiers are written empty, with an example in the comment.
+    assert adapter.params.kegg.id == "" and adapter.params.uniprot.id == ""
+    assert '\nid = ""\n' in toml_text and '"UP000002311" (proteome)' in toml_text
 
 
 def test_cli_init_stub_adapter_py_is_commented_out(tmp_path):

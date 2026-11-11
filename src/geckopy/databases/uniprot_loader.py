@@ -189,6 +189,26 @@ def load_uniprot_tsv(
     )
 
 
+def _load_project_uniprot(adapter) -> UniprotDB:
+    """``data/uniprot.tsv`` of the adapter's project, downloaded with its ``[uniprot]``
+    settings when missing, as GECKO's ``loadDatabases`` does.
+
+    Raises ``FileNotFoundError`` when the file is missing and ``[uniprot] id`` is
+    empty, as ``loadDatabases`` raises ``loadDatabases:noUniprotID``.
+    """
+    path = Path(adapter.params.path) / "data" / "uniprot.tsv"
+    uniprot = adapter.params.uniprot
+    if not path.is_file() and not uniprot.id:
+        raise FileNotFoundError(
+            f"{path} does not exist and [uniprot] id in model_adapter.toml is empty. Set the "
+            "UniProt taxonomy or proteome identifier of the organism, or provide the file."
+        )
+    return load_uniprot_tsv(
+        path, uniprot_id=uniprot.id, id_type=uniprot.type,
+        gene_id_field=uniprot.gene_id_field, reviewed=uniprot.reviewed,
+    )
+
+
 def _check_duplicate_ids(source_row_ids: list[str], path: Path) -> None:
     """Raise if any Entry value appears on more than one source row.
 

@@ -65,7 +65,8 @@ def calculate_f_factor(
         If None, ``data/paxDB.tsv`` of the adapter's project is loaded
         with ``load_pax_db`` and the project's ``data/uniprot.tsv``
         (downloaded with the adapter's ``[uniprot]`` settings when
-        missing). Without that file, a warning is logged and the default
+        missing; ``FileNotFoundError`` when it is missing and ``[uniprot]
+        id`` is empty). Without that file, a warning is logged and the default
         f of 0.5 is returned, as GECKO's ``calculateFfactor`` does.
     enzymes
         UniProt IDs counted as "in the model". Defaults to
@@ -91,17 +92,10 @@ def calculate_f_factor(
                 "found; returning the default f = 0.5."
             )
             return 0.5
-        from ..databases import load_pax_db, load_uniprot_tsv
+        from ..databases import load_pax_db
+        from ..databases.uniprot_loader import _load_project_uniprot
 
-        uniprot = adapter.params.uniprot
-        uniprot_db = load_uniprot_tsv(
-            pax_path.parent / "uniprot.tsv",
-            uniprot_id=uniprot.id or None,
-            id_type=uniprot.type,
-            gene_id_field=uniprot.gene_id_field,
-            reviewed=uniprot.reviewed,
-        )
-        prot_data = load_pax_db(pax_path, uniprot_db)
+        prot_data = load_pax_db(pax_path, _load_project_uniprot(adapter))
 
     abundances = prot_data.abundances
     if abundances.ndim == 2:

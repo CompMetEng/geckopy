@@ -263,12 +263,12 @@ def test_make_ec_model_gecko_light_enzymes_match_full():
 
 def test_make_ec_model_missing_uniprot_tsv_raises(tmp_path):
     """If the adapter points at a folder without uniprot.tsv, no explicit
-    uniprot_db is given and uniprot.id is empty, raise FileNotFoundError."""
+    uniprot_db is given and [uniprot] id is empty (the default), raise
+    FileNotFoundError naming [uniprot] id, as loadDatabases:noUniprotID."""
     toml = (
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
-        '[uniprot]\nid = ""\n'
     )
     (tmp_path / "model_adapter.toml").write_text(toml)
     adapter = ModelAdapter.from_folder(tmp_path)
@@ -282,7 +282,7 @@ def test_make_ec_model_missing_uniprot_tsv_raises(tmp_path):
     r.gene_reaction_rule = "g1"
     model.add_reactions([r])
 
-    with pytest.raises(FileNotFoundError, match="uniprot.tsv"):
+    with pytest.raises(FileNotFoundError, match=r"\[uniprot\] id"):
         make_ec_model(model, adapter)
 
 
@@ -345,7 +345,6 @@ def test_make_ec_model_unmatched_genes_logged_and_annotated(tmp_path, caplog):
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
-        '[kegg]\nid = ""\n'
     )
     (tmp_path / "model_adapter.toml").write_text(toml)
     adapter = ModelAdapter.from_folder(tmp_path)
@@ -383,7 +382,6 @@ def _toy_with_missing_gene(tmp_path):
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
-        '[kegg]\nid = ""\n'
     )
     adapter = ModelAdapter.from_folder(tmp_path)
     model = cobra.Model("m")

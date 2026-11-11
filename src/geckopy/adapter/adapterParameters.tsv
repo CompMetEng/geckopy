@@ -12,10 +12,10 @@ enzyme_comp	enzyme_comp	"cytoplasm"	Compartment of the protein pseudometabolites
 kcat_aggregate_brenda	kcatAggregation	"max"	BRENDA aggregate read by fuzzyKcatMatching: max or median
 kcat_aggregate_candidates		"max"	Aggregation of several candidate kcats for one reaction (geckopy)
 kcat_aggregate_isozymes		"mean"	Aggregation of isozyme kcats when filling a missing value (geckopy)
-kegg.id	kegg.ID	"sce"	KEGG organism code
+kegg.id	kegg.ID	""	KEGG organism code
 kegg.gene_id	kegg.geneID	"kegg"	Field in the KEGG entry that matches model gene identifiers
 uniprot.type	uniprot.type	"taxonomy"	Whether uniprot.id is a taxonomy or a proteome identifier
-uniprot.id	uniprot.ID	"559292"	Taxonomy or proteome identifier
+uniprot.id	uniprot.ID	""	Taxonomy or proteome identifier
 uniprot.gene_id_field	uniprot.geneIDfield	"gene_oln"	UniProt field that matches model gene identifiers
 uniprot.reviewed	uniprot.reviewed	false	Use only reviewed (Swiss-Prot) entries
 complex.taxonomic_id	complex.taxonomicID		Taxonomy identifier for Complex Portal

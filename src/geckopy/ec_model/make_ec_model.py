@@ -29,7 +29,8 @@ from typing import TYPE_CHECKING, Optional
 import cobra
 from raven_toolbox.utils.sort import sort_identifiers
 
-from ..databases import UniprotDB, load_kegg_tsv, load_uniprot_tsv
+from ..databases import UniprotDB, load_kegg_tsv
+from ..databases.uniprot_loader import _load_project_uniprot
 from ..solver_support import repair_scipy_problem, switch_to_scipy
 from .ec_model import EcModel
 from .pipeline import (
@@ -181,7 +182,8 @@ def make_ec_model(
     ------
     FileNotFoundError
         If ``uniprot_db`` is None, no ``uniprot.tsv`` is found under the
-        adapter's data folder and ``uniprot.id`` is empty.
+        adapter's data folder and ``[uniprot] id`` is empty (by default), as
+        GECKO's ``loadDatabases`` raises ``loadDatabases:noUniprotID``.
     RuntimeError
         If a download fails.
     ValueError
@@ -253,14 +255,7 @@ def make_ec_model(
     # As GECKO's loadDatabases: a missing file is downloaded with the adapter's settings.
     data_dir = adapter.params.path / "data"
     if uniprot_db is None:
-        uniprot = adapter.params.uniprot
-        uniprot_db = load_uniprot_tsv(
-            data_dir / "uniprot.tsv",
-            uniprot_id=uniprot.id or None,
-            id_type=uniprot.type,
-            gene_id_field=uniprot.gene_id_field,
-            reviewed=uniprot.reviewed,
-        )
+        uniprot_db = _load_project_uniprot(adapter)
 
     if kegg_db is None:
         kegg_db = load_kegg_tsv(

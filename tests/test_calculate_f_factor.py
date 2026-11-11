@@ -221,3 +221,16 @@ def test_paxdb_of_the_project_is_read_without_prot_data(tmp_path):
     model = _ec_model(["P1"])
     model.adapter = ModelAdapter.from_folder(tmp_path)
     assert calculate_f_factor(model) == pytest.approx(0.25)
+
+
+def test_paxdb_without_uniprot_tsv_and_uniprot_id_raises(tmp_path):
+    """As loadDatabases:noUniprotID: data/uniprot.tsv is missing and [uniprot] id is empty."""
+    from geckopy import ModelAdapter
+
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\n')
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "paxDB.tsv").write_text("#header\n1\t4932.g1\t1\n", encoding="utf-8")
+    model = _ec_model(["P1"])
+    model.adapter = ModelAdapter.from_folder(tmp_path)
+    with pytest.raises(FileNotFoundError, match=r"\[uniprot\] id"):
+        calculate_f_factor(model)

@@ -16,7 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class KeggParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(default="sce", description="KEGG organism code")
+    id: str = Field(
+        default="",
+        description='KEGG organism code (e.g. "sce"); empty: KEGG is not used',
+    )
     gene_id: str = Field(
         default="kegg",
         description=(
@@ -35,8 +38,11 @@ class UniprotParams(BaseModel):
         description="Whether 'id' is a taxonomy ID or a proteome ID",
     )
     id: str = Field(
-        default="559292",
-        description="Taxonomy ID (e.g. '559292') or proteome ID, matching 'type'",
+        default="",
+        description=(
+            "Taxonomy ID (e.g. '559292') or proteome ID (e.g. 'UP000002311'), "
+            "matching 'type'; required unless data/uniprot.tsv is provided"
+        ),
     )
     gene_id_field: str = Field(
         default="gene_oln",

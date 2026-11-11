@@ -134,6 +134,27 @@ def test_collect_kcats_leaves_model(tmp_path):
     assert (row["kcat"], row["source"], row["stage"]) == (777, "custom", "1")
 
 
+def test_collect_kcats_returns_isozyme_kcats_without_constraints(tmp_path):
+    """As collectKcats: the kcats filled from isozymes are not applied to the
+    returned model's stoichiometry; assign_kcats applies them."""
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\nstandard = false\n'
+                                     '[[kcat_assignment.stage]]\nsources = ["custom"]\n')
+    rxns, enzymes = ec_rxn_keys(base)
+    i = base.ec.rxns.index("R2_EXP_1")
+    (project / "data" / "kcats").mkdir(exist_ok=True)
+    (project / "data" / "kcats" / "custom.tsv").write_text(
+        "# source: custom\n# kind: curated\nrxn\tenzymes\tkcat\tsource\n"
+        f"{rxns[i]}\t{enzymes[i]}\t100\tcustom\n", encoding="utf-8")
+    decisions, _, decided = collect_kcats(base, adapter=adapter, write_report=False)
+    filled = list(decisions.loc[decisions["stage"] == "isozymes", "ec_rxn"])
+    assert filled == ["R2_EXP_2"]
+    stoich = lambda m, r: {x.id: c for x, c in m.reactions.get_by_id(r).metabolites.items()}  # noqa: E731
+    for rxn in filled:
+        assert stoich(decided, rxn) == stoich(base, rxn)
+    assign_kcats(base, adapter=adapter, write_report=False)
+    assert any(stoich(decided, rxn) != stoich(base, rxn) for rxn in filled)
+
+
 def test_stages_from_toml(tmp_path):
     """Stages from model_adapter.toml, and their errors."""
     extra = ('[kcat_assignment]\nisozymes = false\nstandard = false\n'

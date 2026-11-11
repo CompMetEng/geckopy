@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `collect_kcats` returns the model with the decided kcats before `apply_kcat_constraints`, also for the kcats filled from isozymes, as GECKO's `collectKcats` does; it applied the constraints of the isozyme-filled reactions to the returned copy. `assign_kcats` gives the same model as before.
 * `fit_sigma` raises `ValueError` for a target growth rate of 0, before it changes the model, as GECKO's `sigmaFitter` does; it fitted sigma to the smallest growth.
 * `relax_proteomics_greedy` checks the growth after the last relaxation it is allowed and returns a converged result when that relaxation reaches `minimal_growth`; it raised `RuntimeError` after `max_iterations` relaxations without checking the last one. GECKO's `relaxProteomicsGreedy` does the same.
 * `get_complex_data` without a taxonomic ID (`taxonomic_id=None`) logs a warning and returns no complexes, without a query or a file written, as GECKO's `getComplexData` does; it raised `ValueError`.

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* A `[kcat_sources.<name>]` table of model_adapter.toml overrides only the keys it sets of the preset's settings for that source, as in GECKO; it replaced them, so `[kcat_sources.brenda]` without `aggregation` under a median preset gathered BRENDA with the default aggregation (the maximum).
 * The deprecated alias `sigma_fitter` takes `method` and passes it to `fit_sigma`.
 * `calculate_f_factor` takes no `prot_data` as well: it then reads `data/paxDB.tsv` of the adapter's project with `load_pax_db`, and without that file logs a warning and returns the default f of 0.5, as GECKO's `calculateFfactor` does. `prot_data` was required.
 * `level_complex_concs` takes `families`, the complexes of the model as `complex_families` returns them (default: calculated from the model), as GECKO's `levelComplexConcs` does.

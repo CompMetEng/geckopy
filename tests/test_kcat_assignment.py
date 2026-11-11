@@ -155,6 +155,15 @@ def test_collect_kcats_returns_isozyme_kcats_without_constraints(tmp_path):
     assert any(stoich(decided, rxn) != stoich(base, rxn) for rxn in filled)
 
 
+def test_kcat_sources_table_overrides_only_its_keys(tmp_path):
+    """[kcat_sources.brenda] without aggregation keeps the preset's median."""
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config
+
+    _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n'
+                                       '[kcat_sources.brenda]\nforce_wildcard_level = 1\n')
+    assert kcat_assignment_config(adapter).sources["brenda"] == {"aggregation": "median", "force_wildcard_level": 1}
+
+
 def test_stages_from_toml(tmp_path):
     """Stages from model_adapter.toml, and their errors."""
     extra = ('[kcat_assignment]\nisozymes = false\nstandard = false\n'

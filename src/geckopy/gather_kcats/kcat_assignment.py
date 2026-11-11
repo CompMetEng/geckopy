@@ -99,7 +99,9 @@ def _preset_stages(preset: str) -> tuple[list[Stage], dict[str, dict[str, Any]]]
 def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
     """Read ``[kcat_assignment]`` and ``[kcat_sources]`` of the adapter.
 
-    Without a preset or stages the preset is ``brenda_ec_tree``.
+    Without a preset or stages the preset is ``brenda_ec_tree``. A
+    ``[kcat_sources.<name>]`` table overrides only the keys it sets of the
+    preset's settings for that source.
     """
     a = adapter.params.kcat_assignment
     if a.stage:
@@ -110,7 +112,8 @@ def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
     else:
         preset = a.preset or "brenda_ec_tree"
         stages, sources = _preset_stages(preset)
-    sources = {**sources, **{k: dict(v) for k, v in adapter.params.kcat_sources.items()}}
+    # A [kcat_sources.<name>] table overrides only the keys it sets.
+    sources = {**sources, **{k: {**sources.get(k, {}), **v} for k, v in adapter.params.kcat_sources.items()}}
     return KcatAssignmentConfig(preset=preset, isozymes=a.isozymes, standard=a.standard,
                                 stages=stages, sources=sources)
 

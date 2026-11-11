@@ -40,6 +40,9 @@ def assign_standard_kcat(
     """Add a "standard" pseudoenzyme to ``model`` and assign it to
     reactions without enzyme constraints.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
     src/gather_kcats/getStandardKcat.m.
 

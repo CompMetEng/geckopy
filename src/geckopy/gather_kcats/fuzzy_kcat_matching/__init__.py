@@ -87,6 +87,9 @@ def fuzzy_kcat_matching(
     """Match each ec reaction to BRENDA kcat data with progressive
     relaxation of EC, substrate, and organism specificity.
 
+    Low-level: ``kcats_from_brenda`` runs this function; call it directly
+    only to inspect or change the BRENDA matches by hand.
+
     Ported from GECKO MATLAB:
     src/gather_kcats/fuzzyKcatMatching.m.
 

@@ -101,6 +101,9 @@ def merge_kcats(
 ) -> pd.DataFrame:
     """Merge any number of kcat lists, keeping the best source per reaction.
 
+    Low-level: ``collect_kcats`` runs this function; call it directly only
+    to merge kcat lists by hand.
+
     All input lists are concatenated and each row is assigned a tier
     (see the module docstring). For every reaction the highest-priority
     tier present is kept, and **all** rows of that tier for that reaction

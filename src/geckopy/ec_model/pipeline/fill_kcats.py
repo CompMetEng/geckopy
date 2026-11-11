@@ -37,6 +37,9 @@ def fill_kcats_from_isozymes(
 ) -> None:
     """Fill in missing kcats by combining known kcats across sibling isozymes.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Two reactions are siblings if their ``ec.rxns`` IDs are identical
     after stripping any ``_EXP_<n>`` suffix. The ``_REV`` suffix is
     NOT stripped: forward and reverse reactions share chemistry but

@@ -25,6 +25,9 @@ def remove_standard_kcat(model: "EcModel") -> None:
     """Remove the standard pseudoenzyme and any standard kcat
     assignments from ``model``.
 
+    Low-level: it undoes ``assign_standard_kcat``, which ``collect_kcats``
+    and ``assign_kcats`` run; call it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
     src/gather_kcats/removeStandardKcat.m.
 

@@ -56,8 +56,11 @@ def apply_kcat_list(
 ) -> list[str]:
     """Choose one kcat value per reaction and write it to ``model.ec.kcat``.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/deprecated/selectKcatValue.m.
+    src/gather_kcats/assignKcatValues.m.
 
     For each reaction with one or more entries in ``kcat_list``,
     aggregate the candidate kcats per ``criteria`` (``"max"`` is the

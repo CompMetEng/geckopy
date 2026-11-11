@@ -141,6 +141,11 @@ def sensitivity_tuning(
     """Iteratively bump the most-limiting kcat by ``fold_change`` until
     the model can reach ``desired_growth_rate``.
 
+    This is the standard kcat tuning: it needs one maximum growth rate.
+    :func:`~geckopy.kcat_tuning.evotune.cmaes_kcat_tuning` is the advanced
+    tuning, which fits kcats to maximum growth rates and exchange fluxes,
+    measured in one or more conditions.
+
     Each iteration:
 
     1. Solves the LP at the current kcat values.

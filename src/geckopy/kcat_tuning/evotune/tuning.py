@@ -419,6 +419,12 @@ def cmaes_kcat_tuning(
 ) -> EvotuneResult:
     """Tune kcats against experimental data with CMA-ES.
 
+    This is the advanced kcat tuning: it fits kcats to maximum growth rates
+    and exchange fluxes, measured in one or more conditions (see
+    :func:`load_evotune_data`).
+    :func:`~geckopy.kcat_tuning.sensitivity_tuning` is the standard tuning,
+    which needs one maximum growth rate.
+
     Configuration comes entirely from ``EvotuneParams``: trust tiers,
     ``max_growth_weight``, ``prior_penalty_weight`` and ``tie_isozymes``
     control the search, and ``max_generations``/``rmse_threshold`` are

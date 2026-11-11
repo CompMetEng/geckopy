@@ -245,9 +245,19 @@ def test_update_kcat_sources_dlkcat_via_okp(tmp_path, monkeypatch):
     assert "DLKcat" in report.loc["dlkcat", "note"]
     assert jobs and jobs[0]["method"] == "DLKcat"
 
-    # Without an API key the source fails, with the reason in the note.
+    # Without an API key the source fails, with the reason in the note. The key file is
+    # removed and the key resolver raises, so no real job can be submitted.
+    import importlib
+
+    okp_run = importlib.import_module("geckopy.gather_kcats.open_kinetics_predictor.run")
     monkeypatch.undo()
     monkeypatch.delenv("OKP_API_KEY", raising=False)
+    (project / "data" / "okpApiKey.txt").unlink(missing_ok=True)
+
+    def no_key(api_key, adapter):
+        raise ValueError("No OpenKineticsPredictor API key found (test).")
+
+    monkeypatch.setattr(okp_run, "_resolve_api_key", no_key)
     report = update_kcat_sources(base, adapter=adapter).set_index("source")
     assert report.loc["dlkcat", "status"] == "failed"
     assert "API key" in report.loc["dlkcat", "note"]

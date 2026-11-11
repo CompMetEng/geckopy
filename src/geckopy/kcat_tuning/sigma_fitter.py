@@ -84,9 +84,7 @@ def _growth_at_sigma(
 
 
 def _sigma_error_pct(growth: float, growth_rate: float) -> float:
-    if growth_rate != 0:
-        return abs((growth_rate - growth) / growth_rate) * 100.0
-    return abs(growth) * 100.0
+    return abs((growth_rate - growth) / growth_rate) * 100.0
 
 
 def fit_sigma(
@@ -157,7 +155,8 @@ def fit_sigma(
     ------
     ValueError
         If ``model.adapter`` is None and any default is needed; if
-        ``n_sigma_steps`` is < 1; or if ``method`` is unknown.
+        ``growth_rate`` is 0; if ``n_sigma_steps`` is < 1; or if ``method``
+        is unknown.
     """
     if n_sigma_steps < 1:
         raise ValueError(f"n_sigma_steps must be >= 1, got {n_sigma_steps}")
@@ -174,17 +173,19 @@ def fit_sigma(
         )
     params = model.adapter.params if model.adapter is not None else None
 
-    # sigmaFitter.m opens the bounds of the objective for good.
-    for rxn in model.reactions:
-        if rxn.objective_coefficient != 0:
-            rxn.bounds = (0.0, 1000.0)
-
     if growth_rate is None:
         growth_rate = float(params.gr_exp)
+    if growth_rate == 0:
+        raise ValueError("growth_rate is 0; fit_sigma needs a target growth rate other than 0.")
     if p_tot is None:
         p_tot = float(params.p_tot)
     if f is None:
         f = float(params.f)
+
+    # sigmaFitter.m opens the bounds of the objective for good.
+    for rxn in model.reactions:
+        if rxn.objective_coefficient != 0:
+            rxn.bounds = (0.0, 1000.0)
 
     plateau_sigma: Optional[float] = None
     if method == "grid":

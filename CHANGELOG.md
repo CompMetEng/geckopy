@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `fit_sigma` raises `ValueError` for a target growth rate of 0, before it changes the model, as GECKO's `sigmaFitter` does; it fitted sigma to the smallest growth.
 * `relax_proteomics_greedy` checks the growth after the last relaxation it is allowed and returns a converged result when that relaxation reaches `minimal_growth`; it raised `RuntimeError` after `max_iterations` relaxations without checking the last one. GECKO's `relaxProteomicsGreedy` does the same.
 * `get_complex_data` without a taxonomic ID (`taxonomic_id=None`) logs a warning and returns no complexes, without a query or a file written, as GECKO's `getComplexData` does; it raised `ValueError`.
 * `geckopy init` writes a `.gitignore` with `data/okpApiKey.txt` in the new project, and the geckopy repository ignores `okpApiKey.txt`, so the OpenKineticsPredictor API key file stays out of git. The help said the file was git-ignored, which was not the case.

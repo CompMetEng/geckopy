@@ -11,10 +11,9 @@ The most-used names, grouped by stage of a typical workflow:
 
 - **Project setup**: ``ModelAdapter``
 - **Build**: ``load_conventional_gem``, ``make_ec_model``
-- **Enrich kcats**: ``fuzzy_kcat_matching``, ``read_dlkcat_output``,
-  ``merge_dlkcat_and_fuzzy_kcats``, ``apply_kcat_list``,
-  ``apply_custom_kcats``, ``fill_kcats_from_isozymes``,
-  ``assign_standard_kcat``, ``apply_kcat_constraints``
+- **Enrich kcats**: ``update_kcat_sources`` (``kcats_from_brenda``,
+  ``kcats_from_dlkcat``, ``kcats_from_okp``, ...), ``collect_kcats``,
+  ``assign_kcats``
 - **Set the protein budget**: ``calculate_f_factor``,
   ``set_prot_pool_size``, ``fit_sigma``
 - **Curate**: ``set_kcat_for_reactions``, ``sensitivity_tuning``
@@ -96,15 +95,15 @@ from geckopy.gather_kcats import (
     load_kcat_source,
     merge_dlkcat_and_fuzzy_kcats,  # deprecated; alias of merge_kcats
     merge_kcats,
-    read_dlkcat_output,
+    read_dlkcat_output,  # deprecated; use kcats_from_dlkcat(via="file")
     read_kcat_source,
     remove_standard_kcat,
     review_assignment,
-    run_dlkcat,
+    run_dlkcat,  # deprecated; use kcats_from_dlkcat(via="docker")
     save_kcat_source,
     select_kcat_value,  # deprecated; alias of apply_kcat_list
     update_kcat_sources,
-    write_dlkcat_input,
+    write_dlkcat_input,  # deprecated; use kcats_from_dlkcat(via="docker")
 )
 
 # get_enzyme_data
@@ -229,14 +228,14 @@ __all__ = [
     "load_kcat_source",
     "merge_dlkcat_and_fuzzy_kcats",  # deprecated; alias of merge_kcats
     "merge_kcats",
-    "read_dlkcat_output",
+    "read_dlkcat_output",  # deprecated; use kcats_from_dlkcat(via="file")
     "read_kcat_source",
     "remove_standard_kcat",
     "review_assignment",
-    "run_dlkcat",
+    "run_dlkcat",  # deprecated; use kcats_from_dlkcat(via="docker")
     "save_kcat_source",
     "update_kcat_sources",
-    "write_dlkcat_input",
+    "write_dlkcat_input",  # deprecated; use kcats_from_dlkcat(via="docker")
     # get_enzyme_data
     "copy_ec_to_gem",
     "fill_eccodes_from_database",

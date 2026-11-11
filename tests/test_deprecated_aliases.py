@@ -205,3 +205,14 @@ def test_dlkcat_entry_points_are_deprecated_aliases(monkeypatch, tmp_path):
     _assert_deprecated(run_module.run_dlkcat, tmp_path / "in.tsv", expected_substring='via="docker"')
     _assert_deprecated(read_module.read_dlkcat_output, None, tmp_path / "out.tsv", expected_substring='via="file"')
     assert seen == [("run", tmp_path / "in.tsv"), ("read", tmp_path / "out.tsv")]
+
+
+def test_write_dlkcat_input_is_a_deprecated_alias(monkeypatch, tmp_path):
+    import importlib
+
+    module = importlib.import_module("geckopy.gather_kcats.write_dlkcat_input")
+    seen = []
+    monkeypatch.setattr(module, "_write_dlkcat_input", lambda model, path, ignore, **kwargs: seen.append(path))
+    _assert_deprecated(module.write_dlkcat_input, None, tmp_path / "DLKcat.tsv", None,
+                       expected_substring='via="docker"')
+    assert seen == [tmp_path / "DLKcat.tsv"]

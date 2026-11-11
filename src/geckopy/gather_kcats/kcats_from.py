@@ -27,7 +27,7 @@ from .open_kinetics_predictor.run import _fetch_open_kinetics_predictor, _submit
 from .open_kinetics_predictor.parse_output import _parse_okp_output
 from .read_dlkcat_output import _read_dlkcat_output
 from .run_dlkcat import _run_dlkcat
-from .write_dlkcat_input import write_dlkcat_input
+from .write_dlkcat_input import _write_dlkcat_input
 
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter
@@ -325,7 +325,7 @@ def kcats_from_dlkcat(
                 "A local DLKcat run needs Docker, which was not found. Install it from "
                 "https://www.docker.com, or use via='okp'."
             )
-        write_dlkcat_input(model, dlkcat_file, load_dlkcat_ignore_lists(data_dir),
+        _write_dlkcat_input(model, dlkcat_file, load_dlkcat_ignore_lists(data_dir),
                            ec_rxns=ec_rxns, overwrite=True)
         _run_dlkcat(dlkcat_file)
         run_file.write_text(f"ecRxns: {len(set(ec_rxns))}\n" if ec_rxns is not None else "",

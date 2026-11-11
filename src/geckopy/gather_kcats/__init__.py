@@ -49,12 +49,12 @@ __all__ = [
     "merge_kcats",
     "normalize_source",
     "read_kcat_source",
-    "read_dlkcat_output",
+    "read_dlkcat_output",  # deprecated; use kcats_from_dlkcat(via="file")
     "remove_standard_kcat",
     "review_assignment",
-    "run_dlkcat",
+    "run_dlkcat",  # deprecated; use kcats_from_dlkcat(via="docker")
     "save_kcat_source",
     "select_kcat_value",  # deprecated; alias of apply_kcat_list
     "update_kcat_sources",
-    "write_dlkcat_input",
+    "write_dlkcat_input",  # deprecated; use kcats_from_dlkcat(via="docker")
 ]

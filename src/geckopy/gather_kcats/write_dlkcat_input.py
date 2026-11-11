@@ -1,5 +1,8 @@
 """Write a DLKcat-compatible TSV input file for an ec model.
 
+``kcats_from_dlkcat(..., via="docker")`` writes it; ``write_dlkcat_input`` is
+a deprecated alias.
+
 Ported from GECKO MATLAB:
 src/gather_kcats/writeDLKcatInput.m.
 """
@@ -7,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional
 
@@ -29,6 +33,29 @@ _NORMALIZE_RE = re.compile(r"[^0-9a-zA-Z]+")
 
 
 def write_dlkcat_input(
+    model: "EcModel",
+    output_path: str | Path,
+    ignore_lists: "DLKcatIgnoreLists",
+    *,
+    ec_rxns: Optional[Iterable[str]] = None,
+    only_with_smiles: bool = True,
+    overwrite: bool = False,
+) -> pd.DataFrame:
+    """Deprecated: use ``kcats_from_dlkcat(..., via="docker")``.
+
+    Writes the file as :func:`_write_dlkcat_input` does, after a
+    ``DeprecationWarning``.
+    """
+    warnings.warn(
+        'write_dlkcat_input is deprecated; use kcats_from_dlkcat(..., via="docker").',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _write_dlkcat_input(model, output_path, ignore_lists, ec_rxns=ec_rxns,
+                               only_with_smiles=only_with_smiles, overwrite=overwrite)
+
+
+def _write_dlkcat_input(
     model: "EcModel",
     output_path: str | Path,
     ignore_lists: "DLKcatIgnoreLists",

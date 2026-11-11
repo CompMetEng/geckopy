@@ -458,7 +458,7 @@ def test_kcats_from_dlkcat_run_is_docker(tmp_path, monkeypatch):
         kcats_from_dlkcat(full, via="docker")
     ran = []
     monkeypatch.setattr(kcats_from_module.shutil, "which", lambda name: "/bin/docker")
-    monkeypatch.setattr(kcats_from_module, "write_dlkcat_input", lambda *a, **k: ran.append("write"))
+    monkeypatch.setattr(kcats_from_module, "_write_dlkcat_input", lambda *a, **k: ran.append("write"))
     monkeypatch.setattr(kcats_from_module, "_run_dlkcat", lambda path: ran.append("run"))
     dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
     monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)

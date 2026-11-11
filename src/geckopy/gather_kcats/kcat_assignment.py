@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 import pandas as pd
 
-from ..ec_model.pipeline.apply_custom_kcats import apply_custom_kcats
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
@@ -171,24 +170,24 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
     spread = np.full(n, np.nan)
     report: dict[str, Any] = {"preset": config.preset, "missing": [], "sources": {}}
     loaded: dict[str, Optional[pd.DataFrame]] = {}
-    legacy_custom = False
 
     sd = np.full(n, np.nan)
     params = None
 
     def load(name: str) -> Optional[pd.DataFrame]:
-        nonlocal legacy_custom
         if name not in loaded:
             file = kcat_dir / f"{name}.tsv"
             if file.is_file():
                 loaded[name], report["sources"][name] = load_kcat_source(model, file)
+            elif name == "custom" and (path / "data" / "customKcats.tsv").is_file():
+                raise ValueError(
+                    f"{path / 'data' / 'customKcats.tsv'} is a GECKO 3 custom kcats file and {file} does "
+                    "not exist. Convert it with convert_custom_kcats (geckopy upgrade does this)."
+                )
             else:
                 loaded[name] = None
-                if name == "custom" and (path / "data" / "customKcats.tsv").is_file():
-                    legacy_custom = True
-                else:
-                    report["missing"].append(name)
-                    logger.warning("No kcat source file %s; it is left out. update_kcat_sources gathers it.", file)
+                report["missing"].append(name)
+                logger.warning("No kcat source file %s; it is left out. update_kcat_sources gathers it.", file)
         return loaded[name]
 
     for s, st in enumerate(config.stages, start=1):
@@ -246,12 +245,6 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
             candidates[i] = len(values)
             spread[i] = np.log10(values.max()) - np.log10(values.min())
 
-    if legacy_custom:
-        before = ec.kcat.copy()
-        apply_custom_kcats(model, path=path / "data" / "customKcats.tsv")
-        changed = ec.kcat != before
-        for i in np.flatnonzero(changed):
-            stage[i], candidates[i], spread[i] = "custom", 1, 0.0
     if config.isozymes and not ec.gecko_light:
         before = ec.kcat == 0
         fill_kcats_from_isozymes(model)
@@ -345,11 +338,12 @@ def collect_kcats(
     only where there is no value from measurements. The BRENDA aggregation is
     ``[kcat_sources.brenda] aggregation`` (see :func:`update_kcat_sources`).
 
-    After the stages: custom kcats of ``data/customKcats.tsv`` when a stage
-    lists custom but there is no ``data/kcats/custom.tsv``; with
-    ``isozymes``, kcats from isozymes; with ``standard``, the standard kcat
-    for the rest. A source file a stage names that does not exist is
-    reported and left out.
+    After the stages: with ``isozymes``, kcats from isozymes; with
+    ``standard``, the standard kcat for the rest. A source file a stage names
+    that does not exist is reported and left out. A stage that lists custom
+    raises a ``ValueError`` when there is no ``data/kcats/custom.tsv`` but a
+    GECKO 3 ``data/customKcats.tsv``: :func:`~geckopy.upgrade.convert_custom_kcats`
+    converts it.
 
     Parameters
     ----------
@@ -366,7 +360,7 @@ def collect_kcats(
     -------
     (decisions, report, ec_model)
         ``decisions`` has one row per ``model.ec`` reaction: ``ec_rxn``,
-        ``stage`` (the stage number, ``custom``, ``isozymes``, ``standard``,
+        ``stage`` (the stage number, ``isozymes``, ``standard``,
         or empty without a kcat), ``source``, ``kcat``, ``candidates`` (values
         the deciding source had), ``spread_log10`` (their range, in log10
         units) and ``sd_log10`` (the uncertainty of a combined kcat, a standard

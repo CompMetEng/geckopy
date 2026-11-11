@@ -8,6 +8,7 @@ from pathlib import Path
 
 import cobra
 import numpy as np
+import pytest
 
 from geckopy import ModelAdapter, make_ec_model, save_ec_model
 from geckopy.cli import main
@@ -69,14 +70,23 @@ def test_convert_custom_kcats(tmp_path):
 
 
 def test_converted_custom_kcats_give_same_kcats(tmp_path):
+    """collect_kcats refuses the GECKO 3 file; once converted, the custom kcats
+    are those the deprecated apply_custom_kcats gives."""
+    from geckopy.ec_model.pipeline import apply_custom_kcats
+
     model, adapter, project = _project(tmp_path)
     kcats_from_brenda(model, adapter=adapter)
-    a, _, _ = collect_kcats(model, adapter=adapter, write_report=False)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        collect_kcats(model, adapter=adapter, write_report=False)
     convert_custom_kcats(model, adapter=adapter)
     b, _, _ = collect_kcats(model, adapter=adapter, write_report=False)
-    np.testing.assert_array_equal(b["kcat"].to_numpy(), a["kcat"].to_numpy())
-    assert list(b["source"] == "custom") == list(a["source"] == "custom")
-    assert (b["source"] == "custom").any()
+    ref = model.copy()
+    with pytest.warns(DeprecationWarning, match="apply_custom_kcats"):
+        apply_custom_kcats(ref, apply=False)
+    custom = [i for i, s in enumerate(ref.ec.source) if s == "custom"]
+    assert custom
+    assert list(b["source"].iloc[custom]) == ["custom"] * len(custom)
+    np.testing.assert_array_equal(b["kcat"].to_numpy()[custom], ref.ec.kcat[custom])
 
 
 def test_upgrade_ec_model(tmp_path):

@@ -1,12 +1,16 @@
-"""Apply user-curated custom kcats from a TSV file.
+"""Apply user-curated custom kcats from a GECKO 3 customKcats.tsv file.
 
-Ported from GECKO MATLAB: src/change_model/applyCustomKcats.m.
+Deprecated: GECKO 4 projects keep custom kcats in ``data/kcats/custom.tsv``,
+which ``convert_custom_kcats`` writes from ``data/customKcats.tsv``.
+
+Ported from GECKO MATLAB: src/deprecated/applyCustomKcats.m.
 """
 from __future__ import annotations
 
 import logging
 import math
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -24,6 +28,28 @@ _NOTES_SEPARATOR = ", "
 
 
 def apply_custom_kcats(
+    model: "EcModel",
+    path: Optional[Path] = None,
+    *,
+    apply: bool = True,
+) -> None:
+    """Deprecated: apply the kcats of a GECKO 3 ``customKcats.tsv`` file.
+
+    ``convert_custom_kcats`` turns ``data/customKcats.tsv`` into
+    ``data/kcats/custom.tsv``, which ``collect_kcats`` and ``assign_kcats``
+    read. This function still applies the old file, as described for
+    :func:`_apply_custom_kcats`, after a ``DeprecationWarning``.
+    """
+    warnings.warn(
+        "apply_custom_kcats is deprecated; convert data/customKcats.tsv with "
+        "convert_custom_kcats into data/kcats/custom.tsv, which assign_kcats reads.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _apply_custom_kcats(model, path, apply=apply)
+
+
+def _apply_custom_kcats(
     model: "EcModel",
     path: Optional[Path] = None,
     *,

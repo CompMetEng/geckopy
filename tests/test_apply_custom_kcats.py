@@ -269,6 +269,12 @@ def test_apply_false_leaves_s_matrix_unchanged(tmp_path):
 # File handling and errors
 # --------------------------------------------------------------------------- #
 
+def test_apply_custom_kcats_is_deprecated():
+    ec_model = _ectestgem_ec_model()
+    with pytest.warns(DeprecationWarning, match="convert_custom_kcats"):
+        apply_custom_kcats(ec_model, apply=False)
+
+
 def test_missing_file_raises(tmp_path):
     ec_model = _ectestgem_ec_model()
     with pytest.raises(FileNotFoundError):

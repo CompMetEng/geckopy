@@ -10,7 +10,7 @@ import numpy as np
 import pydantic
 import pytest
 
-from geckopy import ModelAdapter, make_ec_model
+from geckopy import ModelAdapter, convert_custom_kcats, make_ec_model
 from geckopy.databases import load_brenda_data, load_phyl_dist, load_uniprot_tsv
 from geckopy.ec_model.pipeline import apply_custom_kcats, apply_kcat_constraints, fill_kcats_from_isozymes
 from geckopy.gather_kcats import (
@@ -38,9 +38,10 @@ DLKCAT = (
 )
 
 
-def _project(tmp_path: Path, toml_extra: str = ""):
+def _project(tmp_path: Path, toml_extra: str = "", convert_custom: bool = True):
     """ecTestGEM in tmp_path, with its BRENDA files as the project's BRENDA
-    data and DLKcat output for the test model."""
+    data and DLKcat output for the test model; its customKcats.tsv is
+    converted to data/kcats/custom.tsv unless ``convert_custom`` is False."""
     project = tmp_path / "ecTestGEM"
     shutil.copytree(EXAMPLE_DIR, project)
     brenda = project / "data" / "brenda"
@@ -53,6 +54,9 @@ def _project(tmp_path: Path, toml_extra: str = ""):
         toml.write_text(toml.read_text(encoding="utf-8") + "\n" + toml_extra, encoding="utf-8")
     adapter = ModelAdapter.from_folder(project)
     model = make_ec_model(cobra.io.read_sbml_model(str(adapter.params.conv_gem)), adapter)
+    if convert_custom:
+        convert_custom_kcats(model, adapter=adapter)
+        (project / "data" / "customKcats.tsv").unlink()
     return model, adapter, project
 
 
@@ -70,7 +74,8 @@ def test_assign_kcats_reproduces_chain(tmp_path):
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=6)
     apply_kcat_list(a, merged)
-    apply_custom_kcats(a, path=data / "customKcats.tsv")
+    with pytest.warns(DeprecationWarning, match="apply_custom_kcats"):
+        apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)
@@ -87,7 +92,7 @@ def test_assign_kcats_reproduces_chain(tmp_path):
     assert report["preset"] == "gecko_classic"
     assert list(decisions["ec_rxn"]) == list(b.ec.rxns)
     assert (project / "output" / f"{base.id}_kcatDecisions.tsv").is_file()
-    assert {"custom", "1"} <= set(decisions["stage"])
+    assert "1" in set(decisions["stage"])
 
 
 def test_gecko_median_preset(tmp_path):
@@ -102,7 +107,8 @@ def test_gecko_median_preset(tmp_path):
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=4)
     apply_kcat_list(a, merged)
-    apply_custom_kcats(a, path=data / "customKcats.tsv")
+    with pytest.warns(DeprecationWarning, match="apply_custom_kcats"):
+        apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)
@@ -155,6 +161,13 @@ def test_collect_kcats_returns_isozyme_kcats_without_constraints(tmp_path):
     assert any(stoich(decided, rxn) != stoich(base, rxn) for rxn in filled)
 
 
+def test_legacy_custom_kcats_file_raises(tmp_path):
+    """A stage that lists custom raises on a GECKO 3 customKcats.tsv without custom.tsv."""
+    base, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n', convert_custom=False)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        collect_kcats(base, adapter=adapter, write_report=False)
+
+
 def test_kcat_sources_table_overrides_only_its_keys(tmp_path):
     """[kcat_sources.brenda] without aggregation keeps the preset's median."""
     from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config
@@ -196,7 +209,7 @@ def test_update_kcat_sources(tmp_path):
     report = update_kcat_sources(base, dry_run=True, adapter=adapter)
     assert list(report["source"]) == ["custom", "brenda", "dlkcat"]
     assert list(report["status"]) == ["skipped", "missing", "missing"]
-    assert not (project / "data" / "kcats").exists()
+    assert not (project / "data" / "kcats" / "brenda.tsv").exists()
     report = update_kcat_sources(base, adapter=adapter)
     assert list(report["status"]) == ["skipped", "gathered", "gathered"]
     _, meta = read_kcat_source(project / "data" / "kcats" / "brenda.tsv")

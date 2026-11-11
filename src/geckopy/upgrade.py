@@ -51,9 +51,9 @@ def convert_custom_kcats(
 ) -> tuple[Path, dict]:
     """Convert ``data/customKcats.tsv`` into ``data/kcats/custom.tsv``.
 
-    The kcats are those :func:`~geckopy.ec_model.pipeline.apply_custom_kcats`
-    gives the ecModel, including which of two entries for the same reaction
-    is kept: one row per reaction, keyed by conventional reaction and enzyme set
+    The kcats are those the deprecated
+    :func:`~geckopy.ec_model.pipeline.apply_custom_kcats` gives the ecModel,
+    including which of two entries for the same reaction is kept: one row per reaction, keyed by conventional reaction and enzyme set
     (see :func:`~geckopy.gather_kcats.ec_rxn_keys`), with the entry's notes in
     the note column. The ``stoicho`` column is left out: complex
     stoichiometry comes from ``apply_complex_data``. The conversion needs the
@@ -76,7 +76,7 @@ def convert_custom_kcats(
         The file written, and a report with ``rows`` (rows written).
     """
     from .adapter import resolve_adapter
-    from .ec_model.pipeline.apply_custom_kcats import apply_custom_kcats
+    from .ec_model.pipeline.apply_custom_kcats import _apply_custom_kcats
     from .gather_kcats.kcat_sources import _geckopy_version, ec_rxn_keys, format_number
 
     if model.ec.gecko_light:
@@ -95,7 +95,7 @@ def convert_custom_kcats(
     n = len(applied.ec.rxns)
     applied.ec.notes = [""] * n
     applied.ec.source = [""] * n
-    apply_custom_kcats(applied, path=src, apply=False)
+    _apply_custom_kcats(applied, path=src, apply=False)
     base, enzymes = ec_rxn_keys(applied)
     rows: dict[tuple[str, str], list[str]] = {}
     for i in range(n):

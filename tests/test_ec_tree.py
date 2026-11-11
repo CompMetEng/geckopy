@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from geckopy import ModelAdapter, make_ec_model
+from geckopy import ModelAdapter, convert_custom_kcats, make_ec_model
 from geckopy.databases import fetch_brenda_asset, load_brenda_measurements
 from geckopy.gather_kcats import (
     assign_kcats,
@@ -82,6 +82,8 @@ def _project(tmp_path: Path, toml_extra: str = ""):
     adapter = ModelAdapter.from_folder(project)
     model = make_ec_model(cobra.io.read_sbml_model(str(adapter.params.conv_gem)), adapter)
     fill_eccodes_from_gem(model)
+    convert_custom_kcats(model, adapter=adapter)
+    (project / "data" / "customKcats.tsv").unlink()
     return model, adapter, project
 
 

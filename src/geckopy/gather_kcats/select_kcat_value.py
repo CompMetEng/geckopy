@@ -1,7 +1,7 @@
 """Pick one kcat per reaction from a kcat list and write to model.ec.kcat.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/selectKcatValue.m.
+src/deprecated/selectKcatValue.m.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def apply_kcat_list(
     """Choose one kcat value per reaction and write it to ``model.ec.kcat``.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/selectKcatValue.m.
+    src/deprecated/selectKcatValue.m.
 
     For each reaction with one or more entries in ``kcat_list``,
     aggregate the candidate kcats per ``criteria`` (``"max"`` is the

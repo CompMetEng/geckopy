@@ -7,7 +7,7 @@ uncommented with a placeholder (for required fields), or commented out
 showing its default value (for optional fields). Field descriptions
 are emitted as TOML comments above each field.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
+Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
 from __future__ import annotations
 

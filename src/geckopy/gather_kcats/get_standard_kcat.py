@@ -2,7 +2,7 @@
 without enzyme assignments.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/getStandardKcat.m.
+src/gather_kcats/getStandardKcat.m.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def assign_standard_kcat(
     reactions without enzyme constraints.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/getStandardKcat.m.
+    src/gather_kcats/getStandardKcat.m.
 
     A standard MW (median of all proteins in ``uniprot_db``) and a
     standard kcat (median of all non-zero, non-NaN ``model.ec.kcat``

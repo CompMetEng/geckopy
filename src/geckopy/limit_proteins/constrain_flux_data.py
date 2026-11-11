@@ -12,7 +12,7 @@ gives the model room to wiggle around the measurement; a numeric
 percentage clamps it within that band.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/constrainFluxData.m.
+src/limit_proteins/constrainFluxData.m.
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def apply_flux_data_constraints(
     adapter's preferred carbon source so the data determines the choice.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/constrainFluxData.m.
+    src/limit_proteins/constrainFluxData.m.
 
     A ``+/-1000`` measured flux means unconstrained, regardless of
     ``loose_strict_flux``:

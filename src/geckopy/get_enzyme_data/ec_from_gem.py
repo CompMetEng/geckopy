@@ -1,7 +1,7 @@
 """Populate model.ec.eccodes from per-reaction `ec-code` annotations.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/getECfromGEM.m.
+src/get_enzyme_data/getECfromGEM.m.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def fill_eccodes_from_gem(
     """Populate ``model.ec.eccodes`` from per-reaction ``ec-code`` annotations.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/getECfromGEM.m.
+    src/get_enzyme_data/getECfromGEM.m.
 
     For each entry of ``model.ec.rxns``, looks up the corresponding
     cobra.Reaction (stripping a 4-char prefix first when the model is

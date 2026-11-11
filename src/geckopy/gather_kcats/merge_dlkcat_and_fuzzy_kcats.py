@@ -7,7 +7,7 @@ single lists that mix several sources (e.g. an OpenKineticsPredictor
 result with BRENDA / Sabio-RK / CataPro rows).
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/mergeDLKcatAndFuzzyKcats.m.
+src/deprecated/mergeDLKcatAndFuzzyKcats.m.
 """
 from __future__ import annotations
 

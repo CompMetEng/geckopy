@@ -217,7 +217,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
   port choice, not something flowing back to MATLAB).
 - **(new)** — geckopy entry-point with no direct MATLAB counterpart.
 
-### 5.1 Build / edit the ecModel (`src/geckomat/change_model`)
+### 5.1 Build / edit the ecModel (`src/change_model`)
 
 | MATLAB                       | geckopy                       | Notes                                                                                                                                                                          |
 | ---------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -232,7 +232,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `setKcatForReactions`        | `set_kcat_for_reactions`      | Matches IDs without regard to letter case, ignores an unknown ID and does not apply the constraints unless `apply=True`, as `setKcatForReactions`; a light-model row is addressed by its `###_` ID.                    |
 | `setProtPoolSize`            | `set_prot_pool_size`          | **`[3→4]`** Sets the **upper** bound of `prot_pool_exchange` (forward direction).                                                                                              |
 
-### 5.2 Gather kcats (`src/geckomat/gather_kcats`)
+### 5.2 Gather kcats (`src/gather_kcats`)
 
 | MATLAB                              | geckopy                              | Notes                                                                                                                                                                                                                            |
 | ----------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -266,7 +266,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `assignKcats`                       | `assign_kcats`                       | `collect_kcats`, then sets `ec.kcat` and `ec.source` and applies the kcat constraints; replaces `merge_kcats` → `apply_kcat_list` → `apply_custom_kcats` → `fill_kcats_from_isozymes` → `assign_standard_kcat` → `apply_kcat_constraints`. In place. |
 | `updateKcatSources`                 | `update_kcat_sources`                | Gathers the source files the configuration needs that are missing, or outdated against `[kcat_sources.<name>]`; `dry_run` only reports. |
 
-### 5.3 Get enzyme data (`src/geckomat/get_enzyme_data`)
+### 5.3 Get enzyme data (`src/get_enzyme_data`)
 
 | MATLAB                | geckopy                                                                | Notes                                                                                                                                                                                                                                      |
 | --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -290,7 +290,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `findMaxValue`                        | `find_max_value`                                                   | **`[3→4]`** Wildcard EC branch matches real codes.                                                                                                                                                                                |
 | `cmaesKcatTuning` + helpers           | `kcat_tuning.evotune.cmaes_kcat_tuning` + helpers      | Fits kcats to experimental flux/growth data with CMA-ES; see [evotune_kcat_tuning.md](evotune_kcat_tuning.md). |
 
-### 5.5 Limit proteins (`src/geckomat/limit_proteins`)
+### 5.5 Limit proteins (`src/limit_proteins`)
 
 | MATLAB                | geckopy                              | Notes                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -303,9 +303,9 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `getIsozymeCoverage`   | `get_isozyme_coverage`               | **`[Py]`** Returns the coverage `DataFrame` (columns `rxn`, `n_entries`, `n_measured`, `n_unmeasured`, `measured_enzymes`, `unmeasured_enzymes`, `shared_enzymes`) and the list of zeroable enzymes. Raises `NotImplementedError` on gecko-light.                                                                                                                                                                                                                                                          |
 | `updateProtPool`      | *(not ported)*                       | Obsolete since GECKO 3.2.0. Use `set_prot_pool_size` instead.                                                                                                                                                                                                                                                  |
 | `zeroUnmeasuredIsozymes` | `zero_unmeasured_isozymes`           | **`[Py]`** Lowers the usage upper bounds in place and returns the changed enzymes as a `DataFrame` (`uniprot`, `new_upper_bound`). Method `'detectionLimit'` is `"detection_limit"`.                                                                                                                                                                                                                                                                                                                       |
-| —                     | `relax_proteomics_greedy` *(new)*    | **`[Py]`** Alternative to `flexibilize_enz_concs`: relaxes a fixed top-*k* of measured concentrations in a greedy loop until a target growth is reached. Returns a `GreedyRelaxResult`.                                                                                                                       |
+| `relaxProteomicsGreedy` | `relax_proteomics_greedy`          | Alternative to `flexibilize_enz_concs`: until growth reaches the target, sets the usage upper bound of the constrained enzyme with the largest absolute shadow price of its `prot_<id>` metabolite to the default bound, one enzyme per iteration. **`[Py]`** Returns a `GreedyRelaxResult` (`converged=False` when no candidate is left) and changes the model in place; raises `RuntimeError` when `max_iterations` relaxations do not reach the target.                                                                                                                       |
 
-### 5.6 Utilities (`src/geckomat/utilities`)
+### 5.6 Utilities (`src/utilities`)
 
 | MATLAB                | geckopy                                | Notes                                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -328,7 +328,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | —                     | `pfba_enzymes` *(new)*                 | **`[Py]`** pFBA variant that minimises total `usage_prot_*` flux instead of all fluxes. Raises `NotImplementedError` on gecko-light.                                                                                                                                                                                                                          |
 | —                     | `get_enzyme_bottlenecks` *(new)*       | **`[Py]`** Per-enzyme bottleneck ranker; returns a DataFrame sorted by the re-solved change of the objective when the bound of one enzyme at its bound is raised by `fold_change`. The shadow price is a reference column.                                                                                                                                                                                                                                                                                       |
 
-### 5.7 Model adapter (`src/geckomat/model_adapter`)
+### 5.7 Model adapter (`src/model_adapter`)
 
 | MATLAB                  | geckopy                                                    | Notes                                                                                                                                                          |
 | ----------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -454,13 +454,14 @@ for the MATLAB-side items the port surfaced.
   `prot_pool_exchange`).
 - **Refreshed BRENDA TSV schema** (geckopy adds the max+median
   variant; MATLAB includes only max so far).
+- **Greedy relaxation of proteomics constraints**
+  (`relaxProteomicsGreedy` / `relax_proteomics_greedy`), an alternative
+  to `flexibilize_enz_concs`.
 
 ### geckopy-only (no MATLAB counterpart)
 
 - `pfba_enzymes` — enzyme-pool-minimising pFBA.
 - `get_enzyme_bottlenecks`: bottleneck ranking by the re-solved change of the objective.
-- `relax_proteomics_greedy` — greedy alternative to
-  `flexibilize_enz_concs`.
 - `merge_kcats` — generalised n-source kcat merge (replaces the
   DLKcat-only MATLAB helper).
 - `geckopy brenda-refresh` CLI — rebuilds the BRENDA TSV from a

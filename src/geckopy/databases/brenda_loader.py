@@ -1,7 +1,7 @@
 """Parse BRENDA TSV dumps into kcat and SA-derived-kcat tables.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/loadBRENDAdata.m.
+src/download_databases/loadBRENDAdata.m.
 
 Three tab-delimited files are read from the BRENDA folder:
 
@@ -99,7 +99,7 @@ def load_brenda_data(
     """Load BRENDA kcat, SA, and MW dumps from a folder.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/loadBRENDAdata.m.
+    src/download_databases/loadBRENDAdata.m.
 
     Reads ``kcat.tsv``, ``sa.tsv``, ``mw.tsv`` from ``folder``, splits
     the kcat and SA wide tables into per-aggregation views, applies the

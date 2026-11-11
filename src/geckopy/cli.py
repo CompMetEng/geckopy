@@ -1,12 +1,12 @@
 """Command-line interface for geckopy.
 
 The `init` subcommand ports GECKO MATLAB's project-scaffolding logic
-(`src/geckomat/utilities/startGECKOproject.m`): create the project
+(`src/deprecated/startGECKOproject.m`): create the project
 folder tree and write out a template adapter. The `brenda-refresh`,
 `uniprot-download`, and `kegg-download` subcommands are new tooling
 with no MATLAB equivalent.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/startGECKOproject.m
+Ported from GECKO MATLAB: src/deprecated/startGECKOproject.m
 (the `init` subcommand only).
 """
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """Set kcat values for individual reactions, with optional auto-apply.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/setKcatForReactions.m.
+Ported from GECKO MATLAB: src/change_model/setKcatForReactions.m.
 """
 from __future__ import annotations
 

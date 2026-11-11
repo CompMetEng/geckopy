@@ -18,7 +18,7 @@ follow up with one of:
 The MATLAB tutorials in
 ``tutorials/full_ecModel/protocol.py`` show the full flow.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/makeEcModel.m.
+Ported from GECKO MATLAB: src/change_model/makeEcModel.m.
 """
 from __future__ import annotations
 

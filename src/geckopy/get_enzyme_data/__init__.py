@@ -1,6 +1,6 @@
 """Functions that build the enzyme-data side of an ec model.
 
-Mirrors GECKO MATLAB's `src/geckomat/get_enzyme_data/` directory.
+Mirrors GECKO MATLAB's `src/get_enzyme_data/` directory.
 """
 from .copy_ec_to_gem import copy_ec_to_gem
 from .ec_from_database import fill_eccodes_from_database, get_ec_from_database

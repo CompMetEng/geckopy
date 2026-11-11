@@ -1,7 +1,7 @@
 """Fill missing kcats by averaging across isozymes.
 
 Ported from GECKO MATLAB:
-src/geckomat/change_model/getKcatAcrossIsozymes.m.
+src/change_model/getKcatAcrossIsozymes.m.
 """
 from __future__ import annotations
 

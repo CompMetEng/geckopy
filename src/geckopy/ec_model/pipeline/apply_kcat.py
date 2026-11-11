@@ -1,6 +1,6 @@
 """Apply kcat-derived stoichiometric constraints to an ecModel.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/applyKcatConstraints.m.
+Ported from GECKO MATLAB: src/change_model/applyKcatConstraints.m.
 Supports both the full and gecko-light formulations. The two share the
 clear-then-write idempotency contract but write to different metabolites:
 full models write per-enzyme ``prot_<id>`` coefficients on each ec.rxn;

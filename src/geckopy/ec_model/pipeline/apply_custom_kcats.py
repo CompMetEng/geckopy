@@ -1,6 +1,6 @@
 """Apply user-curated custom kcats from a TSV file.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/applyCustomKcats.m.
+Ported from GECKO MATLAB: src/change_model/applyCustomKcats.m.
 """
 from __future__ import annotations
 

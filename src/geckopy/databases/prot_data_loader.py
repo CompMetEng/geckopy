@@ -1,7 +1,7 @@
 """Parse a proteomics.tsv into a ProtData with optional filtering.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/loadProtData.m.
+src/io/loadProtData.m.
 """
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def load_prot_data(
     the protein pool (see ``fill_enz_concs`` and ``constrain_enz_concs``).
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/loadProtData.m.
+    src/io/loadProtData.m.
 
     Parameters
     ----------

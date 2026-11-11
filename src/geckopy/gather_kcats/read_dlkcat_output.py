@@ -1,7 +1,7 @@
 """Read a DLKcat predictions TSV into a kcat_list DataFrame.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/readDLKcatOutput.m.
+src/gather_kcats/readDLKcatOutput.m.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def read_dlkcat_output(
     """Parse DLKcat's output TSV into a kcat_list DataFrame.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/readDLKcatOutput.m.
+    src/gather_kcats/readDLKcatOutput.m.
 
     The input file is the 6-column TSV that DLKcat writes (see
     ``run_dlkcat``), with one header line and columns

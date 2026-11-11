@@ -22,7 +22,7 @@ This function does the same thing on an ecModel, with two twists:
   ecModels this matters — yeast-GEM has ~4000 conv reactions,
   each needing two LP solves, so a serial run can be slow.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/ecFVA.m.
+Ported from GECKO MATLAB: src/flux_analysis/ecFVA.m.
 """
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def ec_fva(
     variant across all reactions' solutions and summing.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/ecFVA.m.
+    src/flux_analysis/ecFVA.m.
 
     Parameters
     ----------

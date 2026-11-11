@@ -31,7 +31,7 @@ and tiered by its underlying source with the tag stripped -- an
 tagged ``source`` string.
 
 Ported from / generalizes GECKO MATLAB:
-src/geckomat/gather_kcats/mergeDLKcatAndFuzzyKcats.m.
+src/deprecated/mergeDLKcatAndFuzzyKcats.m.
 """
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 
 Ported from GECKO MATLAB:
 the inline `DLKcatIgnoreMets.tsv` and `DLKcatCurrencyMets.tsv` parsing
-in src/geckomat/gather_kcats/writeDLKcatInput.m.
+in src/gather_kcats/writeDLKcatInput.m.
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def load_dlkcat_ignore_lists(
 
     Ported from GECKO MATLAB:
     the inline file-loading parts of
-    src/geckomat/gather_kcats/writeDLKcatInput.m.
+    src/gather_kcats/writeDLKcatInput.m.
 
     Parameters
     ----------

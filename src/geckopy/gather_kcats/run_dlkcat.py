@@ -1,7 +1,7 @@
 """Invoke DLKcat (via Docker) to predict kcat values for a model.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/runDLKcat.m.
+src/gather_kcats/runDLKcat.m.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def run_dlkcat(
     """Run DLKcat on a prepared input TSV and return the output path.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/runDLKcat.m.
+    src/gather_kcats/runDLKcat.m.
 
     Requires Docker to be installed and the daemon to be running.
     The DLKcat invocation uses a published image and may take several

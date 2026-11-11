@@ -2,7 +2,7 @@
 
 Ported from GECKO MATLAB:
 the inline paxDB-parsing block of
-src/geckomat/limit_proteins/calculateFfactor.m.
+src/limit_proteins/calculateFfactor.m.
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def load_pax_db(
 
     Ported from GECKO MATLAB:
     the inline paxDB-parsing block of
-    src/geckomat/limit_proteins/calculateFfactor.m.
+    src/limit_proteins/calculateFfactor.m.
 
     Parameters
     ----------

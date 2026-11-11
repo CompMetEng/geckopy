@@ -1,6 +1,6 @@
 """General utility functions for ecModels.
 
-Mirrors GECKO MATLAB's `src/geckomat/utilities/` directory.
+Mirrors GECKO MATLAB's `src/utilities/` directory.
 """
 from .add_new_rxns_to_ec import (
     AddNewRxnsResult,

@@ -1,6 +1,6 @@
 """Gather kcat values for ec model reactions from various sources.
 
-Mirrors GECKO MATLAB's `src/geckomat/gather_kcats/` directory.
+Mirrors GECKO MATLAB's `src/gather_kcats/` directory.
 """
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_assignment import assign_kcats, collect_kcats, update_kcat_sources

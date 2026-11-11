@@ -12,7 +12,7 @@ There are two ways a caller might supply one:
 ``model.adapter``-or-raise" pattern that 30+ functions duplicated
 inline, with inconsistent error messages.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/ModelAdapterManager.m.
+Ported from GECKO MATLAB: src/model_adapter/ModelAdapterManager.m.
 """
 from __future__ import annotations
 

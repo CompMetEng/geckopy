@@ -1,7 +1,7 @@
 """Write a DLKcat-compatible TSV input file for an ec model.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/writeDLKcatInput.m.
+src/gather_kcats/writeDLKcatInput.m.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def write_dlkcat_input(
     """Write a DLKcat-compatible TSV input file.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/writeDLKcatInput.m.
+    src/gather_kcats/writeDLKcatInput.m.
 
     For each selected ec.rxn, enumerate (substrate, gene-subunit)
     pairs from the model's stoichiometry and rxn_enz_mat. Each row

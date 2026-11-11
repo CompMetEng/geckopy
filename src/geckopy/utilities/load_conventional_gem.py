@@ -13,7 +13,7 @@ unlike cobra's reader, keeps RAVEN fields such as per-reaction
 anything else via ``read_sbml_model``.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/loadConventionalGEM.m.
+src/io/loadConventionalGEM.m.
 """
 from __future__ import annotations
 

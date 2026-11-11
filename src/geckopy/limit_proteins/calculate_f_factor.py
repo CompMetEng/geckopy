@@ -13,15 +13,15 @@ high and it's over-constrained (artificially hard).
 geckopy computes f from proteomics data (a ``ProtData`` table
 loaded by ``load_pax_db`` or similar): for each measured protein,
 check whether it's in the model, sum the masses, divide by the
-total. A default value of 0.5 is a reasonable starting point when
-no proteomics data is available.
+total. Without proteomics data it returns the default value 0.5.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/calculateFfactor.m.
+src/limit_proteins/calculateFfactor.m.
 """
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 def calculate_f_factor(
     model: "EcModel",
-    prot_data: "ProtData",
+    prot_data: Optional["ProtData"] = None,
     *,
     enzymes: Optional[list[str]] = None,
 ) -> float:
@@ -53,19 +53,20 @@ def calculate_f_factor(
     per-protein average is taken first via ``np.nanmean(axis=1)``.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/calculateFfactor.m.
+    src/limit_proteins/calculateFfactor.m.
 
     Parameters
     ----------
     model
-        EcModel; only used to default ``enzymes`` to
-        ``model.ec.enzymes``.
+        EcModel; defaults ``enzymes`` to ``model.ec.enzymes``, and its
+        adapter locates ``data/paxDB.tsv`` without ``prot_data``.
     prot_data
         Pre-loaded proteomics data (typically from ``load_pax_db``).
-        There is no implicit fallback when proteomics data is
-        unavailable -- callers without measurements should use a
-        default value such as ``f = 0.5`` directly instead of calling
-        this function.
+        If None, ``data/paxDB.tsv`` of the adapter's project is loaded
+        with ``load_pax_db`` and the project's ``data/uniprot.tsv``
+        (downloaded with the adapter's ``[uniprot]`` settings when
+        missing). Without that file, a warning is logged and the default
+        f of 0.5 is returned, as GECKO's ``calculateFfactor`` does.
     enzymes
         UniProt IDs counted as "in the model". Defaults to
         ``model.ec.enzymes``.
@@ -73,12 +74,34 @@ def calculate_f_factor(
     Returns
     -------
     float
-        The f-factor in [0, 1]. Returns NaN, as MATLAB does, if the total
-        proteome abundance is zero (the factor is 0/0), and 0.0 if none of
-        the proteomics UniProt IDs match a model enzyme.
+        The f-factor in [0, 1]. Returns 0.5 without proteomics data, NaN,
+        as MATLAB does, if the total proteome abundance is zero (the factor
+        is 0/0), and 0.0 if none of the proteomics UniProt IDs match a model
+        enzyme.
     """
     if enzymes is None:
         enzymes = model.ec.enzymes
+
+    if prot_data is None:
+        adapter = getattr(model, "adapter", None)
+        pax_path = Path(adapter.params.path) / "data" / "paxDB.tsv" if adapter is not None else None
+        if pax_path is None or not pax_path.is_file():
+            logger.warning(
+                "calculate_f_factor: no proteomics data is provided or can be "
+                "found; returning the default f = 0.5."
+            )
+            return 0.5
+        from ..databases import load_pax_db, load_uniprot_tsv
+
+        uniprot = adapter.params.uniprot
+        uniprot_db = load_uniprot_tsv(
+            pax_path.parent / "uniprot.tsv",
+            uniprot_id=uniprot.id or None,
+            id_type=uniprot.type,
+            gene_id_field=uniprot.gene_id_field,
+            reviewed=uniprot.reviewed,
+        )
+        prot_data = load_pax_db(pax_path, uniprot_db)
 
     abundances = prot_data.abundances
     if abundances.ndim == 2:

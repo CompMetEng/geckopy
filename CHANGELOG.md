@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `calculate_f_factor` takes no `prot_data` as well: it then reads `data/paxDB.tsv` of the adapter's project with `load_pax_db`, and without that file logs a warning and returns the default f of 0.5, as GECKO's `calculateFfactor` does. `prot_data` was required.
 * `level_complex_concs` takes `families`, the complexes of the model as `complex_families` returns them (default: calculated from the model), as GECKO's `levelComplexConcs` does.
 * `make_ec_model` without `uniprot_db` or `kegg_db` downloads a missing `data/uniprot.tsv` or `data/kegg.tsv` with the `[uniprot]` and `[kegg]` settings of the adapter, as GECKO's `makeEcModel` does through `loadDatabases`; an empty `kegg.id` leaves KEGG out with a warning. It used to raise `FileNotFoundError` for a missing `uniprot.tsv` and to use no KEGG data without `kegg.tsv`, so a project without `kegg.tsv` and with a `kegg.id` now gets the KEGG fallback for genes UniProt does not know.
 * `load_kegg_tsv` with an empty `kegg_id` and no `kegg.tsv` logs a warning and returns None, as GECKO's `loadDatabases` does without a `kegg.ID`; it called `download_kegg` with an empty organism code, which raised.

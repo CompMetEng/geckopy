@@ -161,3 +161,20 @@ def test_get_ec_from_database_alias_emits_warning():
         and "fill_eccodes_from_database" in str(w.message)
         for w in recorded
     )
+
+
+def test_merge_dlkcat_and_fuzzy_kcats_alias_emits_warning():
+    """``merge_dlkcat_and_fuzzy_kcats`` (deprecated) -> ``merge_kcats``."""
+    from geckopy.gather_kcats import merge_dlkcat_and_fuzzy_kcats
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        try:
+            merge_dlkcat_and_fuzzy_kcats(None, None)
+        except Exception:
+            pass
+    assert any(
+        issubclass(w.category, DeprecationWarning)
+        and "merge_kcats" in str(w.message)
+        for w in recorded
+    )

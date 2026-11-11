@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `truncate_values` is removed from `geckopy.kcat_tuning` and `geckopy`; nothing in geckopy called it, and GECKO has removed `truncateValues`. `update_prot_pool` was never ported: `set_prot_pool_size` sets the protein pool for a condition. `merge_dlkcat_and_fuzzy_kcats` stays a deprecated alias of `merge_kcats`.
 * `geckopy.__version__` is the installed version of geckopy.
 * `cma` is a required dependency of geckopy and the extra `evotune` is removed. `import geckopy` imports `cma`.
 * `enzyme_usage` reports `measured_protein`, `demanded_protein` and `demand_ratio`, the usage of the enzymes with a measured concentration divided by their measured concentrations, and the same restricted to enzymes with a usage above 1e-7 mg/gDCW (`measured_protein_active`, `demand_ratio_active`). `report_enzyme_usage` reports `demand_ratio` and `demand_ratio_active`. GECKO's `getEnzymeUsage` and `reportEnzymeUsage` give the same values.

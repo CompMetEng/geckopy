@@ -127,7 +127,6 @@ from geckopy.kcat_tuning import (
     fit_sigma,
     sensitivity_tuning,
     sigma_fitter,  # deprecated; alias of fit_sigma
-    truncate_values,
 )
 
 # limit_proteins
@@ -253,7 +252,6 @@ __all__ = [
     "find_max_value",
     "fit_sigma",
     "sensitivity_tuning",
-    "truncate_values",
     # limit_proteins
     "ComplexFamilies",
     "FlexEnzResult",

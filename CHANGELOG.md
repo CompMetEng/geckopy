@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `load_kegg_tsv` with an empty `kegg_id` and no `kegg.tsv` logs a warning and returns None, as GECKO's `loadDatabases` does without a `kegg.ID`; it called `download_kegg` with an empty organism code, which raised.
 * `geckopy uniprot-download` keeps reviewed and unreviewed entries by default, as the adapter default `uniprot.reviewed = false` and GECKO's `loadDatabases` do; `--reviewed-only` keeps the reviewed (Swiss-Prot) entries only. The option `--include-unreviewed` is removed; the command kept only reviewed entries by default.
 * `apply_complex_data` reports up to two proposed complexes for a reaction, the closest superset and the best partial match, as GECKO's `applyComplexData` does; it reported the partial match only when there was no superset.
 * `collect_kcats` returns the model with the decided kcats before `apply_kcat_constraints`, also for the kcats filled from isozymes, as GECKO's `collectKcats` does; it applied the constraints of the isozyme-filled reactions to the returned copy. `assign_kcats` gives the same model as before.

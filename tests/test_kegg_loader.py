@@ -146,3 +146,13 @@ def test_real_fixture_loads(tmp_path):
     assert db.genes[0] == "Q0045"
     assert db.eccodes[0] == "7.1.1.9"
     assert db.mw[0] == 58798.0
+
+
+def test_empty_kegg_id_skips_download(tmp_path, monkeypatch, caplog):
+    """As loadDatabases without a kegg.ID: a warning, no download, no data."""
+    import geckopy.databases.kegg_download as kegg_download
+
+    monkeypatch.setattr(kegg_download, "download_kegg", lambda *a, **k: pytest.fail("downloaded"))
+    with caplog.at_level("WARNING"):
+        assert load_kegg_tsv(tmp_path / "kegg.tsv", kegg_id="") is None
+    assert "No KEGG organism code" in caplog.text

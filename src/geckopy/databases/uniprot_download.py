@@ -34,7 +34,7 @@ def download_uniprot(
     *,
     id_type: str = "taxonomy_id",
     gene_id_field: str = "gene_oln",
-    reviewed: bool = True,
+    reviewed: bool = False,
     session: requests.Session | None = None,
 ) -> Path:
     """Download UniProt protein data for an organism and write a TSV.
@@ -56,8 +56,8 @@ def download_uniprot(
         matching key). Default ``"gene_oln"`` (Ordered Locus Names)
         works for most prokaryotes and budding yeast.
     reviewed
-        If True (default), restrict the query to reviewed
-        (Swiss-Prot) entries.
+        If True, restrict the query to reviewed (Swiss-Prot) entries.
+        Default False, as the adapter default ``uniprot.reviewed``.
     session
         Optional ``requests.Session`` for connection reuse and test
         injection. A new transient session is used otherwise.

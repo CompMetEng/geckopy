@@ -59,7 +59,7 @@ def load_uniprot_tsv(
     uniprot_id: str | int | None = None,
     id_type: str = "taxonomy_id",
     gene_id_field: str = "gene_oln",
-    reviewed: bool = True,
+    reviewed: bool = False,
     auto_download: bool = True,
 ) -> UniprotDB:
     """Parse a uniprot.tsv file into a UniprotDB.
@@ -91,8 +91,9 @@ def load_uniprot_tsv(
         UniProt field that becomes the Gene Names column. Default
         ``"gene_oln"``.
     reviewed
-        If True (default), restrict the auto-download query to
-        reviewed (Swiss-Prot) entries.
+        If True, restrict the auto-download query to reviewed
+        (Swiss-Prot) entries. Default False, as the adapter default
+        ``uniprot.reviewed``.
     auto_download
         If True (default) and ``path`` is missing, trigger
         ``download_uniprot`` before parsing. Set to False to keep

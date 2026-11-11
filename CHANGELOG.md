@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `download_uniprot` and `load_uniprot_tsv` download reviewed and unreviewed entries by default (`reviewed=False`), as the adapter default `uniprot.reviewed = false`; they downloaded reviewed entries only.
 * `get_conc_control_coeffs` raises `ValueError` when the solve of the model as given is not optimal (for example infeasible), as GECKO's `getConcControlCoeffs` raises `getConcControlCoeffs:infeasible`; it returned no analysed proteins and zero coefficients.
 * `ec_fseof` follows `ecFSEOF.m` in its labels, default and gene targets. `target_type` is `OE`, `KD` or `KO` instead of `amplify`, `knockdown` or `knockout`. `n_steps` defaults to 16 instead of 10. It returns an `EcFSEOFResult`, raven-toolbox's `FSEOFResult` whose `gene_targets` has one row per gene with the columns `gene`, `name`, `slope` (the mean absolute slope of its target reactions), `action`, `essentiality` and `reactions`, ordered by slope: a gene with several actions is `OE` when one of them is `OE`, otherwise `KO` when it is not essential and `KD` when it is, essential meaning that growth is infeasible or below 1e-8 with the usage of its enzymes blocked and the production fixed at the last enforced level. `gene_targets` had the columns `gene`, `target_type` (the actions joined by `;`), `reactions` and `max_abs_slope`.
 * `ec_fseof` raises `ValueError` when the flux of the production target at maximum growth is not below the top of the scan, as GECKO's `ecFSEOF` raises `ecFSEOF:noRange`; the scan used to run on levels that do not rise and returned no targets.

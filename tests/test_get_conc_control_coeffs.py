@@ -374,17 +374,16 @@ def test_equiv_subset_proteins():
     np.testing.assert_allclose(fc, sc, rtol=1e-6, atol=1e-12)
 
 
-def test_equiv_infeasible_model_both_zero():
-    """An infeasible LP: both methods return all-False mask and zero coeffs."""
+def test_equiv_infeasible_model_both_raise():
+    """An infeasible LP: both methods raise, as getConcControlCoeffs:infeasible."""
     model = _build_toy_ec_model(enzyme_ub=5.0)
     # Force infeasibility: require growth > what the model can deliver.
     sk = model.reactions.get_by_id("SK_B")
     sk.lower_bound = 1000.0  # impossible
-    fm, fc = _fd_helper(model)
-    sm, sc = _shadow_helper(model)
-    np.testing.assert_array_equal(fm, sm)
-    np.testing.assert_allclose(fc, sc, rtol=1e-6, atol=1e-12)
-    assert not fm.any() and not sm.any()
+    with pytest.raises(ValueError, match="no optimal solution"):
+        _fd_helper(model)
+    with pytest.raises(ValueError, match="no optimal solution"):
+        _shadow_helper(model)
 
 
 @pytest.mark.parametrize(

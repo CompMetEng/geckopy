@@ -13,8 +13,6 @@ from .merge_kcats import merge_kcats, normalize_source
 from .open_kinetics_predictor import (
     OKPClient,
     OKPError,
-    fetch_open_kinetics_predictor,
-    submit_open_kinetics_predictor,
 )
 from .read_dlkcat_output import read_dlkcat_output
 from .remove_standard_kcat import remove_standard_kcat
@@ -38,7 +36,6 @@ __all__ = [
     "ec_rxn_keys",
     "ec_stats_from_brenda",
     "extract_enzyme_substrate_pairs",
-    "fetch_open_kinetics_predictor",
     "format_kcat_source",
     "fuzzy_kcat_matching",
     "get_standard_kcat",  # deprecated; alias of assign_standard_kcat
@@ -58,7 +55,6 @@ __all__ = [
     "run_dlkcat",
     "save_kcat_source",
     "select_kcat_value",  # deprecated; alias of apply_kcat_list
-    "submit_open_kinetics_predictor",
     "update_kcat_sources",
     "write_dlkcat_input",
 ]

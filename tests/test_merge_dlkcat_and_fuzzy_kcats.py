@@ -419,7 +419,7 @@ def _okp_row(
     eccode: str = "",
     gene: str = "g1",
 ) -> dict:
-    """A row as produced by parse_okp_output: per-row provenance source
+    """A row as produced by _parse_okp_output: per-row provenance source
     tagged with the OKP- pipeline-stage prefix, NA wildcard/origin."""
     return {
         "rxn_id": rxn_id,

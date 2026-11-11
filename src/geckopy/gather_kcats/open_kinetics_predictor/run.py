@@ -2,9 +2,9 @@
 
 Two entry points mirroring the MATLAB submit/fetchOpenKineticsPredictor:
 
-* ``submit_open_kinetics_predictor`` builds the input CSV and submits a
+* ``_submit_open_kinetics_predictor`` builds the input CSV and submits a
   kcat-prediction job, persisting the job id to ``data/OKP_job.txt``.
-* ``fetch_open_kinetics_predictor`` checks status; on completion it
+* ``_fetch_open_kinetics_predictor`` checks status; on completion it
   downloads ``data/OKP_output.csv`` and parses it into a kcat_list
   DataFrame. ``use_stored`` re-parses the saved file without an API call.
 
@@ -30,9 +30,9 @@ import pandas as pd
 import requests
 
 from ...databases.dlkcat_ignore_lists import load_dlkcat_ignore_lists
-from .build_input import build_okp_input_csv
+from .build_input import _build_okp_input_csv
 from .client import OKPClient, OKPError
-from .parse_output import parse_okp_output
+from .parse_output import _parse_okp_output
 
 if TYPE_CHECKING:
     from ...adapter import ModelAdapter
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://predictor.openkinetics.org/api/v1"
 
 
-def submit_open_kinetics_predictor(
+def _submit_open_kinetics_predictor(
     model: "EcModel",
     *,
     overwrite: bool = False,
@@ -91,7 +91,7 @@ def submit_open_kinetics_predictor(
     """
     from ...adapter import resolve_adapter
     adapter = resolve_adapter(
-        model, adapter, purpose="submit_open_kinetics_predictor needs "
+        model, adapter, purpose="_submit_open_kinetics_predictor needs "
         "params.path and params.okp",
     )
     data_dir = Path(adapter.params.path) / "data"
@@ -106,7 +106,7 @@ def submit_open_kinetics_predictor(
     else:
         if ignore_lists is None:
             ignore_lists = load_dlkcat_ignore_lists(data_dir)
-        csv_text = build_okp_input_csv(
+        csv_text = _build_okp_input_csv(
             model, ignore_lists, ec_rxns=ec_rxns,
             only_with_smiles=only_with_smiles,
         )
@@ -130,7 +130,7 @@ def submit_open_kinetics_predictor(
     return job_id
 
 
-def fetch_open_kinetics_predictor(
+def _fetch_open_kinetics_predictor(
     model: "EcModel",
     use_stored: bool = False,
     *,
@@ -175,7 +175,7 @@ def fetch_open_kinetics_predictor(
     """
     from ...adapter import resolve_adapter
     adapter = resolve_adapter(
-        model, adapter, purpose="fetch_open_kinetics_predictor needs params.path",
+        model, adapter, purpose="_fetch_open_kinetics_predictor needs params.path",
     )
     data_dir = Path(adapter.params.path) / "data"
     out_file = Path(out_file) if out_file is not None else data_dir / "OKP_output.csv"
@@ -184,9 +184,9 @@ def fetch_open_kinetics_predictor(
         if not out_file.is_file():
             raise FileNotFoundError(
                 f"use_stored=True but no stored result at {out_file}. "
-                f"Run fetch_open_kinetics_predictor(use_stored=False) first."
+                f"Run _fetch_open_kinetics_predictor(use_stored=False) first."
             )
-        return True, parse_okp_output(model, out_file)
+        return True, _parse_okp_output(model, out_file)
 
     api_key = _resolve_api_key(api_key, adapter)
     if job_id is None:
@@ -204,7 +204,7 @@ def fetch_open_kinetics_predictor(
             out_file.write_text(csv_text, encoding="utf-8")
             logger.info("OKP job %s completed; result stored at %s.",
                         job_id, out_file)
-            return True, parse_okp_output(model, csv_text)
+            return True, _parse_okp_output(model, csv_text)
 
         if state == "failed":
             raise OKPError(
@@ -252,7 +252,7 @@ def _read_job_id(meta_file: Path) -> str:
     if not meta_file.is_file():
         raise FileNotFoundError(
             f"No job_id given and no metadata file at {meta_file}. Run "
-            f"submit_open_kinetics_predictor first, or pass job_id explicitly."
+            f"_submit_open_kinetics_predictor first, or pass job_id explicitly."
         )
     for line in meta_file.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()

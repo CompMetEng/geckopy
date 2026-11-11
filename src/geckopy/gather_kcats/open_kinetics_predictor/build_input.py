@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def build_okp_input_csv(
+def _build_okp_input_csv(
     model: "EcModel",
     ignore_lists: "DLKcatIgnoreLists",
     *,
@@ -62,6 +62,6 @@ def build_okp_input_csv(
     for sequence, smiles in zip(unique["sequence"], unique["smiles"]):
         writer.writerow([sequence, smiles])
 
-    logger.info("build_okp_input_csv: %d unique (sequence, SMILES) pair(s).",
+    logger.info("_build_okp_input_csv: %d unique (sequence, SMILES) pair(s).",
                 len(unique))
     return buffer.getvalue()

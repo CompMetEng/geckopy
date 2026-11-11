@@ -86,7 +86,6 @@ from geckopy.gather_kcats import (
     assign_standard_kcat,
     collect_kcats,
     ec_stats_from_brenda,
-    fetch_open_kinetics_predictor,
     fuzzy_kcat_matching,
     get_standard_kcat,  # deprecated; alias of assign_standard_kcat
     kcats_from_brenda,
@@ -104,7 +103,6 @@ from geckopy.gather_kcats import (
     run_dlkcat,
     save_kcat_source,
     select_kcat_value,  # deprecated; alias of apply_kcat_list
-    submit_open_kinetics_predictor,
     update_kcat_sources,
     write_dlkcat_input,
 )
@@ -222,7 +220,6 @@ __all__ = [
     "assign_standard_kcat",
     "collect_kcats",
     "ec_stats_from_brenda",
-    "fetch_open_kinetics_predictor",
     "fuzzy_kcat_matching",
     "kcats_from_brenda",
     "kcats_from_dlkcat",
@@ -238,7 +235,6 @@ __all__ = [
     "review_assignment",
     "run_dlkcat",
     "save_kcat_source",
-    "submit_open_kinetics_predictor",
     "update_kcat_sources",
     "write_dlkcat_input",
     # get_enzyme_data

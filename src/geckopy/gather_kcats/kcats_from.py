@@ -23,8 +23,8 @@ from ..databases import load_brenda_data, load_brenda_measurements, load_dlkcat_
 from .ec_tree import ECTree
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_sources import format_number, kcat_source_file, save_kcat_source
-from .open_kinetics_predictor import fetch_open_kinetics_predictor, submit_open_kinetics_predictor
-from .open_kinetics_predictor.parse_output import parse_okp_output
+from .open_kinetics_predictor.run import _fetch_open_kinetics_predictor, _submit_open_kinetics_predictor
+from .open_kinetics_predictor.parse_output import _parse_okp_output
 from .read_dlkcat_output import _read_dlkcat_output
 from .run_dlkcat import _run_dlkcat
 from .write_dlkcat_input import write_dlkcat_input
@@ -369,7 +369,7 @@ def _write_job_file(path: Path, job: dict[str, str]) -> None:
 
 
 def _adopt_shared_result(model: "EcModel", data_dir: Path, method: str, job_file: Path, out_file: Path) -> None:
-    """Take over a result that ``fetch_open_kinetics_predictor`` stored by
+    """Take over a result that ``_fetch_open_kinetics_predictor`` stored by
     itself, in ``data/OKP_output.csv`` with ``data/OKP_job.txt``, only when
     its job is for this method and its predictions are labelled with this
     method."""
@@ -377,7 +377,7 @@ def _adopt_shared_result(model: "EcModel", data_dir: Path, method: str, job_file
     job = _read_job_file(data_dir / "OKP_job.txt")
     ok = shared.is_file() and "jobId" in job and job.get("method", "").lower() == method.lower()
     if ok:
-        sources = [str(x) for x in parse_okp_output(model, shared)["source"]]
+        sources = [str(x) for x in _parse_okp_output(model, shared)["source"]]
         predicted = [x for x in sources if x.lower().startswith("okp-") and x.lower() not in _DATABASE_SOURCES]
         ok = bool(predicted) and all(x.lower() == f"okp-{method}".lower() for x in predicted)
     if not ok:
@@ -473,18 +473,18 @@ def kcats_from_okp(
                 f"No stored result of the current {method} job ({job_file}). Call kcats_from_okp "
                 f"without use_stored to fetch it."
             )
-        kcat_list, done = parse_okp_output(model, out_file), True
+        kcat_list, done = _parse_okp_output(model, out_file), True
     else:
         if submitting:
             out_file.unlink(missing_ok=True)
-            job_id = submit_open_kinetics_predictor(model, overwrite=True, method=method,
+            job_id = _submit_open_kinetics_predictor(model, overwrite=True, method=method,
                                                     ec_rxns=ec_rxns, adapter=adapter)
             job = {"jobId": job_id, "method": method,
                    "submittedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
             if ec_rxns is not None:
                 job["ecRxns"] = str(len(set(ec_rxns)))
             _write_job_file(job_file, job)
-        done, kcat_list = fetch_open_kinetics_predictor(model, job_id=job["jobId"], wait=wait,
+        done, kcat_list = _fetch_open_kinetics_predictor(model, job_id=job["jobId"], wait=wait,
                                                         adapter=adapter, out_file=out_file)
         if done:
             job["resultOf"] = job["jobId"]

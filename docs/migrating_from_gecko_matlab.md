@@ -244,10 +244,6 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `runDLKcat`                         | `run_dlkcat`                         | **`[3→4]`** Deprecated in both: `kcatsFromDLKcat(..., 'via', 'docker')` / `kcats_from_dlkcat(..., via="docker")` run DLKcat. |
 | `selectKcatValue`                   | `apply_kcat_list`                    | **`[Py]`** Renamed; `select_kcat_value` kept as deprecated alias.                                                                                                                                                              |
 | `writeDLKcatInput`                  | `write_dlkcat_input`                 | **`[3→4]`** Bounds-safe when `ec_rxns` is a subset.                                                                                                                                                                            |
-| `submitOpenKineticsPredictor`       | `submit_open_kinetics_predictor`     | **`[3→4]`** New REST-based submit (replaced `writeOpenKineticsPredictorInput`). API key via argument / `OKP_API_KEY` env / `data/okpApiKey.txt`.                                                                                |
-| `fetchOpenKineticsPredictor`        | `fetch_open_kinetics_predictor`      | **`[3→4]`** New REST-based fetch (replaced `readOpenKineticsPredictorOutput`); per-row `kcatSource` reports actual provenance (CataPro / BRENDA / Sabio-RK).                                                                  |
-| `writeOpenKineticsPredictorInput`   | *(removed)*                          | **`[3→4]`** Replaced by `submit_open_kinetics_predictor`.                                                                                                                                                                      |
-| `readOpenKineticsPredictorOutput`   | *(removed)*                          | **`[3→4]`** Replaced by `fetch_open_kinetics_predictor`.                                                                                                                                                                       |
 | `kcatsFromBrenda`                   | `kcats_from_brenda`                  | Fuzzy BRENDA matching, kept as `data/kcats/brenda.tsv`. Loads the BRENDA data and KEGG distances from the adapter unless passed in. |
 | `kcatsFromDLKcat`                   | `kcats_from_dlkcat`                  | DLKcat, kept as `data/kcats/dlkcat.tsv`. `via` is `"okp"` (the DLKcat method of OpenKineticsPredictor), `"file"` (`data/DLKcat.tsv`) or `"docker"` (a local run, `run=True`); returns `(kcat_list, done)` as `kcats_from_okp`. |
 | `kcatsFromOKP`                      | `kcats_from_okp`                     | One OpenKineticsPredictor method, kept as `data/kcats/okp_<method>.tsv`; submits a job when there is none, writes the file once it is done. Returns `(kcat_list, done)`. |
@@ -449,7 +445,7 @@ for the MATLAB-side items the port surfaced.
 - **KEGG as a fallback protein/EC source** (`make_ec_model(kegg_db=…)`,
   `fill_eccodes_from_database`).
 - **OpenKineticsPredictor over its REST API** —
-  `submit_open_kinetics_predictor` / `fetch_open_kinetics_predictor`.
+  `kcatsFromOKP` / `kcats_from_okp`, which submit a job and fetch its result.
 - **Forward-direction protein reactions** (`usage_prot_*` /
   `prot_pool_exchange`).
 - **Refreshed BRENDA TSV schema** (geckopy adds the max+median

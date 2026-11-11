@@ -279,7 +279,7 @@ class EvotuneParams(BaseModel):
 
 
 class OkpParams(BaseModel):
-    """OpenKineticsPredictor settings (used by submit/fetch_open_kinetics_predictor).
+    """OpenKineticsPredictor settings (used by kcats_from_okp).
 
     The API key is intentionally NOT here (it is a secret): provide it as a
     function argument, the OKP_API_KEY environment variable, or the file

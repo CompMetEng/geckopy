@@ -175,12 +175,12 @@ def test_kcats_from_dlkcat_and_okp_write_files(tmp_path, monkeypatch):
     assert meta["generator"].startswith("kcats_from_dlkcat")
     assert set(records["source"]) == {"DLKcat"}
 
-    # A result stored by fetch_open_kinetics_predictor alone is taken over
+    # A result stored by _fetch_open_kinetics_predictor alone is taken over
     # when its job is for the method and its predictions are of that method.
     (data / "OKP_job.txt").write_text("jobId: abc123\nmethod: CataPro\n", encoding="utf-8")
     (data / "OKP_output.csv").write_text("placeholder\n", encoding="utf-8")
     okp = _kcat_list(full).assign(source="OKP-CataPro", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "parse_okp_output", lambda model, path: okp)
+    monkeypatch.setattr(kcats_from_module, "_parse_okp_output", lambda model, path: okp)
     kcat_list, done = kcats_from_okp(full, method="CataPro", use_stored=True)
     assert done
     assert (data / "OKP_output_catapro.csv").is_file()
@@ -226,9 +226,9 @@ def test_okp_jobs_per_method(tmp_path, monkeypatch):
     def fake_parse(model, path):
         return _kcat_list(model).assign(source=Path(path).read_text(), wildcard_level=np.nan, origin=np.nan)
 
-    monkeypatch.setattr(kcats_from_module, "submit_open_kinetics_predictor", fake_submit)
-    monkeypatch.setattr(kcats_from_module, "fetch_open_kinetics_predictor", fake_fetch)
-    monkeypatch.setattr(kcats_from_module, "parse_okp_output", fake_parse)
+    monkeypatch.setattr(kcats_from_module, "_submit_open_kinetics_predictor", fake_submit)
+    monkeypatch.setattr(kcats_from_module, "_fetch_open_kinetics_predictor", fake_fetch)
+    monkeypatch.setattr(kcats_from_module, "_parse_okp_output", fake_parse)
 
     assert kcats_from_okp(full, method="CataPro") == (None, False)
     assert kcats_from_okp(full, method="UniKP", ec_rxns=["R2"]) == (None, False)

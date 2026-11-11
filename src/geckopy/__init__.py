@@ -152,6 +152,7 @@ from geckopy.limit_proteins import (
 # utilities
 from geckopy.utilities import (
     AddNewRxnsResult,
+    EcFSEOFResult,
     EnzymeUsageReport,
     EnzymeUsageResult,
     MapRxnsResult,
@@ -268,6 +269,7 @@ __all__ = [
     "zero_unmeasured_isozymes",
     # utilities
     "AddNewRxnsResult",
+    "EcFSEOFResult",
     "EnzymeUsageReport",
     "EnzymeUsageResult",
     "MapRxnsResult",

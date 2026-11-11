@@ -494,3 +494,11 @@ def test_gene_actions_are_reconciled_as_in_ecfseof(tmp_path):
     assert list(genes["action"]) == ["OE", "KD", "KO"]
     assert list(genes["essentiality"]) == ["essential", "essential", ""]
     assert list(genes["slope"]) == [3.0, 2.0, 1.0]
+
+
+def test_ec_fseof_result_is_exported_and_returned(tmp_path):
+    import geckopy
+
+    result = ec_fseof(_build_fseof_model(_adapter(tmp_path)), "EX_PROD", n_steps=4)
+    assert isinstance(result, geckopy.EcFSEOFResult)
+    assert "EcFSEOFResult" in geckopy.__all__

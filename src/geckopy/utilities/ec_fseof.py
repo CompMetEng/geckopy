@@ -105,7 +105,7 @@ def ec_fseof(
     max_fraction: float = 0.9,
     correlation_threshold: float = 0.9,
     flux_eps: float = 1e-6,
-) -> FSEOFResult:
+) -> EcFSEOFResult:
     """Run Flux-Scanning with Enforced Objective Function on an ecModel.
 
     Enforces an increasing flux toward ``prod_target_rxn`` while

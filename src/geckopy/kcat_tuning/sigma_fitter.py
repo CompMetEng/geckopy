@@ -155,7 +155,7 @@ def fit_sigma(
     ------
     ValueError
         If ``model.adapter`` is None and any default is needed; if
-        ``growth_rate`` is 0; if ``n_sigma_steps`` is < 1; or if ``method``
+        ``growth_rate`` is not above 0 (also NaN); if ``n_sigma_steps`` is < 1; or if ``method``
         is unknown.
     """
     if n_sigma_steps < 1:
@@ -175,8 +175,8 @@ def fit_sigma(
 
     if growth_rate is None:
         growth_rate = float(params.gr_exp)
-    if growth_rate == 0:
-        raise ValueError("growth_rate is 0; fit_sigma needs a target growth rate other than 0.")
+    if not growth_rate > 0:  # also NaN
+        raise ValueError(f"growth_rate is {growth_rate}; fit_sigma needs a target growth rate above 0.")
     if p_tot is None:
         p_tot = float(params.p_tot)
     if f is None:

@@ -161,6 +161,14 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
     config = kcat_assignment_config(adapter)
     path = Path(adapter.params.path)
     kcat_dir = path / "data" / "kcats"
+    legacy = path / "data" / "customKcats.tsv"
+    # Checked before the model is changed, so an error leaves it as it was.
+    if (any("custom" in st.sources for st in config.stages)
+            and not (kcat_dir / "custom.tsv").is_file() and legacy.is_file()):
+        raise ValueError(
+            f"{legacy} is a GECKO 3 custom kcats file and {kcat_dir / 'custom.tsv'} does "
+            "not exist. Convert it with convert_custom_kcats (geckopy upgrade does this)."
+        )
     ec = model.ec
     n = len(ec.rxns)
     ec.kcat = np.zeros(n, dtype=float)
@@ -179,11 +187,6 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
             file = kcat_dir / f"{name}.tsv"
             if file.is_file():
                 loaded[name], report["sources"][name] = load_kcat_source(model, file)
-            elif name == "custom" and (path / "data" / "customKcats.tsv").is_file():
-                raise ValueError(
-                    f"{path / 'data' / 'customKcats.tsv'} is a GECKO 3 custom kcats file and {file} does "
-                    "not exist. Convert it with convert_custom_kcats (geckopy upgrade does this)."
-                )
             else:
                 loaded[name] = None
                 report["missing"].append(name)

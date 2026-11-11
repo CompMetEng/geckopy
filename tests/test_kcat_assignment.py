@@ -166,6 +166,11 @@ def test_legacy_custom_kcats_file_raises(tmp_path):
     base, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n', convert_custom=False)
     with pytest.raises(ValueError, match="convert_custom_kcats"):
         collect_kcats(base, adapter=adapter, write_report=False)
+    base.ec.kcat[:] = 7.0
+    base.ec.source = ["mine"] * len(base.ec.rxns)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        assign_kcats(base, adapter=adapter, write_report=False)
+    assert np.all(base.ec.kcat == 7.0) and set(base.ec.source) == {"mine"}
 
 
 def test_kcat_sources_table_overrides_only_its_keys(tmp_path):

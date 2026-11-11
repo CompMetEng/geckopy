@@ -145,12 +145,12 @@ def test_explicit_bio_rxn_overrides_adapter(tmp_path):
 
 
 def test_no_production_headroom_raises(tmp_path):
-    """raven's fseof raises when the target reaction can't carry positive flux."""
+    """A target reaction that can't carry flux leaves no range to scan."""
     adapter = _adapter(tmp_path)
     model = _build_fseof_model(adapter)
     # Block production entirely so EX_PROD's slim-optimise is 0.
     model.reactions.get_by_id("R_PROD").upper_bound = 0.0
-    with pytest.raises(ValueError, match="cannot carry positive flux"):
+    with pytest.raises(ValueError, match="no range to scan"):
         ec_fseof(model, "EX_PROD")
 
 
@@ -163,6 +163,9 @@ def test_no_range_to_scan_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "fseof", lambda *a, **k: pytest.fail("scanned"))
     model = _build_fseof_model(_adapter(tmp_path))
     model.reactions.get_by_id("EX_PROD").lower_bound = 95.0  # the top of the scan is 90
+    with pytest.raises(ValueError, match="no range to scan"):
+        ec_fseof(model, "EX_PROD")
+    model.reactions.get_by_id("EX_PROD").lower_bound = 90.0 - 1e-8  # within 1e-9 * 90 of the top
     with pytest.raises(ValueError, match="no range to scan"):
         ec_fseof(model, "EX_PROD")
 

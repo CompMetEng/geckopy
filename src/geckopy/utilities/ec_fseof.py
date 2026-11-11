@@ -176,9 +176,11 @@ def ec_fseof(
     Raises
     ------
     ValueError
-        If the production target cannot carry flux, or if its flux at
-        maximum growth is not below the top of the scan (``max_fraction``
-        of its maximum), as GECKO's ``ecFSEOF`` raises ``ecFSEOF:noRange``.
+        If the top of the scan (``max_fraction`` of the maximum production
+        flux) is not above the production flux at maximum growth by more than
+        ``1e-9 * max(1, |top|)``, which includes a production target that
+        cannot carry flux; GECKO's ``ecFSEOF`` raises ``ecFSEOF:noRange`` in
+        the same case.
     """
     from ..adapter import resolve_param
     bio_rxn_id = resolve_param(
@@ -191,8 +193,8 @@ def ec_fseof(
 
     min_target = _biomass_optimal_target_flux(model, bio_rxn_id, prod_target_rxn)
     max_target = _scan_ceiling(model, prod_target_rxn, max_fraction)
-    # A blocked target (ceiling 0) is left to fseof, which raises its own error.
-    if max_target > 0 and min_target >= max_target:
+    # The rule and tolerance of ecFSEOF.m's ecFSEOF:noRange; a blocked target (ceiling 0) is caught too.
+    if max_target <= min_target + 1e-9 * max(1.0, abs(max_target)):
         raise ValueError(
             f"ec_fseof: the flux of {prod_target_rxn!r} at maximum growth ({min_target:g}) is not "
             f"below the top of the scan ({max_target:g}), so there is no range to scan."

@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -436,9 +435,11 @@ def update_kcat_sources(
     :func:`kcats_from_okp`. A file is outdated when its header records other
     settings than ``[kcat_sources.<name>]`` asks for (presets set these for
     brenda and ec_tree) or, for brenda and ec_tree, another BRENDA release
-    than the BRENDA files in use. DLKcat reads
-    ``data/DLKcat.tsv`` if it exists and runs DLKcat (Docker) otherwise; OKP
-    submits or fetches a job and reports it as pending while it runs.
+    than the BRENDA files in use. DLKcat reads ``data/DLKcat.tsv`` if it
+    exists and otherwise predicts with the DLKcat method of
+    OpenKineticsPredictor (see :func:`kcats_from_dlkcat`); OKP and DLKcat
+    submit or fetch a job and report it as pending while it runs; they need
+    an OKP API key (DLKcat only without ``data/DLKcat.tsv``).
     ``custom.tsv`` and files it cannot gather are left as they are. Calling
     it again is safe.
 
@@ -499,10 +500,9 @@ def _gather(model: "EcModel", name: str, wanted: dict[str, Any], adapter: "Model
             kcats_from_homologs(model, adapter=adapter, **{k: wanted[k] for k in ("k", "min_identity", "coverage")
                                                           if k in wanted})
         elif name == "dlkcat":
-            run = not (Path(adapter.params.path) / "data" / "DLKcat.tsv").is_file()
-            if run and shutil.which("docker") is None:
-                return "failed", "DLKcat needs Docker to run"
-            kcats_from_dlkcat(model, run=run, adapter=adapter)
+            _, done = kcats_from_dlkcat(model, adapter=adapter)
+            if not done:
+                return "pending", "OKP job for DLKcat still running; call again later"
         else:
             method = _okp_method(name, wanted)
             _, done = kcats_from_okp(model, method=method, save_as=name, adapter=adapter)

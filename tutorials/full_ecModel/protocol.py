@@ -170,7 +170,7 @@ find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 # `data/kcats/dlkcat.tsv`.
 
 # %%
-kcat_list_dlkcat = kcats_from_dlkcat(ec_model)
+kcat_list_dlkcat, _ = kcats_from_dlkcat(ec_model, via="file")
 print(f"DLKcat predictions: {len(kcat_list_dlkcat)} rows")
 
 # %% [markdown]

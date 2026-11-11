@@ -98,7 +98,7 @@ def test_gecko_median_preset(tmp_path):
     uniprot = load_uniprot_tsv(data / "uniprot.tsv")
     a = base.copy()
     fuzzy = kcats_from_brenda(a, aggregation="median", adapter=adapter)
-    dlkcat = kcats_from_dlkcat(a, adapter=adapter)
+    dlkcat, _ = kcats_from_dlkcat(a, adapter=adapter)
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=4)
     apply_kcat_list(a, merged)
@@ -177,3 +177,29 @@ def test_update_kcat_sources(tmp_path):
     adapter.params.kcat_assignment.preset = "gecko_classic"
     report = update_kcat_sources(base, dry_run=True, adapter=adapter)
     assert report["status"].iloc[1] == "outdated"
+
+
+def test_update_kcat_sources_dlkcat_via_okp(tmp_path, monkeypatch):
+    """Without data/DLKcat.tsv, dlkcat is gathered through OKP and is pending while the job runs."""
+    from geckopy.gather_kcats import kcats_from as kcats_from_module
+
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n')
+    (project / "data" / "DLKcat.tsv").unlink()
+    jobs = []
+
+    def fake_okp(model, **kwargs):
+        jobs.append(kwargs)
+        return None, False
+
+    monkeypatch.setattr(kcats_from_module, "kcats_from_okp", fake_okp)
+    report = update_kcat_sources(base, adapter=adapter).set_index("source")
+    assert report.loc["dlkcat", "status"] == "pending"
+    assert "DLKcat" in report.loc["dlkcat", "note"]
+    assert jobs and jobs[0]["method"] == "DLKcat"
+
+    # Without an API key the source fails, with the reason in the note.
+    monkeypatch.undo()
+    monkeypatch.delenv("OKP_API_KEY", raising=False)
+    report = update_kcat_sources(base, adapter=adapter).set_index("source")
+    assert report.loc["dlkcat", "status"] == "failed"
+    assert "API key" in report.loc["dlkcat", "note"]

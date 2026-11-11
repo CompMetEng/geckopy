@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `kcats_from_dlkcat` takes `via`: `"okp"` predicts with the DLKcat method of OpenKineticsPredictor (as `kcats_from_okp`), `"file"` reads `data/DLKcat.tsv` and `"docker"` runs DLKcat locally. The default is `"file"` when `data/DLKcat.tsv` exists and `"okp"` otherwise; `run=True` is the same as `via="docker"`. It returns `(kcat_list, done)` as `kcats_from_okp` does, with `kcat_list` `None` while an OKP job runs, and takes `wait`. `update_kcat_sources` gathers `dlkcat` through OKP when `data/DLKcat.tsv` is missing, needs an OKP API key for it and reports `pending` while the job runs, where it needed Docker. GECKO's `kcatsFromDLKcat` has the same option.
 * `truncate_values` is removed from `geckopy.kcat_tuning` and `geckopy`; nothing in geckopy called it, and GECKO has removed `truncateValues`. `update_prot_pool` was never ported: `set_prot_pool_size` sets the protein pool for a condition. `merge_dlkcat_and_fuzzy_kcats` stays a deprecated alias of `merge_kcats`.
 * `geckopy.__version__` is the installed version of geckopy.
 * `cma` is a required dependency of geckopy and the extra `evotune` is removed. `import geckopy` imports `cma`.

@@ -32,7 +32,6 @@ from geckopy import (
     kcats_from_dlkcat,
     load_brenda_data,
     load_conventional_gem,
-    load_dlkcat_ignore_lists,
     load_ec_model,
     load_phyl_dist,
     load_uniprot_tsv,
@@ -40,7 +39,6 @@ from geckopy import (
     save_ec_model,
     set_kcat_for_reactions,
     set_prot_pool_size,
-    write_dlkcat_input,
 )
 from geckopy.databases import download_phyl_dist, load_kegg_tsv
 
@@ -149,21 +147,16 @@ print(f"Fuzzy BRENDA matches: {len(kcat_list_fuzzy)} rows, kept as data/kcats/br
 find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 
 # %% [markdown]
-# **STEP 23** Prepare DLKcat input file. The `data/DLKcat.tsv`
-# included here already has predicted kcat values; uncomment to
-# regenerate (this discards existing predictions).
+# **STEP 23-24** Predict kcats with DLKcat. `kcats_from_dlkcat` writes
+# the DLKcat input to `data/DLKcat.tsv` and runs DLKcat in Docker with
+# `via="docker"` (this replaces the predictions in that file), or
+# predicts with the DLKcat method of OpenKineticsPredictor with
+# `via="okp"` (needs an OKP API key). The `data/DLKcat.tsv` included
+# here already has predictions, so neither is run here:
 #
 # ```python
-# ignore_lists = load_dlkcat_ignore_lists(params.path / "data")
-# write_dlkcat_input(
-#     ec_model, params.path / "data" / "DLKcat.tsv",
-#     ignore_lists, overwrite=True,
-# )
+# kcats_from_dlkcat(ec_model, via="docker")
 # ```
-
-# %% [markdown]
-# **STEP 24** Run DLKcat. (External tool; not invoked here. The
-# included `data/DLKcat.tsv` already has output from a previous run.)
 
 # %% [markdown]
 # **STEP 25** Load DLKcat output from `data/DLKcat.tsv`, kept as

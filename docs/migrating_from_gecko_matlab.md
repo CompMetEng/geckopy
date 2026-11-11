@@ -137,8 +137,9 @@ apply_complex_data(model, path=Path("/custom/complex.json"))
 
 **Secrets** (e.g. an OpenKineticsPredictor API key) are never stored
 in the adapter. Provide them via a function argument, an environment
-variable (`OKP_API_KEY`), or a git-ignored file in the project
-`data/` folder (`data/okpApiKey.txt`).
+variable (`OKP_API_KEY`), or a file in the project
+`data/` folder (`data/okpApiKey.txt`); `geckopy init` writes a
+`.gitignore` that lists it.
 
 ---
 

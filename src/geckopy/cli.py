@@ -63,6 +63,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     toml_text = generate_template_toml(project_name=folder.name)
     (folder / "model_adapter.toml").write_text(toml_text)
     (folder / "adapter.py").write_text(ADAPTER_PY_STUB)
+    # Keep the OpenKineticsPredictor API key out of version control.
+    (folder / ".gitignore").write_text("data/okpApiKey.txt\n")
 
     print(f"Created ecModel project at {folder}")
     print(

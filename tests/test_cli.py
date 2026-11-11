@@ -51,6 +51,7 @@ def test_cli_init_creates_folder_structure(tmp_path):
     assert (target / "data").is_dir()
     assert (target / "models").is_dir()
     assert (target / "output").is_dir()
+    assert (target / ".gitignore").read_text().strip() == "data/okpApiKey.txt"
 
 
 def test_cli_init_refuses_nonempty_folder(tmp_path, capsys):

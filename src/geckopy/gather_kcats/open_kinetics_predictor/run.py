@@ -14,7 +14,8 @@ Obtaining an API key (free, no registration):
        (shown only once; revoke + regenerate if lost).
 The key is a secret: provide it via the ``api_key`` argument, the
 ``OKP_API_KEY`` environment variable, or ``data/okpApiKey.txt`` (the
-latter is git-ignored). It is never read from the model adapter.
+geckopy repository and the ``.gitignore`` that ``geckopy init`` writes
+ignore this file). It is never read from the model adapter.
 """
 from __future__ import annotations
 

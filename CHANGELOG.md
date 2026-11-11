@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `upgrade_project` (`geckopy upgrade`) reports the calls of `run_dlkcat`, `write_dlkcat_input`, `submit_open_kinetics_predictor`, `fetch_open_kinetics_predictor`, `build_okp_input_csv` and `truncate_values` in the project's scripts with their replacement, and names `convert_custom_kcats` for `apply_custom_kcats` and the `via` of `kcats_from_dlkcat` for `read_dlkcat_output`.
 * `write_dlkcat_input` is a deprecated alias that warns with a `DeprecationWarning`; `kcats_from_dlkcat(..., via="docker")` writes the DLKcat input with the same code, as GECKO's `kcatsFromDLKcat` does after `writeDLKcatInput` became its local function. `extract_enzyme_substrate_pairs` stays public.
 * The `okp` source group of the presets is the OpenKineticsPredictor method KinForm-H alone by default, instead of the eight methods with combination parameters; a project that sets `[kcat_sources.okp] methods` keeps its list. `update_kcat_sources` then gathers `okp_kinform_h.tsv` only. GECKO uses the same default.
 * The default of `okp.method` (the OpenKineticsPredictor method of `kcats_from_okp` without `method`) is `KinForm-H` instead of `CataPro`, as in GECKO.

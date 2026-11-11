@@ -36,9 +36,15 @@ RENAMED = (
     ("select_kcat_value", "apply_kcat_list"),
     ("merge_dlkcat_and_fuzzy_kcats", "merge_kcats"),
     ("fuzzy_kcat_matching", "kcats_from_brenda (or kcats_from_ec_tree), then assign_kcats"),
-    ("read_dlkcat_output", "kcats_from_dlkcat, then assign_kcats"),
+    ("read_dlkcat_output", 'kcats_from_dlkcat(via="file"), then assign_kcats'),
+    ("run_dlkcat", 'kcats_from_dlkcat(via="docker"), then assign_kcats'),
+    ("write_dlkcat_input", 'kcats_from_dlkcat(via="docker"), then assign_kcats'),
     ("parse_okp_output", "kcats_from_okp, then assign_kcats"),
-    ("apply_custom_kcats", "data/kcats/custom.tsv and assign_kcats"),
+    ("submit_open_kinetics_predictor", "kcats_from_okp, then assign_kcats"),
+    ("fetch_open_kinetics_predictor", "kcats_from_okp, then assign_kcats"),
+    ("build_okp_input_csv", "kcats_from_okp, then assign_kcats"),
+    ("apply_custom_kcats", "convert_custom_kcats (data/kcats/custom.tsv), then assign_kcats"),
+    ("truncate_values", "removed: nothing replaces it"),
 )
 
 

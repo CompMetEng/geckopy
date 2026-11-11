@@ -158,3 +158,13 @@ def test_usage_reaction_fixed_to_zero_is_turned(tmp_path):
     assert {m.id: c for m, c in loaded.reactions.get_by_id(usage.id).metabolites.items()} == \
         {m.id: c for m, c in model.reactions.get_by_id(usage.id).metabolites.items()}
     assert any("GECKO 3 direction" in str(w.message) for w in caught)
+
+
+def test_upgrade_project_names_the_replacements_of_removed_functions(tmp_path):
+    from geckopy.upgrade import RENAMED
+
+    replaced = dict(RENAMED)
+    assert replaced["submit_open_kinetics_predictor"].startswith("kcats_from_okp")
+    assert replaced["write_dlkcat_input"].startswith('kcats_from_dlkcat(via="docker")')
+    assert replaced["apply_custom_kcats"].startswith("convert_custom_kcats")
+    assert replaced["truncate_values"].startswith("removed")

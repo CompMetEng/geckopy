@@ -262,12 +262,13 @@ def test_make_ec_model_gecko_light_enzymes_match_full():
 
 
 def test_make_ec_model_missing_uniprot_tsv_raises(tmp_path):
-    """If the adapter points at a folder without uniprot.tsv, and no
-    explicit uniprot_db is given, raise FileNotFoundError."""
+    """If the adapter points at a folder without uniprot.tsv, no explicit
+    uniprot_db is given and uniprot.id is empty, raise FileNotFoundError."""
     toml = (
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
+        '[uniprot]\nid = ""\n'
     )
     (tmp_path / "model_adapter.toml").write_text(toml)
     adapter = ModelAdapter.from_folder(tmp_path)
@@ -283,6 +284,48 @@ def test_make_ec_model_missing_uniprot_tsv_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="uniprot.tsv"):
         make_ec_model(model, adapter)
+
+
+def test_make_ec_model_downloads_missing_databases(tmp_path, monkeypatch):
+    """As loadDatabases: a missing uniprot.tsv or kegg.tsv is downloaded with
+    the adapter's settings; an empty kegg.id leaves KEGG out."""
+    import shutil
+
+    import geckopy.databases.kegg_download as kegg_download
+    import geckopy.databases.uniprot_download as uniprot_download
+
+    project = tmp_path / "ecTestGEM"
+    shutil.copytree(EXAMPLE_DIR, project)
+    data = project / "data"
+    uniprot_text = (data / "uniprot.tsv").read_text(encoding="utf-8")
+    kegg_text = (data / "kegg.tsv").read_text(encoding="utf-8")
+    (data / "uniprot.tsv").unlink()
+    (data / "kegg.tsv").unlink()
+    calls = {}
+
+    def fake_uniprot(uniprot_id, path, *, id_type, gene_id_field, reviewed):
+        calls["uniprot"] = (uniprot_id, id_type, gene_id_field, reviewed)
+        Path(path).write_text(uniprot_text, encoding="utf-8")
+
+    def fake_kegg(kegg_id, path, *, gene_id_field):
+        calls["kegg"] = (kegg_id, gene_id_field)
+        Path(path).write_text(kegg_text, encoding="utf-8")
+
+    monkeypatch.setattr(uniprot_download, "download_uniprot", fake_uniprot)
+    monkeypatch.setattr(kegg_download, "download_kegg", fake_kegg)
+    adapter = ModelAdapter.from_folder(project)
+    model = cobra.io.read_sbml_model(str(adapter.params.conv_gem))
+    expected = make_ec_model(model, ModelAdapter.from_folder(EXAMPLE_DIR))
+
+    ec_model = make_ec_model(model, adapter)
+    assert calls == {"uniprot": ("TE00000000", "taxonomy", "gene_tst", True), "kegg": ("tst", "kegg")}
+    assert ec_model.ec.enzymes == expected.ec.enzymes
+
+    (data / "kegg.tsv").unlink()
+    calls.clear()
+    adapter.params.kegg.id = ""
+    make_ec_model(model, adapter)
+    assert calls == {}
 
 
 def test_make_ec_model_refuses_rerun_on_populated_ecmodel():
@@ -302,6 +345,7 @@ def test_make_ec_model_unmatched_genes_logged_and_annotated(tmp_path, caplog):
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
+        '[kegg]\nid = ""\n'
     )
     (tmp_path / "model_adapter.toml").write_text(toml)
     adapter = ModelAdapter.from_folder(tmp_path)
@@ -339,6 +383,7 @@ def _toy_with_missing_gene(tmp_path):
         'conv_gem = "dummy.xml"\n'
         'org_name = "test"\n'
         'enzyme_comp = "c"\n'
+        '[kegg]\nid = ""\n'
     )
     adapter = ModelAdapter.from_folder(tmp_path)
     model = cobra.Model("m")
@@ -373,7 +418,7 @@ def test_make_ec_model_reads_kegg_tsv_of_the_data_folder(tmp_path):
     assert sorted(ec_model.ec.enzymes) == ["P1", "P2"]
 
 
-def test_make_ec_model_without_kegg_tsv_leaves_the_gene_unmatched(tmp_path):
+def test_make_ec_model_without_kegg_id_leaves_the_gene_unmatched(tmp_path):
     model, adapter, db = _toy_with_missing_gene(tmp_path)
     ec_model = make_ec_model(model, adapter, uniprot_db=db)
     assert sorted(ec_model.ec.enzymes) == ["P1"]

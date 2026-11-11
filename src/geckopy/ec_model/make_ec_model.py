@@ -152,9 +152,11 @@ def make_ec_model(
         (HumanGEM, Recon3D) where the full layout's LP size becomes
         impractical. See ``docs/gecko_light_status.md``.
     uniprot_db
-        Pre-loaded UniprotDB. If None, the function looks for
-        ``adapter.params.path / "data" / "uniprot.tsv"`` and loads
-        it automatically.
+        Pre-loaded UniprotDB. If None, the function loads
+        ``adapter.params.path / "data" / "uniprot.tsv"``, and first
+        downloads it with the ``[uniprot]`` settings of the adapter
+        (``id``, ``type``, ``gene_id_field``, ``reviewed``) when the file
+        is missing, as GECKO's ``loadDatabases`` does.
     kegg_db
         Pre-loaded KeggDB. Optional fallback source for protein
         information and EC numbers. When provided, stage 7 fills
@@ -163,8 +165,11 @@ def make_ec_model(
         gene id when that accession is empty), and the EC-number
         lookup (``fill_eccodes_from_database``) consults KEGG when
         the UniProt result is empty or ends with ``-``. If None, the
-        function loads ``adapter.params.path / "data" / "kegg.tsv"``
-        when that file exists, and uses no KEGG data otherwise.
+        function loads ``adapter.params.path / "data" / "kegg.tsv"``,
+        and first downloads it with the ``[kegg]`` settings of the
+        adapter (``id``, ``gene_id``) when the file is missing; with an
+        empty ``kegg.id`` it warns and uses no KEGG data, as GECKO's
+        ``loadDatabases`` does.
 
     Returns
     -------
@@ -175,8 +180,10 @@ def make_ec_model(
     Raises
     ------
     FileNotFoundError
-        If ``uniprot_db`` is None and no ``uniprot.tsv`` is found
-        under the adapter's data folder.
+        If ``uniprot_db`` is None, no ``uniprot.tsv`` is found under the
+        adapter's data folder and ``uniprot.id`` is empty.
+    RuntimeError
+        If a download fails.
     ValueError
         As ``makeEcModel`` does, if the compartment named by
         ``adapter.params.enzyme_comp`` is not one of the model's
@@ -243,14 +250,24 @@ def make_ec_model(
     # Promote to EcModel for stages 6-12.
     ec_model = EcModel.from_cobra(model, adapter, gecko_light=gecko_light)
 
+    # As GECKO's loadDatabases: a missing file is downloaded with the adapter's settings.
+    data_dir = adapter.params.path / "data"
     if uniprot_db is None:
-        uniprot_path = adapter.params.path / "data" / "uniprot.tsv"
-        uniprot_db = load_uniprot_tsv(uniprot_path)
+        uniprot = adapter.params.uniprot
+        uniprot_db = load_uniprot_tsv(
+            data_dir / "uniprot.tsv",
+            uniprot_id=uniprot.id or None,
+            id_type=uniprot.type,
+            gene_id_field=uniprot.gene_id_field,
+            reviewed=uniprot.reviewed,
+        )
 
     if kegg_db is None:
-        kegg_path = adapter.params.path / "data" / "kegg.tsv"
-        if kegg_path.is_file():
-            kegg_db = load_kegg_tsv(kegg_path, auto_download=False)
+        kegg_db = load_kegg_tsv(
+            data_dir / "kegg.tsv",
+            kegg_id=adapter.params.kegg.id,
+            gene_id_field=adapter.params.kegg.gene_id,
+        )
 
     if gecko_light:
         # Light: stage 7 (per-enzyme data) runs first so the coupling

@@ -154,11 +154,11 @@ def test_cli_uniprot_download_invokes_function(tmp_path, monkeypatch, capsys):
     assert calls["args"][0] == "559292"
     assert calls["args"][2] == "taxonomy_id"
     assert calls["args"][3] == "gene_oln"
-    assert calls["args"][4] is True
+    assert calls["args"][4] is False
     assert out.exists()
 
 
-def test_cli_uniprot_download_include_unreviewed(tmp_path, monkeypatch):
+def test_cli_uniprot_download_reviewed_only(tmp_path, monkeypatch):
     calls = {}
 
     def fake_download(uid, path, *, id_type, gene_id_field, reviewed):
@@ -171,9 +171,9 @@ def test_cli_uniprot_download_include_unreviewed(tmp_path, monkeypatch):
     )
     main([
         "uniprot-download", "559292", str(tmp_path / "u.tsv"),
-        "--include-unreviewed",
+        "--reviewed-only",
     ])
-    assert calls["reviewed"] is False
+    assert calls["reviewed"] is True
 
 
 def test_cli_kegg_download_invokes_function(tmp_path, monkeypatch, capsys):

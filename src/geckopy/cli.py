@@ -195,8 +195,9 @@ def main(argv: list[str] | None = None) -> int:
         help="UniProt field for the Gene Names column (default: gene_oln)",
     )
     uniprot_parser.add_argument(
-        "--include-unreviewed", action="store_true",
-        help="Include unreviewed (TrEMBL) entries (default: reviewed only)",
+        "--reviewed-only", action="store_true",
+        help="Keep reviewed (Swiss-Prot) entries only (default: reviewed and "
+        "unreviewed, as the adapter default uniprot.reviewed = false)",
     )
     uniprot_parser.set_defaults(func=cmd_uniprot_download)
 
@@ -236,7 +237,7 @@ def cmd_uniprot_download(args: argparse.Namespace) -> int:
         args.uniprot_id, out,
         id_type=args.id_type,
         gene_id_field=args.gene_id_field,
-        reviewed=not args.include_unreviewed,
+        reviewed=args.reviewed_only,
     )
     print(f"Wrote {out}")
     return 0

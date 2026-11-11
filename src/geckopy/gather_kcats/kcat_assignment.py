@@ -333,7 +333,8 @@ def collect_kcats(
     than the BRENDA median at origins 2 and 4 and with EC wildcards and as
     close at origins 1 and 3; the EC tree combined with the OKP methods was
     slightly closer than the EC tree, and the OKP methods combined as close.
-    In ecModels, values combined with predictions set high-turnover enzymes
+    That comparison combined the eight OKP methods with combination
+    parameters; the default ``okp`` group is now KinForm-H alone. In ecModels, values combined with predictions set high-turnover enzymes
     such as ATP synthase too low, which is why the default uses predictions
     only where there is no value from measurements. The BRENDA aggregation is
     ``[kcat_sources.brenda] aggregation`` (see :func:`update_kcat_sources`).

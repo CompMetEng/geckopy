@@ -25,6 +25,7 @@ import pandas as pd
 
 from .ec_model.constants import POOL_EXCHANGE_ID, POOL_ID
 from .ec_model.pipeline.apply_kcat import apply_kcat_constraints
+from .gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 
 if TYPE_CHECKING:
     from .adapter import ModelAdapter
@@ -33,7 +34,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _EXP_SUFFIX_REGEX = re.compile(r"_EXP_\d+$")
-_SOURCE_TAG = "custom"
 _NOTES_SEPARATOR = ", "
 
 #: Renamed or replaced functions, as (old name, what to use).
@@ -116,7 +116,7 @@ def convert_custom_kcats(
     base, enzymes = ec_rxn_keys(applied)
     rows: dict[tuple[str, str], list[str]] = {}
     for i in range(n):
-        if applied.ec.source[i] != "custom":
+        if parse_kcat_source(applied.ec.source[i]).origin != "custom":
             continue
         note = re.sub(r"[\t\r\n]", " ", applied.ec.notes[i] or "")
         rows.setdefault((base[i], enzymes[i]), [base[i], enzymes[i], "", format_number(float(applied.ec.kcat[i])),
@@ -608,9 +608,10 @@ def _apply_to_indices(
     updated_indices: set[int],
 ) -> None:
     """Write kcat, source, and notes to ec.* for the given indices."""
+    source = format_kcat_source("custom")
     for idx in indices:
         model.ec.kcat[idx] = kcat
-        model.ec.source[idx] = _SOURCE_TAG
+        model.ec.source[idx] = source
         if notes:
             existing = model.ec.notes[idx]
             if existing:

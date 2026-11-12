@@ -151,42 +151,37 @@ def test_explicit_growth_rate_overrides_adapter(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# Notes annotation
+# Source annotation
 # --------------------------------------------------------------------------- #
 
-def test_notes_annotated_with_pre_tune_kcat(tmp_path):
+def test_source_gets_tuning_status_with_prior(tmp_path):
     adapter = _adapter(tmp_path, gr_exp=300.0)
     model = _build_toy(adapter, initial_kcat=1.0)
     sensitivity_tuning(model, fold_change=10.0)
-    note = model.ec.notes[0]
-    assert "preTuneKcat=" in note
-    assert "source:initial" in note
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
 
-def test_source_set_to_sensitivity_tuning(tmp_path):
+def test_notes_are_left_alone(tmp_path):
     adapter = _adapter(tmp_path, gr_exp=300.0)
-    model = _build_toy(adapter)
+    model = _build_toy(adapter, initial_kcat=1.0)
+    notes = list(model.ec.notes)
     sensitivity_tuning(model, fold_change=10.0)
-    assert model.ec.source[0] == "sensitivityTuning"
+    assert list(model.ec.notes) == notes
 
 
-def test_re_tuning_does_not_double_annotate(tmp_path):
-    """A second tuning pass on an already-tuned kcat should not
-    re-annotate (source is 'sensitivityTuning')."""
+def test_re_tuning_keeps_one_method_and_the_first_prior(tmp_path):
+    """A second tuning pass on a tuned kcat does not repeat the method and
+    keeps the kcat before the first tuning as prior."""
     adapter = _adapter(tmp_path, gr_exp=300.0)
     model = _build_toy(adapter, initial_kcat=1.0)
     sensitivity_tuning(model, fold_change=10.0)
-    note_after_first = model.ec.notes[0]
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
-    # Bump target to force more tuning.
     sensitivity_tuning(
         model, desired_growth_rate=3000.0, fold_change=10.0,
     )
-    note_after_second = model.ec.notes[0]
-
-    # Note should be unchanged (no second "preTuneKcat=" appended).
-    assert note_after_first == note_after_second
-    assert note_after_second.count("preTuneKcat=") == 1
+    assert model.ec.kcat[0] > 10.0
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
 
 # --------------------------------------------------------------------------- #

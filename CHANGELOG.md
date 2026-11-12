@@ -36,6 +36,10 @@
 * `zero_unmeasured_isozymes` lowers the usage upper bound of the unmeasured isozymes of a reaction that has a measured isozyme, to 0 or to a detection limit (`method="detection_limit"`), as GECKO's `zeroUnmeasuredIsozymes`; it lowers the bounds in place and returns a DataFrame, and a lower bound above the new upper bound is lowered with it.
 * `level_complex_concs` and `level_complex_abundances` keep a subunit with a concentration of 0 at 0 instead of filling it with the level of its complex.
 * `flexibilize_enz_concs` warns about enzymes with a concentration of 0, which it cannot raise, and does not report them as flexibilized; with `per_complex=True` the count of a complex is recorded on its first subunit with a concentration above 0.
+* `format_kcat_source` and `parse_kcat_source` write and read the provenance strings of `model.ec.source`, `<origin>[ (<detail>)][ | tuned=<method>[+<method>...] (prior=<value>)]`, and `KcatSource` holds the parts of one. `format_kcat_source(origin, detail=None, tuned=(), prior=None)` replaces `format_kcat_source(source, wildcard_level, origin)` and writes the same string for the same non-empty source, wildcard level and origin; an empty source with a detail is written as `unknown`. GECKO's `formatKcatSource` and `parseKcatSource` do the same.
+* `sensitivity_tuning` and `cmaes_kcat_tuning` keep the origin and detail of the source of a kcat they change and add the method (`sensitivity`, `cmaes`) to its tuning status, with the kcat before the first tuning as `prior`. `sensitivity_tuning` no longer writes `sensitivityTuning` to `ec.source` or the kcat before tuning to `ec.notes`. `tune_prior_penalty_weight` restores `ec.source` with `ec.kcat`.
+* `set_kcat_for_reactions` writes the source `manual`, which was `setKcatForReactions`, and drops any tuning status.
+* `assign_standard_kcat`, `remove_standard_kcat`, `review_assignment`, `convert_custom_kcats` and the evotune trust tiers read the origin of `ec.source`, so a source with a detail or a tuning status is recognised. A standard kcat with a tuning status was changed on purpose and `remove_standard_kcat` keeps it.
 
 ## 4.0.0b2 — 2026-11-02
 

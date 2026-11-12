@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .merge_kcats import normalize_source
+from .kcat_source_format import format_kcat_source
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -20,31 +20,18 @@ _CRITERIA = ("max", "min", "median", "mean")
 _OverwriteMode = Union[bool, Literal["if_higher"]]
 
 
-def format_kcat_source(
-    source: object,
-    wildcard_level: object = None,
-    origin: object = None,
-) -> str:
-    """Build the provenance string written to ``model.ec.source``.
+def _fuzzy_source(source: object, wildcard_level: object, origin: object) -> str:
+    """Provenance string of one kcat-list row.
 
-    The result is lowercase ``snake_case``: the first token is the
-    source (``brenda``, ``sabio_rk``, ``catapro``, ``dlkcat``, ...), and
-    for a *fuzzy* BRENDA match the bracketed detail records how the
-    value was obtained -- its wildcard level and origin, e.g.
-    ``"brenda (wc=0, origin=1)"``. Rows without fuzzy metadata (an exact
-    OKP database hit or a prediction) render as the bare token, so the
-    bracket's presence and the wildcard/origin numbers give downstream
-    consumers (notably evotune kcat tuning) a quick read on how
-    uncertain the kcat is.
+    The string holds the source and, for a fuzzy BRENDA match, the wildcard
+    level and origin of the match as the detail pairs ``wc`` and ``origin``.
     """
-    token = normalize_source(source)
-    wc_ok = wildcard_level is not None and pd.notna(wildcard_level)
-    origin_ok = origin is not None and pd.notna(origin)
-    if wc_ok and origin_ok:
-        return f"{token} (wc={int(wildcard_level)}, origin={int(origin)})"
-    if wc_ok:
-        return f"{token} (wc={int(wildcard_level)})"
-    return token
+    detail = {}
+    if wildcard_level is not None and pd.notna(wildcard_level):
+        detail["wc"] = int(wildcard_level)
+        if origin is not None and pd.notna(origin):
+            detail["origin"] = int(origin)
+    return format_kcat_source(source, detail)
 
 
 def apply_kcat_list(
@@ -182,7 +169,7 @@ def apply_kcat_list(
             kcat_val, j = float(np.mean(kcats)), 0
         if criteria in ("max", "min"):
             kcat_val = float(kcats[j])
-        source_val = format_kcat_source(sources[j], wcs[j], origins[j])
+        source_val = _fuzzy_source(sources[j], wcs[j], origins[j])
         selected[str(rxn_id)] = (kcat_val, source_val)
 
     updated: list[str] = []

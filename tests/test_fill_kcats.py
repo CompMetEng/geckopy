@@ -268,7 +268,7 @@ def test_filled_kcats_have_isozymes_source():
 
     assert _source(ec_model, "R2_EXP_2") == "isozymes"
     # The source of the originally-set reaction should be untouched.
-    assert _source(ec_model, "R2_EXP_1") == "setKcatForReactions"
+    assert _source(ec_model, "R2_EXP_1") == "manual"
 
 
 # --------------------------------------------------------------------------- #

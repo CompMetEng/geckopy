@@ -292,6 +292,33 @@ def test_cmaes_tuning_moves_kcats_toward_truth(tmp_path):
         assert abs(result.new_kcat[i] - _TRUE_KCAT) < abs(before[i] - _TRUE_KCAT)
 
 
+def test_cmaes_tuning_extends_the_source_of_changed_kcats(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_toy(adapter)
+    params = EvotuneParams(max_generations=15, rmse_threshold=1e-6)
+    before = model.ec.kcat.copy()
+    origins = ["brenda", "dlkcat"]
+
+    result = cmaes_kcat_tuning(
+        model, adapter=adapter, params=params, evotune_data=_evotune_data(),
+        n_proc=1, seed=0, verbose=False,
+    )
+
+    assert (result.new_kcat != before).all()
+    for i, origin in enumerate(origins):
+        assert model.ec.source[i] == f"{origin} | tuned=cmaes (prior={before[i]:.6g})"
+
+    # A second run keeps the first prior and does not repeat the method.
+    first = list(model.ec.source)
+    kcat_first = model.ec.kcat.copy()
+    cmaes_kcat_tuning(
+        model, adapter=adapter, params=params, evotune_data=_evotune_data(),
+        n_proc=1, seed=1, verbose=False,
+    )
+    assert (model.ec.kcat != kcat_first).any()
+    assert list(model.ec.source) == first
+
+
 def test_cmaes_tuning_n_proc_matches_serial(tmp_path):
     params = EvotuneParams(max_generations=5, rmse_threshold=-1.0)
 
@@ -399,6 +426,7 @@ def test_tune_prior_penalty_weight_restores_model(tmp_path):
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
     before = model.ec.kcat.copy()
+    source_before = list(model.ec.source)
     params = EvotuneParams(max_generations=4, rmse_threshold=-1.0)
 
     tune_prior_penalty_weight(
@@ -409,6 +437,7 @@ def test_tune_prior_penalty_weight_restores_model(tmp_path):
     # Unlike cmaes_kcat_tuning, this only reports -- it leaves the model
     # exactly as it found it.
     assert np.array_equal(model.ec.kcat, before)
+    assert list(model.ec.source) == source_before
 
 
 def test_tune_prior_penalty_weight_single_seed_gives_nan_reproducibility(tmp_path):

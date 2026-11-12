@@ -55,7 +55,7 @@ def test_set_single_suffixed_rxn():
     updated = set_kcat_for_reactions(ec_model, ["R3"], 10.0, apply=False)
     assert updated == ["R3"]
     assert _kcat_at(ec_model, "R3") == 10.0
-    assert _source_at(ec_model, "R3") == "setKcatForReactions"
+    assert _source_at(ec_model, "R3") == "manual"
 
 
 def test_set_single_kcat_scalar_only_form():
@@ -265,13 +265,11 @@ def test_apply_only_updates_passed_reactions():
 # Source string
 # --------------------------------------------------------------------------- #
 
-def test_source_string_matches_matlab():
-    """raven-gecko-parity#77: ec.source reads 'setKcatForReactions',
-    matching MATLAB's actual assignment (its docstring says 'from
-    setKcatForReactions', but the real code writes the bare name)."""
+def test_source_string_is_manual():
+    """ec.source reads 'manual' for every reaction set by the call."""
     ec_model = _ectestgem_ec_model()
     set_kcat_for_reactions(ec_model, ["R3"], 10.0, apply=False)
-    assert _source_at(ec_model, "R3") == "setKcatForReactions"
+    assert _source_at(ec_model, "R3") == "manual"
 
 
 # --------------------------------------------------------------------------- #
@@ -300,7 +298,7 @@ def test_light_set_single_explicit_prefixed_id():
     updated = set_kcat_for_reactions(ec, ["001_R3"], 10.0, apply=False)
     assert updated == ["001_R3"]
     assert _kcat_at(ec, "001_R3") == 10.0
-    assert _source_at(ec, "001_R3") == "setKcatForReactions"
+    assert _source_at(ec, "001_R3") == "manual"
 
 
 def test_light_base_id_matches_nothing():
@@ -371,3 +369,11 @@ def test_light_apply_picks_lowest_cost_isozyme():
 def test_light_unknown_rxn_id_is_ignored():
     ec = _ectestgem_light_ec_model()
     assert set_kcat_for_reactions(ec, ["nonsense"], 1.0) == []
+
+
+def test_source_drops_the_tuning_status():
+    ec_model = _ectestgem_ec_model()
+    i = ec_model.ec.rxns.index("R3")
+    ec_model.ec.source[i] = "brenda (wc=0, origin=1) | tuned=cmaes (prior=2)"
+    set_kcat_for_reactions(ec_model, ["R3"], 10.0, apply=False)
+    assert _source_at(ec_model, "R3") == "manual"

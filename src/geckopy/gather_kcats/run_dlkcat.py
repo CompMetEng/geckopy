@@ -1,7 +1,6 @@
 """Invoke DLKcat (via Docker) to predict kcat values for a model.
 
-``kcats_from_dlkcat(..., via="docker")`` runs it; ``run_dlkcat`` is a
-deprecated alias.
+``kcats_from_dlkcat(..., via="docker")`` runs it.
 
 Ported from GECKO MATLAB:
 src/gather_kcats/runDLKcat.m.
@@ -10,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import shutil
-import warnings
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,25 +20,6 @@ logger = logging.getLogger(__name__)
 _DEFAULT_DOCKER_IMAGE = "ghcr.io/sysbiochalmers/dlkcat-gecko:0.1"
 _INPUT_FILENAME = "DLKcat.tsv"
 _OUTPUT_FILENAME = "DLKcatOutput.tsv"
-
-
-def run_dlkcat(
-    input_path: str | Path,
-    *,
-    output_path: Optional[str | Path] = None,
-    docker_image: str = _DEFAULT_DOCKER_IMAGE,
-    timeout: Optional[float] = None,
-) -> Path:
-    """Deprecated: use ``kcats_from_dlkcat(..., via="docker")``.
-
-    Runs DLKcat as :func:`_run_dlkcat` does, after a ``DeprecationWarning``.
-    """
-    warnings.warn(
-        'run_dlkcat is deprecated; use kcats_from_dlkcat(..., via="docker").',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return _run_dlkcat(input_path, output_path=output_path, docker_image=docker_image, timeout=timeout)
 
 
 def _run_dlkcat(
@@ -69,7 +48,7 @@ def _run_dlkcat(
     ----------
     input_path
         Path to the DLKcat input TSV (typically the output of
-        ``write_dlkcat_input``).
+        ``kcats_from_dlkcat`` with ``via="docker"``).
     output_path
         Where to write DLKcat's predictions. If ``None`` (default),
         ``input_path`` is overwritten, matching MATLAB.
@@ -116,7 +95,7 @@ def _run_dlkcat(
         ]
 
         logger.info(
-            "run_dlkcat: invoking %s (this may take several minutes, "
+            "DLKcat: invoking %s (this may take several minutes, "
             "longer on first run)", docker_image,
         )
         try:
@@ -145,7 +124,7 @@ def _run_dlkcat(
         out_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(tmp_output, out_path)
 
-    logger.info("run_dlkcat: completed; output written to %s", out_path)
+    logger.info("DLKcat: completed; output written to %s", out_path)
     return out_path
 
 
@@ -159,7 +138,7 @@ def _check_docker_available() -> None:
     except FileNotFoundError as e:
         raise RuntimeError(
             "Cannot find Docker. Install Docker (https://www.docker.com) "
-            "and ensure the daemon is running before invoking run_dlkcat."
+            "and ensure the daemon is running before invoking DLKcat."
         ) from e
     if result.returncode != 0:
         raise RuntimeError(

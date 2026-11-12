@@ -449,30 +449,3 @@ def _fill_zero_kcats(model: "EcModel", standard_kcat: float) -> list[str]:
     for i in indices:
         model.ec.source[int(i)] = "standard"
     return [model.ec.rxns[int(i)] for i in indices]
-
-
-def get_standard_kcat(
-    model: "EcModel",
-    uniprot_db: "UniprotDB",
-    *,
-    threshold: int = 10,
-    fill_zero_kcat: bool = True,
-) -> None:
-    """Deprecated alias for :func:`assign_standard_kcat`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``assign_standard_kcat``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_standard_kcat is deprecated; use assign_standard_kcat "
-        "instead. The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return assign_standard_kcat(
-        model, uniprot_db,
-        threshold=threshold, fill_zero_kcat=fill_zero_kcat,
-    )

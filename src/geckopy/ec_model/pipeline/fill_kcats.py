@@ -56,8 +56,6 @@ def fill_kcats_from_isozymes(
     Reactions whose siblings all also lack a kcat stay at 0. Reactions
     with a single isozyme (no siblings beyond themselves) also stay at 0.
 
-    ``get_kcat_across_isozymes`` is a deprecated alias for this function.
-
     Parameters
     ----------
     model
@@ -146,22 +144,3 @@ def fill_kcats_from_isozymes(
     if apply:
         filled_rxn_ids = [model.ec.rxns[i] for i in filled_indices]
         apply_kcat_constraints(model, update_rxns=filled_rxn_ids)
-
-
-def get_kcat_across_isozymes(model: "EcModel", *, apply: bool = False) -> None:
-    """Deprecated alias for :func:`fill_kcats_from_isozymes`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``fill_kcats_from_isozymes``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_kcat_across_isozymes is deprecated; use "
-        "fill_kcats_from_isozymes instead. The old name will be "
-        "removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return fill_kcats_from_isozymes(model, apply=apply)

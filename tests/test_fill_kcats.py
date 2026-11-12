@@ -271,27 +271,6 @@ def test_filled_kcats_have_isozymes_source():
     assert _source(ec_model, "R2_EXP_1") == "setKcatForReactions"
 
 
-def test_deprecated_alias_still_works():
-    """``get_kcat_across_isozymes`` is the legacy name. It now emits
-    a DeprecationWarning but still forwards to
-    ``fill_kcats_from_isozymes`` so old callers don't break."""
-    import warnings
-
-    from geckopy.ec_model.pipeline import get_kcat_across_isozymes
-
-    ec_model = _ectestgem_ec_model()
-    set_kcat_for_reactions(ec_model, ["R2_EXP_1"], 100.0, apply=False)
-    with warnings.catch_warnings(record=True) as recorded:
-        warnings.simplefilter("always")
-        get_kcat_across_isozymes(ec_model, apply=False)
-    assert any(
-        issubclass(w.category, DeprecationWarning)
-        and "fill_kcats_from_isozymes" in str(w.message)
-        for w in recorded
-    )
-    assert _source(ec_model, "R2_EXP_2") == "isozymes"
-
-
 # --------------------------------------------------------------------------- #
 # Adapter-default aggregate (params.kcat_aggregate_isozymes)
 # --------------------------------------------------------------------------- #

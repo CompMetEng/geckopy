@@ -1,7 +1,6 @@
 """Write a DLKcat-compatible TSV input file for an ec model.
 
-``kcats_from_dlkcat(..., via="docker")`` writes it; ``write_dlkcat_input`` is
-a deprecated alias.
+``kcats_from_dlkcat(..., via="docker")`` writes it.
 
 Ported from GECKO MATLAB:
 src/gather_kcats/writeDLKcatInput.m.
@@ -10,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional
 
@@ -30,29 +28,6 @@ logger = logging.getLogger(__name__)
 _OUTPUT_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "kcat"]
 _PAIR_COLUMNS = ["rxn_id", "gene", "substrate", "smiles", "sequence", "met_id"]
 _NORMALIZE_RE = re.compile(r"[^0-9a-zA-Z]+")
-
-
-def write_dlkcat_input(
-    model: "EcModel",
-    output_path: str | Path,
-    ignore_lists: "DLKcatIgnoreLists",
-    *,
-    ec_rxns: Optional[Iterable[str]] = None,
-    only_with_smiles: bool = True,
-    overwrite: bool = False,
-) -> pd.DataFrame:
-    """Deprecated: use ``kcats_from_dlkcat(..., via="docker")``.
-
-    Writes the file as :func:`_write_dlkcat_input` does, after a
-    ``DeprecationWarning``.
-    """
-    warnings.warn(
-        'write_dlkcat_input is deprecated; use kcats_from_dlkcat(..., via="docker").',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return _write_dlkcat_input(model, output_path, ignore_lists, ec_rxns=ec_rxns,
-                               only_with_smiles=only_with_smiles, overwrite=overwrite)
 
 
 def _write_dlkcat_input(
@@ -150,7 +125,7 @@ def _write_dlkcat_input(
 
     _write_tsv(output_path, df)
     logger.info(
-        "write_dlkcat_input: wrote %d row(s) to %s.", len(df), output_path,
+        "DLKcat input: wrote %d row(s) to %s.", len(df), output_path,
     )
     return df
 
@@ -164,7 +139,7 @@ def extract_enzyme_substrate_pairs(
 ) -> pd.DataFrame:
     """Enumerate (reaction, gene, substrate, SMILES, sequence) rows for an ec model.
 
-    Shared core of ``write_dlkcat_input`` and the OpenKineticsPredictor
+    Shared core of the DLKcat input writer and the OpenKineticsPredictor
     input builder. Performs the same filtering (ignored metabolites,
     ``prot_`` pseudometabolites, currency-metabolite pairs) and the same
     ``only_with_smiles`` handling, but does no file I/O.

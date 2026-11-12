@@ -4,7 +4,7 @@ OKP returns only (kcat, Source kcat, Protein Sequence, Substrate) per
 row, so each prediction is mapped back to the matching reaction(s) via
 sequence -> ec.genes and SMILES -> metabolite -> ec.rxns, mirroring the
 MATLAB readOpenKineticsPredictorOutput. The output schema matches
-``read_dlkcat_output`` / ``fuzzy_kcat_matching`` so it feeds
+``kcats_from_dlkcat`` / ``fuzzy_kcat_matching`` so it feeds
 ``apply_kcat_list`` directly.
 """
 from __future__ import annotations

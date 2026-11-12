@@ -6,7 +6,6 @@ from .calculate_f_factor import calculate_f_factor
 from .constrain_enz_concs import constrain_enz_concs
 from .constrain_flux_data import (
     apply_flux_data_constraints,
-    constrain_flux_data,
 )
 from .fill_enz_concs import fill_enz_concs
 from .flexibilize_enz_concs import FlexEnzResult, flexibilize_enz_concs
@@ -37,7 +36,6 @@ __all__ = [
     "calculate_f_factor",
     "complex_families",
     "constrain_enz_concs",
-    "constrain_flux_data",  # deprecated; alias of apply_flux_data_constraints
     "fill_enz_concs",
     "flexibilize_enz_concs",
     "get_conc_control_coeffs",

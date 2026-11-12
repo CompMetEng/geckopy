@@ -82,7 +82,7 @@ def load_dlkcat_ignore_lists(
     -------
     DLKcatIgnoreLists
         Normalized ignore lists ready to feed to
-        ``write_dlkcat_input``.
+        ``kcats_from_dlkcat``.
     """
     ignore_lines = _strip_header(_read_lines(
         _resolve_path(project_data_folder, "DLKcatIgnoreMets.tsv")

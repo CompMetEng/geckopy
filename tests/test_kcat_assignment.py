@@ -12,7 +12,7 @@ import pytest
 
 from geckopy import ModelAdapter, convert_custom_kcats, make_ec_model
 from geckopy.databases import load_brenda_data, load_phyl_dist, load_uniprot_tsv
-from geckopy.ec_model.pipeline import apply_custom_kcats, apply_kcat_constraints, fill_kcats_from_isozymes
+from geckopy.ec_model.pipeline import apply_kcat_constraints, fill_kcats_from_isozymes
 from geckopy.gather_kcats import (
     apply_kcat_list,
     assign_kcats,
@@ -23,10 +23,11 @@ from geckopy.gather_kcats import (
     kcats_from_brenda,
     kcats_from_dlkcat,
     merge_kcats,
-    read_dlkcat_output,
     read_kcat_source,
     update_kcat_sources,
 )
+from geckopy.gather_kcats.read_dlkcat_output import _read_dlkcat_output
+from geckopy.upgrade import _apply_custom_kcats
 
 EXAMPLE_DIR = Path(__file__).parents[1] / "examples" / "ecTestGEM"
 
@@ -70,12 +71,11 @@ def test_assign_kcats_reproduces_chain(tmp_path):
 
     a = base.copy()
     fuzzy = fuzzy_kcat_matching(a, brenda, phyl, adapter=adapter)
-    dlkcat = read_dlkcat_output(a, data / "DLKcat.tsv")
+    dlkcat = _read_dlkcat_output(a, data / "DLKcat.tsv")
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=6)
     apply_kcat_list(a, merged)
-    with pytest.warns(DeprecationWarning, match="apply_custom_kcats"):
-        apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
+    _apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)
@@ -107,8 +107,7 @@ def test_gecko_median_preset(tmp_path):
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=4)
     apply_kcat_list(a, merged)
-    with pytest.warns(DeprecationWarning, match="apply_custom_kcats"):
-        apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
+    _apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)

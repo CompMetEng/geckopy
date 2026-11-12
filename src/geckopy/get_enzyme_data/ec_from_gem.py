@@ -109,24 +109,3 @@ def fill_eccodes_from_gem(
             len(invalid),
             ", ".join(repr(s) for s in invalid),
         )
-
-
-def get_ec_from_gem(
-    model: "EcModel",
-    ec_rxns: Optional[Iterable[str]] = None,
-) -> None:
-    """Deprecated alias for :func:`fill_eccodes_from_gem`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``fill_eccodes_from_gem``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_ec_from_gem is deprecated; use fill_eccodes_from_gem instead. "
-        "The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return fill_eccodes_from_gem(model, ec_rxns=ec_rxns)

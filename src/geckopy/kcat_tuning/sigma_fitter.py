@@ -257,32 +257,3 @@ def fit_sigma(
         growth_grid=growth_grid,
         error_grid=error_grid,
     )
-
-
-def sigma_fitter(
-    model: "EcModel",
-    *,
-    growth_rate: Optional[float] = None,
-    p_tot: Optional[float] = None,
-    f: Optional[float] = None,
-    n_sigma_steps: int = 100,
-    method: Literal["grid", "bisect"] = "grid",
-) -> SigmaFitterResult:
-    """Deprecated alias for :func:`fit_sigma`.
-
-    Kept for backward compatibility. Will be removed in a future
-    release; switch to ``fit_sigma``.
-    """
-    import warnings
-
-    warnings.warn(
-        "sigma_fitter is deprecated; use fit_sigma instead. "
-        "The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return fit_sigma(
-        model,
-        growth_rate=growth_rate, p_tot=p_tot, f=f,
-        n_sigma_steps=n_sigma_steps, method=method,
-    )

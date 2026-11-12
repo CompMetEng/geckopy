@@ -170,7 +170,7 @@ def _fetch_open_kinetics_predictor(
     (done, kcat_list)
         ``done`` is True when a result was obtained; ``kcat_list`` is the
         parsed DataFrame then, otherwise ``None``. The DataFrame matches
-        the ``read_dlkcat_output`` / ``fuzzy_kcat_matching`` schema and
+        the ``kcats_from_dlkcat`` / ``fuzzy_kcat_matching`` schema and
         feeds ``apply_kcat_list``.
     """
     from ...adapter import resolve_adapter

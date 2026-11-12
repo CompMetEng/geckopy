@@ -1,4 +1,4 @@
-"""Tests for write_dlkcat_input."""
+"""Tests for the DLKcat input writer."""
 from pathlib import Path
 
 import cobra
@@ -10,7 +10,7 @@ from scipy import sparse
 from geckopy.databases import DLKcatIgnoreLists
 from geckopy.ec_model import EcModel
 from geckopy.ec_model.ec_data import EcData
-from geckopy.gather_kcats import write_dlkcat_input
+from geckopy.gather_kcats.write_dlkcat_input import _write_dlkcat_input
 
 
 # --------------------------------------------------------------------------- #
@@ -131,14 +131,14 @@ def test_existing_file_refused_without_overwrite(tmp_path):
     out.write_text("preexisting", encoding="utf-8")
     model = _ec_model([])
     with pytest.raises(FileExistsError):
-        write_dlkcat_input(model, out, _ignore_lists())
+        _write_dlkcat_input(model, out, _ignore_lists())
 
 
 def test_existing_file_overwritten_when_requested(tmp_path):
     out = tmp_path / "DLKcat.tsv"
     out.write_text("preexisting", encoding="utf-8")
     model = _ec_model([])
-    write_dlkcat_input(model, out, _ignore_lists(), overwrite=True)
+    _write_dlkcat_input(model, out, _ignore_lists(), overwrite=True)
     # File was replaced; no rows since model is empty.
     assert out.read_text(encoding="utf-8") == ""
 
@@ -146,7 +146,7 @@ def test_existing_file_overwritten_when_requested(tmp_path):
 def test_empty_model_writes_empty_file(tmp_path):
     model = _ec_model([])
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     assert df.empty
     assert out.exists()
     assert out.read_text(encoding="utf-8") == ""
@@ -164,7 +164,7 @@ def test_single_reaction_single_substrate_single_gene(tmp_path):
         met_smiles={"A": "C(C)O"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     assert len(df) == 1
     row = df.iloc[0]
     assert row["rxn_id"] == "r1"
@@ -184,7 +184,7 @@ def test_complex_with_multiple_genes_yields_multiple_rows(tmp_path):
         met_smiles={"A": "SMI_A", "B": "SMI_B"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     assert len(df) == 4
     triples = sorted(zip(df["substrate"], df["gene"]))
     assert triples == [("alpha", "g1"), ("alpha", "g2"),
@@ -198,7 +198,7 @@ def test_only_substrates_not_products_emitted(tmp_path):
         met_smiles={"A": "SMI_A", "B": "SMI_B"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     assert list(df["substrate"]) == ["alpha"]
 
 
@@ -213,7 +213,7 @@ def test_ignored_metabolite_by_name_dropped(tmp_path):
         met_smiles={"A": "SMI_A", "B": "O"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(ignore_names=["h2o"]),
     )
     assert list(df["substrate"]) == ["Alpha"]
@@ -226,7 +226,7 @@ def test_ignored_metabolite_by_smiles_dropped(tmp_path):
         met_smiles={"A": "SMI_A", "B": "O"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(ignore_smiles=["O"]),
     )
     assert list(df["substrate"]) == ["alpha"]
@@ -241,7 +241,7 @@ def test_protein_pseudometabolites_dropped(tmp_path):
         met_smiles={"A": "SMI_A"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     assert list(df["substrate"]) == ["alpha"]
 
 
@@ -263,7 +263,7 @@ def test_currency_pair_removed_when_other_substrate_remains(tmp_path):
         met_smiles={"atp": "SMI_ATP", "glc": "SMI_GLC"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(currency_pairs=[("atp", "adp")]),
     )
     assert list(df["substrate"]) == ["glucose"]
@@ -281,7 +281,7 @@ def test_currency_pair_preserved_when_no_other_substrate(tmp_path):
         met_smiles={"atp": "SMI_ATP"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(currency_pairs=[("atp", "adp")]),
     )
     # ATP is preserved as the substrate.
@@ -300,7 +300,7 @@ def test_currency_pair_only_when_both_present(tmp_path):
         met_smiles={"atp": "SMI_ATP"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(currency_pairs=[("atp", "adp")]),
     )
     assert list(df["substrate"]) == ["ATP"]
@@ -320,7 +320,7 @@ def test_only_with_smiles_drops_no_smiles_rows(tmp_path):
         met_smiles={"A": "SMI_A"},  # B has no SMILES
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists(), only_with_smiles=True)
+    df = _write_dlkcat_input(model, out, _ignore_lists(), only_with_smiles=True)
     assert list(df["substrate"]) == ["alpha"]
 
 
@@ -331,7 +331,7 @@ def test_without_only_with_smiles_writes_None_placeholder(tmp_path):
         # No SMILES.
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists(), only_with_smiles=False)
+    df = _write_dlkcat_input(model, out, _ignore_lists(), only_with_smiles=False)
     assert list(df["smiles"]) == ["None"]
 
 
@@ -349,7 +349,7 @@ def test_ec_rxns_subset_only_emitted(tmp_path):
         met_smiles={"A": "SMI_A", "B": "SMI_B"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, out, _ignore_lists(), ec_rxns=["r1"],
     )
     assert list(df["rxn_id"]) == ["r1"]
@@ -363,7 +363,7 @@ def test_ec_rxns_unknown_id_raises(tmp_path):
     )
     out = tmp_path / "DLKcat.tsv"
     with pytest.raises(ValueError, match="not present in model.ec.rxns"):
-        write_dlkcat_input(
+        _write_dlkcat_input(
             model, out, _ignore_lists(), ec_rxns=["nonexistent"],
         )
 
@@ -381,7 +381,7 @@ def test_gecko_light_strips_4char_prefix_to_find_reaction(tmp_path):
         met_smiles={"A": "SMI_A"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     # ec.rxns = ["001_r1"]; cobra reactions = ["r1"]. ec.rxns ID kept in output.
     assert list(df["rxn_id"]) == ["001_r1"]
 
@@ -398,7 +398,7 @@ def test_written_file_matches_returned_dataframe(tmp_path):
         met_smiles={"A": "SMI_A"},
     )
     out = tmp_path / "DLKcat.tsv"
-    df = write_dlkcat_input(model, out, _ignore_lists())
+    df = _write_dlkcat_input(model, out, _ignore_lists())
     on_disk = _read_tsv(out)
     pd.testing.assert_frame_equal(
         df.reset_index(drop=True), on_disk.reset_index(drop=True),
@@ -413,7 +413,7 @@ def test_written_file_has_no_header(tmp_path):
         met_smiles={"A": "SMI_A"},
     )
     out = tmp_path / "DLKcat.tsv"
-    write_dlkcat_input(model, out, _ignore_lists())
+    _write_dlkcat_input(model, out, _ignore_lists())
     first_line = out.read_text(encoding="utf-8").splitlines()[0]
     # Should be the data row, NOT a header.
     assert first_line.startswith("r1\t")
@@ -434,7 +434,7 @@ def test_a_reloaded_model_carries_its_smiles_as_a_list(tmp_path):
         if met.annotation.get("smiles"):
             met.annotation["smiles"] = [met.annotation["smiles"]]
 
-    df = write_dlkcat_input(model, tmp_path / "DLKcat.tsv", _ignore_lists())
+    df = _write_dlkcat_input(model, tmp_path / "DLKcat.tsv", _ignore_lists())
     assert len(df) == 1
     assert df.iloc[0]["smiles"] == "C(C)O"
 
@@ -450,7 +450,7 @@ def test_a_list_valued_smiles_is_still_matched_against_the_ignore_list(tmp_path)
         if met.annotation.get("smiles"):
             met.annotation["smiles"] = [met.annotation["smiles"]]
 
-    df = write_dlkcat_input(
+    df = _write_dlkcat_input(
         model, tmp_path / "DLKcat.tsv", _ignore_lists(ignore_smiles=["O"]),
     )
     assert set(df["substrate"]) == {"alpha"}

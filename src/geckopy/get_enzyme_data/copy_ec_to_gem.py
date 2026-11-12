@@ -1,7 +1,7 @@
 """Copy EC codes from model.ec.eccodes back to per-reaction annotations.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/copyECtoGEM.m.
+src/deprecated/copyECtoGEM.m.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def copy_ec_to_gem(model: "EcModel", *, overwrite: bool = False) -> None:
     top-level ``model.eccodes``).
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/copyECtoGEM.m.
+    src/deprecated/copyECtoGEM.m.
 
     For each entry of ``model.ec.rxns`` (after stripping a 4-char
     prefix when the model is in gecko-light mode), the corresponding

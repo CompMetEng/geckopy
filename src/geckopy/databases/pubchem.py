@@ -1,7 +1,7 @@
 """SMILES lookup via PubChem with a local TSV cache.
 
 Ported from GECKO MATLAB:
-src/geckomat/change_model/findMetSmiles.m.
+src/change_model/findMetSmiles.m.
 
 The cache file is a two-column TSV with no header: ``name<TAB>smiles``.
 Each successful lookup is appended immediately so interrupted runs
@@ -68,7 +68,7 @@ def find_met_smiles(
     """Populate ``metabolite.annotation['smiles']`` from PubChem.
 
     Ported from GECKO MATLAB:
-    src/geckomat/change_model/findMetSmiles.m.
+    src/change_model/findMetSmiles.m.
 
     For every metabolite in the model:
 

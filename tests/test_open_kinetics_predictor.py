@@ -11,13 +11,12 @@ from scipy import sparse
 from geckopy import EcModel, ModelAdapter
 from geckopy.databases import DLKcatIgnoreLists
 from geckopy.ec_model.ec_data import EcData
-from geckopy.gather_kcats.open_kinetics_predictor import (
-    OKPClient,
-    OKPError,
-    build_okp_input_csv,
-    fetch_open_kinetics_predictor,
-    parse_okp_output,
-    submit_open_kinetics_predictor,
+from geckopy.gather_kcats.open_kinetics_predictor import OKPClient, OKPError
+from geckopy.gather_kcats.open_kinetics_predictor.build_input import _build_okp_input_csv
+from geckopy.gather_kcats.open_kinetics_predictor.parse_output import _parse_okp_output
+from geckopy.gather_kcats.open_kinetics_predictor.run import (
+    _fetch_open_kinetics_predictor,
+    _submit_open_kinetics_predictor,
 )
 
 
@@ -134,11 +133,11 @@ class _FakeSession:
 
 
 # --------------------------------------------------------------------------- #
-# build_okp_input_csv
+# _build_okp_input_csv
 # --------------------------------------------------------------------------- #
 
 def test_build_input_header_and_pairs():
-    csv_text = build_okp_input_csv(_ec_model(), _ignore())
+    csv_text = _build_okp_input_csv(_ec_model(), _ignore())
     lines = csv_text.strip().split("\n")
     assert lines[0] == "Protein Sequence,Substrate"
     body = sorted(lines[1:])
@@ -148,22 +147,22 @@ def test_build_input_header_and_pairs():
 def test_build_input_dedups_pairs():
     # A appears as substrate in both r1 and r2 with the same enzyme S1,
     # so (S1, CCO) must appear only once.
-    csv_text = build_okp_input_csv(_ec_model(), _ignore())
+    csv_text = _build_okp_input_csv(_ec_model(), _ignore())
     assert csv_text.count("S1,CCO") == 1
 
 
 def test_build_input_only_with_smiles_drops_missing():
-    csv_text = build_okp_input_csv(_ec_model(), _ignore(), only_with_smiles=True)
+    csv_text = _build_okp_input_csv(_ec_model(), _ignore(), only_with_smiles=True)
     # C and D have no SMILES and are products anyway; only A,B substrates remain.
     assert "None" not in csv_text
 
 
 # --------------------------------------------------------------------------- #
-# parse_okp_output
+# _parse_okp_output
 # --------------------------------------------------------------------------- #
 
 def test_parse_maps_back_to_ec_rxns():
-    df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
+    df = _parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     # S1+CCO (A) -> consumed by r1 and r2 -> 2 rows; S1+CCN (B) -> r1 -> 1 row.
     assert len(df) == 3
     assert set(df["rxn_id"]) == {"r1", "r2"}
@@ -179,14 +178,14 @@ def test_parse_maps_back_from_a_reloaded_models_list_valued_smiles():
         if met.annotation.get("smiles"):
             met.annotation["smiles"] = [met.annotation["smiles"]]
 
-    df = parse_okp_output(model, _OKP_RESULT_CSV)
+    df = _parse_okp_output(model, _OKP_RESULT_CSV)
     assert len(df) == 3
     assert set(df["rxn_id"]) == {"r1", "r2"}
     assert all(s in (["ala"], ["beta"]) for s in df["substrates"])
 
 
 def test_parse_source_provenance_stripped_and_verbatim():
-    df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
+    df = _parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     sources = set(df["source"])
     # "Prediction from CataPro" -> "CataPro"; "BRENDA" kept verbatim; both
     # tagged with the OKP- pipeline-stage prefix.
@@ -196,7 +195,7 @@ def test_parse_source_provenance_stripped_and_verbatim():
 
 
 def test_parse_kcat_and_columns():
-    df = parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
+    df = _parse_okp_output(_ec_model(), _OKP_RESULT_CSV)
     assert list(df.columns) == [
         "rxn_id", "source", "eccode", "substrates", "genes",
         "kcat", "wildcard_level", "origin", "similarity",
@@ -215,7 +214,7 @@ def test_parse_no_numeric_kcat_raises():
         "NA,Prediction from CataPro,,S1,CCO\n"
     )
     with pytest.raises(ValueError, match="no numeric kcat"):
-        parse_okp_output(_ec_model(), csv_text)
+        _parse_okp_output(_ec_model(), csv_text)
 
 
 def test_parse_catrange_class_ranges():
@@ -225,7 +224,7 @@ def test_parse_catrange_class_ranges():
         "Predicted kcat range: kcat (1/s),Source kcat,Extra Info kcat,Protein Sequence,Substrate\n"
         "10 to 100 s^-1,Prediction from CatRange,Predicted range: 10 to 100 s^-1,S1,CCO\n"
     )
-    df = parse_okp_output(_ec_model(), csv_text)
+    df = _parse_okp_output(_ec_model(), csv_text)
     assert not df.empty
     assert all(df["source"] == "OKP-CatRange")
     assert df["kcat"].iloc[0] == pytest.approx(10 ** 1.5)
@@ -252,7 +251,7 @@ def test_kcat_value(text, expected):
 def test_parse_missing_column_raises():
     csv_text = "kcat (1/s),Protein Sequence\n1.0,S1\n"
     with pytest.raises(ValueError, match="missing expected column"):
-        parse_okp_output(_ec_model(), csv_text)
+        _parse_okp_output(_ec_model(), csv_text)
 
 
 def test_parse_unmapped_rows_raise(caplog):
@@ -261,7 +260,7 @@ def test_parse_unmapped_rows_raise(caplog):
         "9.9,Prediction from CataPro,,UNKNOWN_SEQ,CCO\n"
     )
     with pytest.raises(ValueError, match="could be mapped"):
-        parse_okp_output(_ec_model(), csv_text)
+        _parse_okp_output(_ec_model(), csv_text)
 
 
 # --------------------------------------------------------------------------- #
@@ -317,7 +316,7 @@ def test_submit_writes_csv_and_metadata(tmp_path, monkeypatch):
     session = _FakeSession([
         ("/submit/", _FakeResponse(201, {"jobId": "JOB42", "status": "Pending"})),
     ])
-    job_id = submit_open_kinetics_predictor(
+    job_id = _submit_open_kinetics_predictor(
         model, ignore_lists=_ignore(), session=session,
     )
     assert job_id == "JOB42"
@@ -325,7 +324,7 @@ def test_submit_writes_csv_and_metadata(tmp_path, monkeypatch):
     assert (data_dir / "OKP.csv").read_text().startswith("Protein Sequence,Substrate")
     meta = (data_dir / "OKP_job.txt").read_text()
     assert "jobId: JOB42" in meta
-    assert "method: CataPro" in meta
+    assert "method: KinForm-H" in meta
 
 
 def test_submit_missing_key_raises(tmp_path, monkeypatch):
@@ -333,7 +332,7 @@ def test_submit_missing_key_raises(tmp_path, monkeypatch):
     model = _ec_model(adapter)
     monkeypatch.delenv("OKP_API_KEY", raising=False)
     with pytest.raises(ValueError, match="No OpenKineticsPredictor API key"):
-        submit_open_kinetics_predictor(model, ignore_lists=_ignore())
+        _submit_open_kinetics_predictor(model, ignore_lists=_ignore())
 
 
 def test_fetch_completed_downloads_and_parses(tmp_path, monkeypatch):
@@ -341,12 +340,12 @@ def test_fetch_completed_downloads_and_parses(tmp_path, monkeypatch):
     model = _ec_model(adapter)
     monkeypatch.setenv("OKP_API_KEY", "ak_test")
     (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: JOB42\nmethod: CataPro\n")
+    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: JOB42\nmethod: KinForm-H\n")
     session = _FakeSession([
         ("/status/", _FakeResponse(200, {"status": "Completed"})),
         ("/result/", _FakeResponse(200, text=_OKP_RESULT_CSV)),
     ])
-    done, df = fetch_open_kinetics_predictor(model, session=session)
+    done, df = _fetch_open_kinetics_predictor(model, session=session)
     assert done is True
     assert len(df) == 3
     assert (tmp_path / "data" / "OKP_output.csv").is_file()
@@ -363,7 +362,7 @@ def test_fetch_running_without_wait_returns_false(tmp_path, monkeypatch):
                                          "progress": {"predictionsMade": 0,
                                                       "predictionsTotal": 2}})),
     ])
-    done, df = fetch_open_kinetics_predictor(model, session=session)
+    done, df = _fetch_open_kinetics_predictor(model, session=session)
     assert done is False
     assert df is None
 
@@ -376,7 +375,7 @@ def test_fetch_failed_raises(tmp_path, monkeypatch):
     (tmp_path / "data" / "OKP_job.txt").write_text("jobId: JOB42\n")
     session = _FakeSession([("/status/", _FakeResponse(200, {"status": "Failed"}))])
     with pytest.raises(OKPError, match="failed"):
-        fetch_open_kinetics_predictor(model, session=session)
+        _fetch_open_kinetics_predictor(model, session=session)
 
 
 def test_fetch_use_stored_parses_saved_file(tmp_path):
@@ -384,7 +383,7 @@ def test_fetch_use_stored_parses_saved_file(tmp_path):
     model = _ec_model(adapter)
     (tmp_path / "data").mkdir()
     (tmp_path / "data" / "OKP_output.csv").write_text(_OKP_RESULT_CSV)
-    done, df = fetch_open_kinetics_predictor(model, True)
+    done, df = _fetch_open_kinetics_predictor(model, True)
     assert done is True
     assert len(df) == 3
 
@@ -393,7 +392,7 @@ def test_fetch_use_stored_missing_file_raises(tmp_path):
     adapter = _adapter(tmp_path)
     model = _ec_model(adapter)
     with pytest.raises(FileNotFoundError, match="no stored result"):
-        fetch_open_kinetics_predictor(model, True)
+        _fetch_open_kinetics_predictor(model, True)
 
 
 def test_fetch_reads_job_id_from_metadata(tmp_path, monkeypatch):
@@ -401,11 +400,24 @@ def test_fetch_reads_job_id_from_metadata(tmp_path, monkeypatch):
     model = _ec_model(adapter)
     monkeypatch.setenv("OKP_API_KEY", "ak_test")
     (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: FROMFILE\nmethod: CataPro\n")
+    (tmp_path / "data" / "OKP_job.txt").write_text("jobId: FROMFILE\nmethod: KinForm-H\n")
     session = _FakeSession([
         ("/status/FROMFILE/", _FakeResponse(200, {"status": "Completed"})),
         ("/result/FROMFILE/", _FakeResponse(200, text=_OKP_RESULT_CSV)),
     ])
-    done, df = fetch_open_kinetics_predictor(model, session=session)
+    done, df = _fetch_open_kinetics_predictor(model, session=session)
     assert done is True
     assert any("FROMFILE" in url for _, url, _ in session.calls)
+
+
+def test_okp_engine_is_private():
+    """kcats_from_okp is the entry point; the engine functions are not exported."""
+    import geckopy
+    import geckopy.gather_kcats as gather_kcats
+    import geckopy.gather_kcats.open_kinetics_predictor as okp
+
+    for name in ("submit_open_kinetics_predictor", "fetch_open_kinetics_predictor",
+                 "build_okp_input_csv", "parse_okp_output"):
+        for module in (geckopy, gather_kcats, okp):
+            assert not hasattr(module, name)
+            assert name not in getattr(module, "__all__", [])

@@ -88,7 +88,7 @@ def load_flux_data(path: str | Path) -> FluxData:
     returned ``FluxData`` as ``evotune_rmse_weight`` and ``source``.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/loadFluxData.m.
+    src/io/loadFluxData.m.
 
     Parameters
     ----------

@@ -11,10 +11,9 @@ The most-used names, grouped by stage of a typical workflow:
 
 - **Project setup**: ``ModelAdapter``
 - **Build**: ``load_conventional_gem``, ``make_ec_model``
-- **Enrich kcats**: ``fuzzy_kcat_matching``, ``read_dlkcat_output``,
-  ``merge_dlkcat_and_fuzzy_kcats``, ``apply_kcat_list``,
-  ``apply_custom_kcats``, ``fill_kcats_from_isozymes``,
-  ``assign_standard_kcat``, ``apply_kcat_constraints``
+- **Enrich kcats**: ``update_kcat_sources`` (``kcats_from_brenda``,
+  ``kcats_from_dlkcat``, ``kcats_from_okp``, ...), ``collect_kcats``,
+  ``assign_kcats``
 - **Set the protein budget**: ``calculate_f_factor``,
   ``set_prot_pool_size``, ``fit_sigma``
 - **Curate**: ``set_kcat_for_reactions``, ``sensitivity_tuning``
@@ -69,10 +68,8 @@ from geckopy.ec_model import EcData, EcModel, Enzyme, make_ec_model
 # Pipeline stages (these are public utilities, not just internal)
 from geckopy.ec_model.pipeline import (
     apply_complex_data,
-    apply_custom_kcats,
     apply_kcat_constraints,
     fill_kcats_from_isozymes,
-    get_kcat_across_isozymes,  # deprecated; alias of fill_kcats_from_isozymes
     get_reactions_from_enzyme,
     set_kcat_for_reactions,
     set_prot_pool_size,
@@ -87,29 +84,21 @@ from geckopy.gather_kcats import (
     assign_standard_kcat,
     collect_kcats,
     ec_stats_from_brenda,
-    fetch_open_kinetics_predictor,
     format_kcat_source,
     fuzzy_kcat_matching,
-    get_standard_kcat,  # deprecated; alias of assign_standard_kcat
     kcats_from_brenda,
     kcats_from_dlkcat,
     kcats_from_ec_tree,
     kcats_from_homologs,
     kcats_from_okp,
     load_kcat_source,
-    merge_dlkcat_and_fuzzy_kcats,  # deprecated; alias of merge_kcats
     merge_kcats,
     parse_kcat_source,
-    read_dlkcat_output,
     read_kcat_source,
     remove_standard_kcat,
     review_assignment,
-    run_dlkcat,
     save_kcat_source,
-    select_kcat_value,  # deprecated; alias of apply_kcat_list
-    submit_open_kinetics_predictor,
     update_kcat_sources,
-    write_dlkcat_input,
 )
 
 # get_enzyme_data
@@ -118,19 +107,14 @@ from geckopy.get_enzyme_data import (
     fill_eccodes_from_database,
     fill_eccodes_from_gem,
     find_ec_in_db,
-    get_ec_from_database,  # deprecated; alias of fill_eccodes_from_database
-    get_ec_from_gem,  # deprecated; alias of fill_eccodes_from_gem
 )
 
 # kcat_tuning
 from geckopy.kcat_tuning import (
     SigmaFitterResult,
     TunedKcatsResult,
-    find_max_value,
     fit_sigma,
     sensitivity_tuning,
-    sigma_fitter,  # deprecated; alias of fit_sigma
-    truncate_values,
 )
 
 # limit_proteins
@@ -144,7 +128,6 @@ from geckopy.limit_proteins import (
     calculate_f_factor,
     complex_families,
     constrain_enz_concs,
-    constrain_flux_data,  # deprecated; alias of apply_flux_data_constraints
     fill_enz_concs,
     flexibilize_enz_concs,
     get_conc_control_coeffs,
@@ -159,6 +142,7 @@ from geckopy.limit_proteins import (
 # utilities
 from geckopy.utilities import (
     AddNewRxnsResult,
+    EcFSEOFResult,
     EnzymeUsageReport,
     EnzymeUsageResult,
     MapRxnsResult,
@@ -214,7 +198,6 @@ __all__ = [
     "load_uniprot_tsv",
     # Pipeline / model edits
     "apply_complex_data",
-    "apply_custom_kcats",
     "apply_kcat_constraints",
     "fill_kcats_from_isozymes",
     "get_reactions_from_enzyme",
@@ -227,7 +210,6 @@ __all__ = [
     "assign_standard_kcat",
     "collect_kcats",
     "ec_stats_from_brenda",
-    "fetch_open_kinetics_predictor",
     "format_kcat_source",
     "fuzzy_kcat_matching",
     "kcats_from_brenda",
@@ -236,18 +218,13 @@ __all__ = [
     "kcats_from_homologs",
     "kcats_from_okp",
     "load_kcat_source",
-    "merge_dlkcat_and_fuzzy_kcats",  # deprecated; alias of merge_kcats
     "merge_kcats",
     "parse_kcat_source",
-    "read_dlkcat_output",
     "read_kcat_source",
     "remove_standard_kcat",
     "review_assignment",
-    "run_dlkcat",
     "save_kcat_source",
-    "submit_open_kinetics_predictor",
     "update_kcat_sources",
-    "write_dlkcat_input",
     # get_enzyme_data
     "copy_ec_to_gem",
     "fill_eccodes_from_database",
@@ -256,10 +233,8 @@ __all__ = [
     # kcat sensitivity analysis
     "SigmaFitterResult",
     "TunedKcatsResult",
-    "find_max_value",
     "fit_sigma",
     "sensitivity_tuning",
-    "truncate_values",
     # limit_proteins
     "ComplexFamilies",
     "FlexEnzResult",
@@ -281,6 +256,7 @@ __all__ = [
     "zero_unmeasured_isozymes",
     # utilities
     "AddNewRxnsResult",
+    "EcFSEOFResult",
     "EnzymeUsageReport",
     "EnzymeUsageResult",
     "MapRxnsResult",
@@ -297,12 +273,4 @@ __all__ = [
     "pfba_enzymes",
     "report_enzyme_usage",
     "save_ec_model",
-    # Deprecated aliases (kept reachable so old `from geckopy import X` still works)
-    "constrain_flux_data",  # -> apply_flux_data_constraints
-    "get_ec_from_database",  # -> fill_eccodes_from_database
-    "get_ec_from_gem",  # -> fill_eccodes_from_gem
-    "get_kcat_across_isozymes",  # -> fill_kcats_from_isozymes
-    "get_standard_kcat",  # -> assign_standard_kcat
-    "select_kcat_value",  # -> apply_kcat_list
-    "sigma_fitter",  # -> fit_sigma
 ]

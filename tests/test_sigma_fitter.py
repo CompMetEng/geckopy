@@ -86,6 +86,16 @@ def test_n_sigma_steps_zero_raises(tmp_path):
         fit_sigma(model, n_sigma_steps=0)
 
 
+@pytest.mark.parametrize("growth_rate", [0.0, -0.1, float("nan")])
+def test_growth_rate_not_above_zero_raises_before_changing_the_model(tmp_path, growth_rate):
+    adapter = _adapter(tmp_path)
+    model = _build_pool_only_model(adapter)
+    bounds = [r.bounds for r in model.reactions]
+    with pytest.raises(ValueError, match="above 0"):
+        fit_sigma(model, growth_rate=growth_rate)
+    assert [r.bounds for r in model.reactions] == bounds
+
+
 def test_no_adapter_no_defaults_raises(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_pool_only_model(adapter)

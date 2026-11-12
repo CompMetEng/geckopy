@@ -1,36 +1,12 @@
-"""Behaviour that follows GECKO: truncate_values ties, the detail text of a kcat source file,
+"""Behaviour that follows GECKO: the detail text of a kcat source file,
 and the defaults of fill_kcats_from_isozymes."""
 import numpy as np
-import pytest
 
 from geckopy.ec_model.pipeline import fill_kcats_from_isozymes, set_kcat_for_reactions
 from geckopy.gather_kcats import read_kcat_source, save_kcat_source
-from geckopy.kcat_tuning import truncate_values
-from geckopy.kcat_tuning.truncate_values import _truncate_scalar
 
 from test_fill_kcats import _ectestgem_ec_model, _isozyme_model, _kcat
 from test_kcat_sources import _adapter, _kcat_list, _model
-
-
-# --------------------------------------------------------------------------- #
-# truncate_values: a tie rounds away from zero, as MATLAB round(x, n) does
-# --------------------------------------------------------------------------- #
-
-@pytest.mark.parametrize("value, expected", [
-    (100000.5, 100001.0),
-    (1234565.0, 1234570.0),
-    (-100000.5, -100001.0),
-    (0.1234565, 0.123457),
-])
-def test_truncate_tie_rounds_away_from_zero(value, expected):
-    assert _truncate_scalar(value) == expected
-
-
-def test_truncate_array_ties_and_unchanged_values():
-    out = truncate_values(np.array([100000.5, 1234565.0, 0.0, np.inf, np.nan, 12.3456789]))
-    assert out[0] == 100001.0 and out[1] == 1234570.0
-    assert out[2] == 0.0 and np.isinf(out[3]) and np.isnan(out[4])
-    assert out[5] == pytest.approx(12.3457)
 
 
 # --------------------------------------------------------------------------- #

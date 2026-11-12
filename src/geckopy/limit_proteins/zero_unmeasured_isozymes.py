@@ -1,7 +1,7 @@
 """Limit unmeasured isozymes that have a measured sibling.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/zeroUnmeasuredIsozymes.m.
+src/limit_proteins/zeroUnmeasuredIsozymes.m.
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def zero_unmeasured_isozymes(
     all enzymes. The function is not called by other functions of geckopy.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/zeroUnmeasuredIsozymes.m (method
+    src/limit_proteins/zeroUnmeasuredIsozymes.m (method
     ``'detectionLimit'`` there is ``"detection_limit"`` here).
 
     Parameters

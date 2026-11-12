@@ -95,15 +95,13 @@ def simulate_evotune_dataset(
     bio_rxn_id
         The biomass reaction ID (``adapter.params.bio_rxn``).
     make_anaerobic, change_protein_biomass
-        Optional adapter-specific hooks (MATLAB:
-        ``modelAdapter.makeModelAnaerobic`` /
-        ``.changeProteinBiomass``). geckopy has no generic,
-        organism-agnostic port of these yet -- in MATLAB they're
-        written per model-adapter subclass (e.g.
-        ``YeastGEMAdapter.m``). Left as an injection point rather
-        than a hard requirement: data with no anaerobic/``Ptot`` rows
-        never needs them, and passing ``None`` for either just skips
-        that adjustment instead of raising.
+        Optional organism-specific hooks. GECKO calls the MATLAB
+        functions named by ``make_model_anaerobic`` and
+        ``change_protein_biomass`` in the ``[matlab]`` table of
+        ``model_adapter.toml``; geckopy takes the callables here and has
+        no organism-agnostic default for either. Data with no
+        anaerobic/``Ptot`` rows never needs them, and passing ``None``
+        for either skips that adjustment instead of raising.
 
     Returns
     -------

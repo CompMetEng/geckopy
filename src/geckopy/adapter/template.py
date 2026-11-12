@@ -7,7 +7,7 @@ uncommented with a placeholder (for required fields), or commented out
 showing its default value (for optional fields). Field descriptions
 are emitted as TOML comments above each field.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
+Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
 from __future__ import annotations
 
@@ -23,6 +23,19 @@ _INJECTED_FIELDS = {"path"}  # loader injects at runtime, never in template
 _REQUIRED_PLACEHOLDERS = {
     "conv_gem": '"models/REPLACE_ME.xml"',
     "org_name": '"REPLACE_ME"',
+}
+# Keys written uncommented, with the comment of GECKO's adapterTemplate.toml.
+_SET_IN_TEMPLATE = {
+    ("kegg", "id"): [
+        "# KEGG organism code, from https://www.genome.jp/kegg/catalog/org_list.html,",
+        '# for example "sce" for Saccharomyces cerevisiae. Empty: KEGG is not used.',
+    ],
+    ("uniprot", "id"): [
+        '# "proteome" (https://www.uniprot.org/proteomes/) or "taxonomy"',
+        "# (https://www.uniprot.org/taxonomy), and the matching identifier, for",
+        '# example "559292" (taxonomy) or "UP000002311" (proteome) for',
+        "# Saccharomyces cerevisiae. Required unless data/uniprot.tsv is provided.",
+    ],
 }
 
 
@@ -101,7 +114,8 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     Every section of the schema is emitted, evotune kcat tuning
     hyperparameters included; optional fields are commented out at
     their defaults, so the template doubles as the reference for what
-    can be set.
+    can be set. The organism identifiers ``[kegg] id`` and ``[uniprot] id``
+    are written uncommented and empty, with an example in the comment.
 
     Parameters
     ----------
@@ -151,6 +165,10 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
         lines.append(f"[{name}]")
         instance = model_cls()
         for sub_name, sub_field in model_cls.model_fields.items():
+            if (name, sub_name) in _SET_IN_TEMPLATE:
+                value = _format_toml_value(getattr(instance, sub_name))
+                lines.extend([*_SET_IN_TEMPLATE[(name, sub_name)], f"{sub_name} = {value}", ""])
+                continue
             lines.extend(_emit_scalar(
                 sub_name, description=sub_field.description,
                 annotation=sub_field.annotation,

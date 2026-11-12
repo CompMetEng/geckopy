@@ -1,10 +1,10 @@
-"""Tests for run_dlkcat. All Docker invocations are mocked."""
+"""Tests for the DLKcat runner. All Docker invocations are mocked."""
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from geckopy.gather_kcats import run_dlkcat
+from geckopy.gather_kcats.run_dlkcat import _run_dlkcat
 
 
 # --------------------------------------------------------------------------- #
@@ -77,7 +77,7 @@ def _write_input(tmp_path: Path, name: str = "in.tsv") -> Path:
 
 def test_missing_input_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="DLKcat input file not found"):
-        run_dlkcat(tmp_path / "missing.tsv")
+        _run_dlkcat(tmp_path / "missing.tsv")
 
 
 # --------------------------------------------------------------------------- #
@@ -89,7 +89,7 @@ def test_docker_not_installed_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
     with pytest.raises(RuntimeError, match="Cannot find Docker"):
-        run_dlkcat(in_path)
+        _run_dlkcat(in_path)
 
 
 def test_docker_version_nonzero_raises(tmp_path, monkeypatch):
@@ -97,7 +97,7 @@ def test_docker_version_nonzero_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
     with pytest.raises(RuntimeError, match="Docker is installed but"):
-        run_dlkcat(in_path)
+        _run_dlkcat(in_path)
 
 
 # --------------------------------------------------------------------------- #
@@ -110,7 +110,7 @@ def test_happy_path_overwrites_input_by_default(tmp_path, monkeypatch):
     in_path = _write_input(tmp_path)
     original_input = in_path.read_text(encoding="utf-8")
 
-    out = run_dlkcat(in_path)
+    out = _run_dlkcat(in_path)
 
     assert out == in_path
     new_content = in_path.read_text(encoding="utf-8")
@@ -124,7 +124,7 @@ def test_happy_path_writes_to_explicit_output_path(tmp_path, monkeypatch):
     in_path = _write_input(tmp_path)
     out_path = tmp_path / "predictions.tsv"
 
-    result = run_dlkcat(in_path, output_path=out_path)
+    result = _run_dlkcat(in_path, output_path=out_path)
 
     assert result == out_path
     assert out_path.is_file()
@@ -138,7 +138,7 @@ def test_explicit_output_path_creates_parent_dir(tmp_path, monkeypatch):
     in_path = _write_input(tmp_path)
     out_path = tmp_path / "newdir" / "predictions.tsv"
 
-    result = run_dlkcat(in_path, output_path=out_path)
+    result = _run_dlkcat(in_path, output_path=out_path)
 
     assert result == out_path
     assert out_path.is_file()
@@ -149,7 +149,7 @@ def test_invokes_default_image(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
 
-    run_dlkcat(in_path)
+    _run_dlkcat(in_path)
 
     docker_run_calls = [
         c for c in spy.calls
@@ -164,7 +164,7 @@ def test_invokes_custom_image_when_specified(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
 
-    run_dlkcat(in_path, docker_image="my/custom:tag")
+    _run_dlkcat(in_path, docker_image="my/custom:tag")
 
     docker_run_calls = [
         c for c in spy.calls
@@ -186,7 +186,7 @@ def test_docker_run_nonzero_exit_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
     with pytest.raises(RuntimeError, match="DLKcat Docker run failed"):
-        run_dlkcat(in_path)
+        _run_dlkcat(in_path)
 
 
 def test_docker_run_succeeds_but_no_output_raises(tmp_path, monkeypatch):
@@ -194,7 +194,7 @@ def test_docker_run_succeeds_but_no_output_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
     with pytest.raises(RuntimeError, match="produced no output file"):
-        run_dlkcat(in_path)
+        _run_dlkcat(in_path)
 
 
 def test_docker_run_failure_does_not_overwrite_input(tmp_path, monkeypatch):
@@ -209,7 +209,7 @@ def test_docker_run_failure_does_not_overwrite_input(tmp_path, monkeypatch):
     original = in_path.read_text(encoding="utf-8")
 
     with pytest.raises(RuntimeError):
-        run_dlkcat(in_path)
+        _run_dlkcat(in_path)
 
     # Input is unchanged.
     assert in_path.read_text(encoding="utf-8") == original
@@ -225,7 +225,7 @@ def test_mounts_a_temp_dir_not_the_project_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     in_path = _write_input(tmp_path)
 
-    run_dlkcat(in_path)
+    _run_dlkcat(in_path)
 
     docker_run_call = [
         c for c in spy.calls if c[:2] == ["docker", "run"]

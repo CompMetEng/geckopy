@@ -23,11 +23,11 @@ from ..databases import load_brenda_data, load_brenda_measurements, load_dlkcat_
 from .ec_tree import ECTree
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
 from .kcat_sources import format_number, kcat_source_file, save_kcat_source
-from .open_kinetics_predictor import fetch_open_kinetics_predictor, submit_open_kinetics_predictor
-from .open_kinetics_predictor.parse_output import parse_okp_output
-from .read_dlkcat_output import read_dlkcat_output
-from .run_dlkcat import run_dlkcat
-from .write_dlkcat_input import write_dlkcat_input
+from .open_kinetics_predictor.run import _fetch_open_kinetics_predictor, _submit_open_kinetics_predictor
+from .open_kinetics_predictor.parse_output import _parse_okp_output
+from .read_dlkcat_output import _read_dlkcat_output
+from .run_dlkcat import _run_dlkcat
+from .write_dlkcat_input import _write_dlkcat_input
 
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter
@@ -242,69 +242,101 @@ def kcats_from_ec_tree(
     return kcat_list
 
 
+_DLKCAT_VIA = ("okp", "file", "docker")
+
+
 def kcats_from_dlkcat(
     model: "EcModel",
     *,
+    via: Optional[str] = None,
     run: bool = False,
+    wait: bool = False,
     ec_rxns: Optional[Iterable[str]] = None,
     save: bool = True,
     save_as: str = "dlkcat",
     adapter: Optional["ModelAdapter"] = None,
-) -> pd.DataFrame:
+) -> tuple[Optional[pd.DataFrame], bool]:
     """Gather kcats from DLKcat and keep them as ``dlkcat.tsv``.
 
-    With ``run=True`` the DLKcat input is written and DLKcat runs through
-    its Docker image (which needs Docker); otherwise the output of an
-    earlier run in ``data/DLKcat.tsv`` is read. A run records how many
-    reactions it covered in ``data/DLKcat_run.txt``, so that the source file
-    says so also when the output is read later.
+    ``via`` sets where the predictions come from:
+
+    - ``"okp"``: the DLKcat method of OpenKineticsPredictor (see
+      :func:`kcats_from_okp`), which needs an API key. OKP is a web service
+      with a job queue: the first call submits a job, a later call fetches
+      the result, and ``done`` is False while the job runs.
+    - ``"file"``: the output of an earlier run in ``data/DLKcat.tsv``, for
+      example of a GECKO 3 project.
+    - ``"docker"``: a local run of DLKcat in its Docker image, which needs
+      Docker. This is the older method; ``"okp"`` runs the same predictor
+      without Docker. A run records how many reactions it covered in
+      ``data/DLKcat_run.txt``, so that the source file says so also when the
+      output is read later.
 
     Parameters
     ----------
     model
         EcModel with metabolite SMILES and protein sequences.
+    via
+        ``"okp"``, ``"file"`` or ``"docker"`` (default: ``"file"`` when
+        ``data/DLKcat.tsv`` exists, ``"okp"`` otherwise).
     run
-        Write the input and run DLKcat (default False).
+        The same as ``via="docker"`` (default False). Combined with another
+        ``via`` it raises a ``ValueError``.
+    wait
+        With ``via="okp"``: wait until the job is done.
     ec_rxns
-        ``model.ec.rxns`` to run DLKcat for (default: all); needs ``run``.
+        ``model.ec.rxns`` to predict for (default: all); needs ``via="okp"``
+        or ``via="docker"``. With ``"okp"`` it is only used when a job is
+        submitted.
     save, save_as, adapter
         As in :func:`kcats_from_brenda`.
 
     Returns
     -------
-    pandas.DataFrame
-        The kcat list.
+    (kcat_list, done)
+        The kcat list (``None`` while an OKP job is not done), and whether
+        the kcats were available.
     """
     adapter = _adapter(model, adapter, "kcats_from_dlkcat needs params.path")
     ec_rxns = _rxn_subset(ec_rxns)
-    if ec_rxns is not None and not run:
-        raise ValueError("ec_rxns selects the reactions DLKcat is run for, so it needs run=True.")
-    if save:
-        path = kcat_source_file(save_as, model=model, adapter=adapter)
-        if run:
-            _warn_subset(ec_rxns, model, path)
     data_dir = Path(adapter.params.path) / "data"
     dlkcat_file = data_dir / "DLKcat.tsv"
     run_file = data_dir / "DLKcat_run.txt"
     if run:
+        if via is not None and via != "docker":
+            raise ValueError("run=True is the same as via='docker'.")
+        via = "docker"
+    elif via is None:
+        via = "file" if dlkcat_file.is_file() else "okp"
+    elif via not in _DLKCAT_VIA:
+        raise ValueError(f"via must be one of {', '.join(map(repr, _DLKCAT_VIA))}; got {via!r}.")
+    if via == "file" and ec_rxns is not None:
+        raise ValueError("ec_rxns selects the reactions DLKcat is run for, so it needs via='okp' or via='docker'.")
+    if via == "okp":
+        return kcats_from_okp(model, method="DLKcat", wait=wait, ec_rxns=ec_rxns, save=save,
+                              save_as=save_as, adapter=adapter)
+    if save:
+        path = kcat_source_file(save_as, model=model, adapter=adapter)
+        if via == "docker":
+            _warn_subset(ec_rxns, model, path)
+    if via == "docker":
         if shutil.which("docker") is None:
             raise RuntimeError(
-                "DLKcat runs in a Docker image, but Docker was not found. Install it from "
-                "https://www.docker.com, or call kcats_from_dlkcat without run=True to read "
-                "an earlier DLKcat output."
+                "A local DLKcat run needs Docker, which was not found. Install it from "
+                "https://www.docker.com, or use via='okp'."
             )
-        write_dlkcat_input(model, dlkcat_file, load_dlkcat_ignore_lists(data_dir),
+        _write_dlkcat_input(model, dlkcat_file, load_dlkcat_ignore_lists(data_dir),
                            ec_rxns=ec_rxns, overwrite=True)
-        run_dlkcat(dlkcat_file)
+        _run_dlkcat(dlkcat_file)
         run_file.write_text(f"ecRxns: {len(set(ec_rxns))}\n" if ec_rxns is not None else "",
                             encoding="utf-8", newline="\n")
     elif not dlkcat_file.is_file():
         raise FileNotFoundError(
-            f"No DLKcat output at {dlkcat_file}. Run kcats_from_dlkcat(model, run=True) first."
+            f"No DLKcat output at {dlkcat_file}. Use via='okp' to predict the kcats."
         )
-    kcat_list = read_dlkcat_output(model, dlkcat_file)
+    kcat_list = _read_dlkcat_output(model, dlkcat_file)
     if save:
-        parameters = {"run": bool(run)}
+        parameters = {"run": via == "docker"}
         if run_file.is_file():
             m = re.search(r"ecRxns:\s*(\d+)", run_file.read_text(encoding="utf-8"))
             if m:
@@ -314,7 +346,7 @@ def kcats_from_dlkcat(
             parameters=parameters,
         )
         logger.info("DLKcat kcats written to %s", path)
-    return kcat_list
+    return kcat_list, True
 
 
 _JOB_KEYS = ("jobId", "method", "submittedAt", "ecRxns", "resultOf")
@@ -337,7 +369,7 @@ def _write_job_file(path: Path, job: dict[str, str]) -> None:
 
 
 def _adopt_shared_result(model: "EcModel", data_dir: Path, method: str, job_file: Path, out_file: Path) -> None:
-    """Take over a result that ``fetch_open_kinetics_predictor`` stored by
+    """Take over a result that ``_fetch_open_kinetics_predictor`` stored by
     itself, in ``data/OKP_output.csv`` with ``data/OKP_job.txt``, only when
     its job is for this method and its predictions are labelled with this
     method."""
@@ -345,7 +377,7 @@ def _adopt_shared_result(model: "EcModel", data_dir: Path, method: str, job_file
     job = _read_job_file(data_dir / "OKP_job.txt")
     ok = shared.is_file() and "jobId" in job and job.get("method", "").lower() == method.lower()
     if ok:
-        sources = [str(x) for x in parse_okp_output(model, shared)["source"]]
+        sources = [str(x) for x in _parse_okp_output(model, shared)["source"]]
         predicted = [x for x in sources if x.lower().startswith("okp-") and x.lower() not in _DATABASE_SOURCES]
         ok = bool(predicted) and all(x.lower() == f"okp-{method}".lower() for x in predicted)
     if not ok:
@@ -441,18 +473,18 @@ def kcats_from_okp(
                 f"No stored result of the current {method} job ({job_file}). Call kcats_from_okp "
                 f"without use_stored to fetch it."
             )
-        kcat_list, done = parse_okp_output(model, out_file), True
+        kcat_list, done = _parse_okp_output(model, out_file), True
     else:
         if submitting:
             out_file.unlink(missing_ok=True)
-            job_id = submit_open_kinetics_predictor(model, overwrite=True, method=method,
+            job_id = _submit_open_kinetics_predictor(model, overwrite=True, method=method,
                                                     ec_rxns=ec_rxns, adapter=adapter)
             job = {"jobId": job_id, "method": method,
                    "submittedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
             if ec_rxns is not None:
                 job["ecRxns"] = str(len(set(ec_rxns)))
             _write_job_file(job_file, job)
-        done, kcat_list = fetch_open_kinetics_predictor(model, job_id=job["jobId"], wait=wait,
+        done, kcat_list = _fetch_open_kinetics_predictor(model, job_id=job["jobId"], wait=wait,
                                                         adapter=adapter, out_file=out_file)
         if done:
             job["resultOf"] = job["jobId"]

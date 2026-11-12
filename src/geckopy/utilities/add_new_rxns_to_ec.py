@@ -1,7 +1,7 @@
 """Add new reactions and enzymes to an ecModel.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/addNewRxnsToEC.m.
+src/change_model/addNewRxnsToEC.m.
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def add_new_rxns_to_ec(
       gene in its (single, post-split) AND-clause.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/addNewRxnsToEC.m.
+    src/change_model/addNewRxnsToEC.m.
 
     Parameters
     ----------

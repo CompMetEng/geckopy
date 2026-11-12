@@ -1,7 +1,7 @@
 """Collect EC codes for a reaction's gene_set from a protein database.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/findECInDB.m.
+src/get_enzyme_data/findECInDB.m.
 """
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def find_ec_in_db(
     """Collect EC codes for a reaction's genes from a protein database.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/findECInDB.m.
+    src/get_enzyme_data/findECInDB.m.
 
     Per-gene resolution:
 

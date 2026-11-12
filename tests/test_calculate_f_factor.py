@@ -189,3 +189,48 @@ def test_explicit_empty_enzyme_list_means_no_enzymes():
     pd = _prot_data([("P1", 100.0), ("P2", 100.0)])
     assert calculate_f_factor(model, pd, enzymes=[]) == 0.0
     assert calculate_f_factor(model, pd) == pytest.approx(1.0)
+
+
+# --------------------------------------------------------------------------- #
+# Without proteomics data
+# --------------------------------------------------------------------------- #
+
+def test_no_proteomics_data_returns_the_default(tmp_path, caplog):
+    """As calculateFfactor: without data or data/paxDB.tsv, 0.5 with a warning."""
+    from geckopy import ModelAdapter
+
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\n')
+    model = _ec_model(["P1"])
+    with caplog.at_level("WARNING"):
+        assert calculate_f_factor(model) == 0.5
+    model.adapter = ModelAdapter.from_folder(tmp_path)
+    assert calculate_f_factor(model) == 0.5
+    assert "default f = 0.5" in caplog.text
+
+
+def test_paxdb_of_the_project_is_read_without_prot_data(tmp_path):
+    from geckopy import ModelAdapter
+
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\n')
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "uniprot.tsv").write_text(
+        "Entry\tGene Names\tEC number\tMass\tSequence\n"
+        "P1\tg1\t\t100\tM\nP2\tg2\t\t100\tM\n", encoding="utf-8")
+    (data / "paxDB.tsv").write_text("#header\n1\t4932.g1\t1\n2\t4932.g2\t3\n", encoding="utf-8")
+    model = _ec_model(["P1"])
+    model.adapter = ModelAdapter.from_folder(tmp_path)
+    assert calculate_f_factor(model) == pytest.approx(0.25)
+
+
+def test_paxdb_without_uniprot_tsv_and_uniprot_id_raises(tmp_path):
+    """As loadDatabases:noUniprotID: data/uniprot.tsv is missing and [uniprot] id is empty."""
+    from geckopy import ModelAdapter
+
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\n')
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "paxDB.tsv").write_text("#header\n1\t4932.g1\t1\n", encoding="utf-8")
+    model = _ec_model(["P1"])
+    model.adapter = ModelAdapter.from_folder(tmp_path)
+    with pytest.raises(FileNotFoundError, match=r"\[uniprot\] id"):
+        calculate_f_factor(model)

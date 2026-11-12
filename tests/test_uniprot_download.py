@@ -41,19 +41,18 @@ def test_basic_download_writes_response_verbatim(tmp_path):
     assert out.read_text(encoding="utf-8") == payload
 
 
-def test_query_includes_reviewed_filter_by_default(tmp_path):
+def test_query_includes_reviewed_filter_when_true(tmp_path):
     sess = _make_session("Entry\tGene\tEC\tMass\tSequence\nP1\tG1\t\t10\tA\n")
-    download_uniprot(559292, tmp_path / "u.tsv", session=sess)
+    download_uniprot(559292, tmp_path / "u.tsv", reviewed=True, session=sess)
     params = sess._captured["params"]
     assert "reviewed:true" in params["query"]
     assert "taxonomy_id:559292" in params["query"]
 
 
-def test_query_drops_reviewed_when_false(tmp_path):
+def test_query_has_no_reviewed_filter_by_default(tmp_path):
+    """The default follows the adapter default uniprot.reviewed = false."""
     sess = _make_session("Entry\tGene\tEC\tMass\tSequence\nP1\tG1\t\t10\tA\n")
-    download_uniprot(
-        559292, tmp_path / "u.tsv", reviewed=False, session=sess,
-    )
+    download_uniprot(559292, tmp_path / "u.tsv", session=sess)
     assert "reviewed" not in sess._captured["params"]["query"]
 
 

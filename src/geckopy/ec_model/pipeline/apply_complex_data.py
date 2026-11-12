@@ -1,6 +1,6 @@
 """Apply ComplexPortal subunit stoichiometries to ec.rxn_enz_mat.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/applyComplexData.m.
+Ported from GECKO MATLAB: src/change_model/applyComplexData.m.
 """
 from __future__ import annotations
 
@@ -38,12 +38,15 @@ def apply_complex_data(
         The model's enzyme set equals a complex's protein list, with no
         extras on either side. Apply the complex's stoichiometry.
 
-    Proposed (subset)
-        Either: every model enzyme is in some complex, but the complex
-        lists additional subunits not in the model (closest superset
-        is reported). Or: ``min_match_to_propose`` (default 0.75) of
-        model enzymes are in some complex, with extras or substitutions
-        on the model side. Logged as WARNING; not applied.
+    Proposed
+        Superset: every model enzyme is in a complex that lists additional
+        subunits not in the model (the complex with the fewest extra
+        subunits is reported). Partial: ``min_match_to_propose`` (default
+        0.75) of the model enzymes are in a complex that has no subunits
+        beyond the model's number, with extras or substitutions on the model
+        side (the complex with the highest match is reported). A reaction
+        can get one proposal of each kind, as in GECKO's
+        ``applyComplexData``. Logged as WARNING; not applied.
 
     No match
         Skipped silently.
@@ -177,17 +180,9 @@ def apply_complex_data(
         if mod_units <= 1:
             continue
 
-        proposed: Optional[tuple[int, float]] = None
-        match_kind = ""
-        if superset_candidate is not None:
-            proposed = superset_candidate
-            match_kind = "superset"
-        elif partial_candidate is not None:
-            proposed = partial_candidate
-            match_kind = "partial"
-
-        if proposed is not None:
-            ci, score = proposed
+        proposals = [(c, kind) for c, kind in ((superset_candidate, "superset"), (partial_candidate, "partial"))
+                     if c is not None]
+        for (ci, score), match_kind in proposals:
             entry = complex_data[ci]
             n_proposed += 1
             logger.warning(

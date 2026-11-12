@@ -10,9 +10,9 @@ import numpy as np
 import pydantic
 import pytest
 
-from geckopy import ModelAdapter, make_ec_model
+from geckopy import ModelAdapter, convert_custom_kcats, make_ec_model
 from geckopy.databases import load_brenda_data, load_phyl_dist, load_uniprot_tsv
-from geckopy.ec_model.pipeline import apply_custom_kcats, apply_kcat_constraints, fill_kcats_from_isozymes
+from geckopy.ec_model.pipeline import apply_kcat_constraints, fill_kcats_from_isozymes
 from geckopy.gather_kcats import (
     apply_kcat_list,
     assign_kcats,
@@ -23,10 +23,11 @@ from geckopy.gather_kcats import (
     kcats_from_brenda,
     kcats_from_dlkcat,
     merge_kcats,
-    read_dlkcat_output,
     read_kcat_source,
     update_kcat_sources,
 )
+from geckopy.gather_kcats.read_dlkcat_output import _read_dlkcat_output
+from geckopy.upgrade import _apply_custom_kcats
 
 EXAMPLE_DIR = Path(__file__).parents[1] / "examples" / "ecTestGEM"
 
@@ -38,9 +39,10 @@ DLKCAT = (
 )
 
 
-def _project(tmp_path: Path, toml_extra: str = ""):
+def _project(tmp_path: Path, toml_extra: str = "", convert_custom: bool = True):
     """ecTestGEM in tmp_path, with its BRENDA files as the project's BRENDA
-    data and DLKcat output for the test model."""
+    data and DLKcat output for the test model; its customKcats.tsv is
+    converted to data/kcats/custom.tsv unless ``convert_custom`` is False."""
     project = tmp_path / "ecTestGEM"
     shutil.copytree(EXAMPLE_DIR, project)
     brenda = project / "data" / "brenda"
@@ -53,6 +55,9 @@ def _project(tmp_path: Path, toml_extra: str = ""):
         toml.write_text(toml.read_text(encoding="utf-8") + "\n" + toml_extra, encoding="utf-8")
     adapter = ModelAdapter.from_folder(project)
     model = make_ec_model(cobra.io.read_sbml_model(str(adapter.params.conv_gem)), adapter)
+    if convert_custom:
+        convert_custom_kcats(model, adapter=adapter)
+        (project / "data" / "customKcats.tsv").unlink()
     return model, adapter, project
 
 
@@ -66,11 +71,11 @@ def test_assign_kcats_reproduces_chain(tmp_path):
 
     a = base.copy()
     fuzzy = fuzzy_kcat_matching(a, brenda, phyl, adapter=adapter)
-    dlkcat = read_dlkcat_output(a, data / "DLKcat.tsv")
+    dlkcat = _read_dlkcat_output(a, data / "DLKcat.tsv")
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=6)
     apply_kcat_list(a, merged)
-    apply_custom_kcats(a, path=data / "customKcats.tsv")
+    _apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)
@@ -87,7 +92,7 @@ def test_assign_kcats_reproduces_chain(tmp_path):
     assert report["preset"] == "gecko_classic"
     assert list(decisions["ec_rxn"]) == list(b.ec.rxns)
     assert (project / "output" / f"{base.id}_kcatDecisions.tsv").is_file()
-    assert {"custom", "1"} <= set(decisions["stage"])
+    assert "1" in set(decisions["stage"])
 
 
 def test_gecko_median_preset(tmp_path):
@@ -98,11 +103,11 @@ def test_gecko_median_preset(tmp_path):
     uniprot = load_uniprot_tsv(data / "uniprot.tsv")
     a = base.copy()
     fuzzy = kcats_from_brenda(a, aggregation="median", adapter=adapter)
-    dlkcat = kcats_from_dlkcat(a, adapter=adapter)
+    dlkcat, _ = kcats_from_dlkcat(a, adapter=adapter)
     merged = merge_kcats(fuzzy, dlkcat, source_priority=["database_top", "dlkcat", "database_bottom"],
                          top_origin_limit=4)
     apply_kcat_list(a, merged)
-    apply_custom_kcats(a, path=data / "customKcats.tsv")
+    _apply_custom_kcats(a, path=EXAMPLE_DIR / "data" / "customKcats.tsv")
     fill_kcats_from_isozymes(a)
     assign_standard_kcat(a, uniprot)
     apply_kcat_constraints(a)
@@ -132,6 +137,48 @@ def test_collect_kcats_leaves_model(tmp_path):
     decisions, _, _ = collect_kcats(base, adapter=adapter, write_report=False)
     row = decisions.iloc[i]
     assert (row["kcat"], row["source"], row["stage"]) == (777, "custom", "1")
+
+
+def test_collect_kcats_returns_isozyme_kcats_without_constraints(tmp_path):
+    """As collectKcats: the kcats filled from isozymes are not applied to the
+    returned model's stoichiometry; assign_kcats applies them."""
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\nstandard = false\n'
+                                     '[[kcat_assignment.stage]]\nsources = ["custom"]\n')
+    rxns, enzymes = ec_rxn_keys(base)
+    i = base.ec.rxns.index("R2_EXP_1")
+    (project / "data" / "kcats").mkdir(exist_ok=True)
+    (project / "data" / "kcats" / "custom.tsv").write_text(
+        "# source: custom\n# kind: curated\nrxn\tenzymes\tkcat\tsource\n"
+        f"{rxns[i]}\t{enzymes[i]}\t100\tcustom\n", encoding="utf-8")
+    decisions, _, decided = collect_kcats(base, adapter=adapter, write_report=False)
+    filled = list(decisions.loc[decisions["stage"] == "isozymes", "ec_rxn"])
+    assert filled == ["R2_EXP_2"]
+    stoich = lambda m, r: {x.id: c for x, c in m.reactions.get_by_id(r).metabolites.items()}  # noqa: E731
+    for rxn in filled:
+        assert stoich(decided, rxn) == stoich(base, rxn)
+    assign_kcats(base, adapter=adapter, write_report=False)
+    assert any(stoich(decided, rxn) != stoich(base, rxn) for rxn in filled)
+
+
+def test_legacy_custom_kcats_file_raises(tmp_path):
+    """A stage that lists custom raises on a GECKO 3 customKcats.tsv without custom.tsv."""
+    base, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n', convert_custom=False)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        collect_kcats(base, adapter=adapter, write_report=False)
+    base.ec.kcat[:] = 7.0
+    base.ec.source = ["mine"] * len(base.ec.rxns)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        assign_kcats(base, adapter=adapter, write_report=False)
+    assert np.all(base.ec.kcat == 7.0) and set(base.ec.source) == {"mine"}
+
+
+def test_kcat_sources_table_overrides_only_its_keys(tmp_path):
+    """[kcat_sources.brenda] without aggregation keeps the preset's median."""
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config
+
+    _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n'
+                                       '[kcat_sources.brenda]\nforce_wildcard_level = 1\n')
+    assert kcat_assignment_config(adapter).sources["brenda"] == {"aggregation": "median", "force_wildcard_level": 1}
 
 
 def test_stages_from_toml(tmp_path):
@@ -166,7 +213,7 @@ def test_update_kcat_sources(tmp_path):
     report = update_kcat_sources(base, dry_run=True, adapter=adapter)
     assert list(report["source"]) == ["custom", "brenda", "dlkcat"]
     assert list(report["status"]) == ["skipped", "missing", "missing"]
-    assert not (project / "data" / "kcats").exists()
+    assert not (project / "data" / "kcats" / "brenda.tsv").exists()
     report = update_kcat_sources(base, adapter=adapter)
     assert list(report["status"]) == ["skipped", "gathered", "gathered"]
     _, meta = read_kcat_source(project / "data" / "kcats" / "brenda.tsv")
@@ -177,3 +224,48 @@ def test_update_kcat_sources(tmp_path):
     adapter.params.kcat_assignment.preset = "gecko_classic"
     report = update_kcat_sources(base, dry_run=True, adapter=adapter)
     assert report["status"].iloc[1] == "outdated"
+
+
+def test_update_kcat_sources_dlkcat_via_okp(tmp_path, monkeypatch):
+    """Without data/DLKcat.tsv, dlkcat is gathered through OKP and is pending while the job runs."""
+    from geckopy.gather_kcats import kcats_from as kcats_from_module
+
+    base, adapter, project = _project(tmp_path, '[kcat_assignment]\npreset = "gecko_median"\n')
+    (project / "data" / "DLKcat.tsv").unlink()
+    jobs = []
+
+    def fake_okp(model, **kwargs):
+        jobs.append(kwargs)
+        return None, False
+
+    monkeypatch.setattr(kcats_from_module, "kcats_from_okp", fake_okp)
+    report = update_kcat_sources(base, adapter=adapter).set_index("source")
+    assert report.loc["dlkcat", "status"] == "pending"
+    assert "DLKcat" in report.loc["dlkcat", "note"]
+    assert jobs and jobs[0]["method"] == "DLKcat"
+
+    # Without an API key the source fails, with the reason in the note. The key file is
+    # removed and the key resolver raises, so no real job can be submitted.
+    import importlib
+
+    okp_run = importlib.import_module("geckopy.gather_kcats.open_kinetics_predictor.run")
+    monkeypatch.undo()
+    monkeypatch.delenv("OKP_API_KEY", raising=False)
+    (project / "data" / "okpApiKey.txt").unlink(missing_ok=True)
+
+    def no_key(api_key, adapter):
+        raise ValueError("No OpenKineticsPredictor API key found (test).")
+
+    monkeypatch.setattr(okp_run, "_resolve_api_key", no_key)
+    report = update_kcat_sources(base, adapter=adapter).set_index("source")
+    assert report.loc["dlkcat", "status"] == "failed"
+    assert "API key" in report.loc["dlkcat", "note"]
+
+
+def test_default_okp_methods_are_kinform_h_and_a_project_list_is_kept(tmp_path):
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_methods
+
+    _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
+    assert okp_methods(kcat_assignment_config(adapter)) == ["KinForm-H"]
+    adapter.params.kcat_sources["okp"] = {"methods": ["CataPro", "UniKP"]}
+    assert okp_methods(kcat_assignment_config(adapter)) == ["CataPro", "UniKP"]

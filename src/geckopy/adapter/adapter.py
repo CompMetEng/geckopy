@@ -15,7 +15,7 @@ A project lives in a folder containing:
 - ``data/`` — cached databases (UniProt, BRENDA, ComplexPortal,
   proteomics, etc.).
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/ModelAdapter.m.
+Ported from GECKO MATLAB: src/model_adapter/ModelAdapter.m.
 
 Then:
 

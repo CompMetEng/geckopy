@@ -1,7 +1,7 @@
 """Parse kegg.tsv into a KeggDB struct, downloading from KEGG REST if missing.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/loadDatabases.m (KEGG branch).
+src/download_databases/loadDatabases.m (KEGG branch).
 
 Schema in kegg.tsv (comma-delimited, no header, 7 columns):
 
@@ -58,12 +58,14 @@ def load_kegg_tsv(
     kegg_id: str | None = None,
     gene_id_field: str = "kegg",
     auto_download: bool = True,
-) -> KeggDB:
+) -> KeggDB | None:
     """Parse a kegg.tsv into a KeggDB.
 
     If ``path`` does not exist and ``kegg_id`` is given and
     ``auto_download`` is True, fetches the data via ``download_kegg``
-    first, then parses.
+    first, then parses. An empty ``kegg_id`` skips the download with a
+    warning and returns None, as GECKO's ``loadDatabases`` does without a
+    ``kegg.ID``.
 
     Parameters
     ----------
@@ -72,7 +74,7 @@ def load_kegg_tsv(
         auto-download.
     kegg_id
         KEGG organism code (e.g. ``"sce"``). Required for
-        auto-download; otherwise unused.
+        auto-download; otherwise unused. ``""`` means no KEGG data.
     gene_id_field
         KEGG entry field to use as the gene matching key. Default
         ``"kegg"`` uses column 2, the bare KEGG gene ID.
@@ -83,7 +85,8 @@ def load_kegg_tsv(
 
     Returns
     -------
-    KeggDB
+    KeggDB or None
+        None when ``path`` does not exist and ``kegg_id`` is empty.
 
     Raises
     ------
@@ -95,6 +98,9 @@ def load_kegg_tsv(
     """
     path = Path(path)
     if not path.is_file():
+        if auto_download and kegg_id == "":
+            logger.warning("No KEGG organism code (kegg_id) is given; KEGG data is not downloaded.")
+            return None
         if not auto_download or kegg_id is None:
             raise FileNotFoundError(
                 f"kegg.tsv not found: {path}. "

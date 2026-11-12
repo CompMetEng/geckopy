@@ -8,6 +8,7 @@ from pathlib import Path
 
 import cobra
 import numpy as np
+import pytest
 
 from geckopy import ModelAdapter, make_ec_model, save_ec_model
 from geckopy.cli import main
@@ -55,7 +56,7 @@ def _stoich(model):
 def test_convert_custom_kcats(tmp_path):
     """ecTestGEM's customKcats.tsv: P3 200 and P1 + P2 100 (proteins only),
     then R2_REV and R5 50 (reactions only), which replaces P1 + P2 on R2_REV,
-    as apply_custom_kcats does."""
+    as GECKO 3 applied them."""
     model, adapter, project = _project(tmp_path)
     path, report = convert_custom_kcats(model, adapter=adapter)
     assert path == project / "data" / "kcats" / "custom.tsv"
@@ -69,14 +70,22 @@ def test_convert_custom_kcats(tmp_path):
 
 
 def test_converted_custom_kcats_give_same_kcats(tmp_path):
+    """collect_kcats refuses the GECKO 3 file; once converted, the custom kcats
+    are those GECKO 3 applied from the file."""
+    from geckopy.upgrade import _apply_custom_kcats
+
     model, adapter, project = _project(tmp_path)
     kcats_from_brenda(model, adapter=adapter)
-    a, _, _ = collect_kcats(model, adapter=adapter, write_report=False)
+    with pytest.raises(ValueError, match="convert_custom_kcats"):
+        collect_kcats(model, adapter=adapter, write_report=False)
     convert_custom_kcats(model, adapter=adapter)
     b, _, _ = collect_kcats(model, adapter=adapter, write_report=False)
-    np.testing.assert_array_equal(b["kcat"].to_numpy(), a["kcat"].to_numpy())
-    assert list(b["source"] == "custom") == list(a["source"] == "custom")
-    assert (b["source"] == "custom").any()
+    ref = model.copy()
+    _apply_custom_kcats(ref, apply=False)
+    custom = [i for i, s in enumerate(ref.ec.source) if s == "custom"]
+    assert custom
+    assert list(b["source"].iloc[custom]) == ["custom"] * len(custom)
+    np.testing.assert_array_equal(b["kcat"].to_numpy()[custom], ref.ec.kcat[custom])
 
 
 def test_upgrade_ec_model(tmp_path):
@@ -148,3 +157,49 @@ def test_usage_reaction_fixed_to_zero_is_turned(tmp_path):
     assert {m.id: c for m, c in loaded.reactions.get_by_id(usage.id).metabolites.items()} == \
         {m.id: c for m, c in model.reactions.get_by_id(usage.id).metabolites.items()}
     assert any("GECKO 3 direction" in str(w.message) for w in caught)
+
+
+def test_upgrade_project_names_the_replacements_of_removed_functions(tmp_path):
+    from geckopy.upgrade import RENAMED
+
+    replaced = dict(RENAMED)
+    assert replaced["submit_open_kinetics_predictor"].startswith("kcats_from_okp")
+    assert replaced["write_dlkcat_input"].startswith('kcats_from_dlkcat(via="docker")')
+    assert replaced["apply_custom_kcats"].startswith("convert_custom_kcats")
+    assert replaced["truncate_values"].startswith("removed")
+
+
+REMOVED_ALIASES = {
+    "run_dlkcat": 'kcats_from_dlkcat(via="docker")',
+    "read_dlkcat_output": 'kcats_from_dlkcat(via="file")',
+    "write_dlkcat_input": 'kcats_from_dlkcat(via="docker")',
+    "apply_custom_kcats": "convert_custom_kcats",
+    "get_kcat_across_isozymes": "fill_kcats_from_isozymes",
+    "get_standard_kcat": "assign_standard_kcat",
+    "select_kcat_value": "apply_kcat_list",
+    "merge_dlkcat_and_fuzzy_kcats": "merge_kcats",
+    "get_ec_from_database": "fill_eccodes_from_database",
+    "get_ec_from_gem": "fill_eccodes_from_gem",
+    "sigma_fitter": "fit_sigma",
+    "constrain_flux_data": "apply_flux_data_constraints",
+    "find_max_value": "removed",
+}
+
+
+@pytest.mark.parametrize("name", sorted(REMOVED_ALIASES))
+def test_removed_alias_is_gone_and_upgrade_names_its_replacement(name):
+    import geckopy
+    from geckopy.upgrade import RENAMED
+
+    assert not hasattr(geckopy, name)
+    assert name not in geckopy.__all__
+    assert dict(RENAMED)[name].startswith(REMOVED_ALIASES[name])
+
+
+def test_upgrade_project_reports_every_removed_alias(tmp_path):
+    model, adapter, project = _project(tmp_path)
+    (project / "run.py").write_text("\n".join(f"{name}(m)" for name in REMOVED_ALIASES) + "\n", encoding="utf-8")
+    report = upgrade_project(project)
+    notes = list(report.loc[report["step"] == "script", "note"])
+    for name, replacement in REMOVED_ALIASES.items():
+        assert any(f"{name} -> {replacement}" in note for note in notes), name

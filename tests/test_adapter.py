@@ -266,3 +266,9 @@ def test_uniprot_table_lookup_reads_quoted_cells_and_first_duplicate(tmp_path):
     adapter = ModelAdapter.from_folder(folder)
     result = adapter.get_uniprot_ids_from_table(["YAL001C", "YAL002W"])
     assert result == ["P12345", "P67890"]
+
+
+def test_default_okp_method_is_kinform_h():
+    from geckopy.adapter.params import ModelParameters
+
+    assert ModelParameters.model_fields["okp"].get_default(call_default_factory=True).method == "KinForm-H"

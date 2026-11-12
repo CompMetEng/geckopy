@@ -168,18 +168,19 @@ def test_kcats_from_dlkcat_and_okp_write_files(tmp_path, monkeypatch):
     data.mkdir()
     (data / "DLKcat.tsv").write_text("placeholder\n", encoding="utf-8")
     dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "read_dlkcat_output", lambda model, path: dlkcat)
-    kcats_from_dlkcat(full)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
+    _, done = kcats_from_dlkcat(full)
+    assert done
     records, meta = read_kcat_source(data / "kcats" / "dlkcat.tsv")
     assert meta["generator"].startswith("kcats_from_dlkcat")
     assert set(records["source"]) == {"DLKcat"}
 
-    # A result stored by fetch_open_kinetics_predictor alone is taken over
+    # A result stored by _fetch_open_kinetics_predictor alone is taken over
     # when its job is for the method and its predictions are of that method.
     (data / "OKP_job.txt").write_text("jobId: abc123\nmethod: CataPro\n", encoding="utf-8")
     (data / "OKP_output.csv").write_text("placeholder\n", encoding="utf-8")
     okp = _kcat_list(full).assign(source="OKP-CataPro", wildcard_level=np.nan, origin=np.nan)
-    monkeypatch.setattr(kcats_from_module, "parse_okp_output", lambda model, path: okp)
+    monkeypatch.setattr(kcats_from_module, "_parse_okp_output", lambda model, path: okp)
     kcat_list, done = kcats_from_okp(full, method="CataPro", use_stored=True)
     assert done
     assert (data / "OKP_output_catapro.csv").is_file()
@@ -225,9 +226,9 @@ def test_okp_jobs_per_method(tmp_path, monkeypatch):
     def fake_parse(model, path):
         return _kcat_list(model).assign(source=Path(path).read_text(), wildcard_level=np.nan, origin=np.nan)
 
-    monkeypatch.setattr(kcats_from_module, "submit_open_kinetics_predictor", fake_submit)
-    monkeypatch.setattr(kcats_from_module, "fetch_open_kinetics_predictor", fake_fetch)
-    monkeypatch.setattr(kcats_from_module, "parse_okp_output", fake_parse)
+    monkeypatch.setattr(kcats_from_module, "_submit_open_kinetics_predictor", fake_submit)
+    monkeypatch.setattr(kcats_from_module, "_fetch_open_kinetics_predictor", fake_fetch)
+    monkeypatch.setattr(kcats_from_module, "_parse_okp_output", fake_parse)
 
     assert kcats_from_okp(full, method="CataPro") == (None, False)
     assert kcats_from_okp(full, method="UniKP", ec_rxns=["R2"]) == (None, False)
@@ -404,3 +405,64 @@ def test_subset_warns(tmp_path, monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         kcats_from_brenda(full, ec_rxns=["R2"], brenda=object(), phyl_dist=object())
     assert "replaced by kcats for 1 reactions only" in caplog.text
+
+
+def test_kcats_from_dlkcat_via(tmp_path, monkeypatch):
+    adapter = _adapter(tmp_path)
+    full = _model(adapter, light=False)
+    data = tmp_path / "data"
+    data.mkdir()
+    calls = []
+
+    def fake_okp(model, **kwargs):
+        calls.append(kwargs)
+        return None, False
+
+    monkeypatch.setattr(kcats_from_module, "kcats_from_okp", fake_okp)
+    # Without data/DLKcat.tsv the default is OKP, with the DLKcat method and the dlkcat source name.
+    assert kcats_from_dlkcat(full, wait=True) == (None, False)
+    assert calls[0]["method"] == "DLKcat" and calls[0]["save_as"] == "dlkcat" and calls[0]["wait"] is True
+    kcats_from_dlkcat(full, via="okp", save_as="dlkcat2", ec_rxns=["R2"])
+    assert calls[1]["save_as"] == "dlkcat2" and calls[1]["ec_rxns"] == ["R2"]
+
+    # With the file, the default reads it and does not contact OKP.
+    (data / "DLKcat.tsv").write_text("placeholder\n", encoding="utf-8")
+    dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
+    kcat_list, done = kcats_from_dlkcat(full)
+    assert done and len(kcat_list) == len(dlkcat) and len(calls) == 2
+    kcats_from_dlkcat(full, via="okp")
+    assert len(calls) == 3
+
+    with pytest.raises(ValueError, match="via"):
+        kcats_from_dlkcat(full, via="web")
+    with pytest.raises(ValueError, match="run=True"):
+        kcats_from_dlkcat(full, via="file", run=True)
+    with pytest.raises(ValueError, match="run=True"):
+        kcats_from_dlkcat(full, via="okp", run=True)
+    with pytest.raises(ValueError, match="via='okp'"):
+        kcats_from_dlkcat(full, via="file", ec_rxns=["R2"])
+    (data / "DLKcat.tsv").unlink()
+    with pytest.raises(FileNotFoundError, match="via='okp'"):
+        kcats_from_dlkcat(full, via="file")
+
+
+def test_kcats_from_dlkcat_run_is_docker(tmp_path, monkeypatch):
+    adapter = _adapter(tmp_path)
+    full = _model(adapter, light=False)
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr(kcats_from_module.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="Docker"):
+        kcats_from_dlkcat(full, run=True)
+    with pytest.raises(RuntimeError, match="Docker"):
+        kcats_from_dlkcat(full, via="docker")
+    ran = []
+    monkeypatch.setattr(kcats_from_module.shutil, "which", lambda name: "/bin/docker")
+    monkeypatch.setattr(kcats_from_module, "_write_dlkcat_input", lambda *a, **k: ran.append("write"))
+    monkeypatch.setattr(kcats_from_module, "_run_dlkcat", lambda path: ran.append("run"))
+    dlkcat = _kcat_list(full).assign(source="DLKcat", wildcard_level=np.nan, origin=np.nan)
+    monkeypatch.setattr(kcats_from_module, "_read_dlkcat_output", lambda model, path: dlkcat)
+    _, done = kcats_from_dlkcat(full, run=True)
+    assert done and ran == ["write", "run"]
+    _, meta = read_kcat_source(tmp_path / "data" / "kcats" / "dlkcat.tsv")
+    assert meta["parameters"] == '{"run":true}'

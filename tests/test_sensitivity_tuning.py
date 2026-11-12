@@ -299,3 +299,11 @@ def test_infeasible_start_raises_when_gurobi_presolves_it(tmp_path):
     model.reactions.get_by_id("biomass").lower_bound = 500.0
     with pytest.raises(ValueError, match="not optimal"):
         sensitivity_tuning(model)
+
+
+def test_docstrings_name_the_standard_and_advanced_tuning():
+    from geckopy.kcat_tuning import sensitivity_tuning
+    from geckopy.kcat_tuning.evotune import cmaes_kcat_tuning
+
+    assert "standard kcat tuning" in sensitivity_tuning.__doc__
+    assert "advanced kcat tuning" in cmaes_kcat_tuning.__doc__

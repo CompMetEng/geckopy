@@ -1,6 +1,6 @@
 """Parse uniprot.tsv into a UniprotDB struct.
 
-Ported from GECKO MATLAB: src/geckomat/get_enzyme_data/loadDatabases.m
+Ported from GECKO MATLAB: src/download_databases/loadDatabases.m
 (the UniProt-parsing branch; the download branch is deferred to a
 separate future module).
 
@@ -59,7 +59,7 @@ def load_uniprot_tsv(
     uniprot_id: str | int | None = None,
     id_type: str = "taxonomy_id",
     gene_id_field: str = "gene_oln",
-    reviewed: bool = True,
+    reviewed: bool = False,
     auto_download: bool = True,
 ) -> UniprotDB:
     """Parse a uniprot.tsv file into a UniprotDB.
@@ -91,8 +91,9 @@ def load_uniprot_tsv(
         UniProt field that becomes the Gene Names column. Default
         ``"gene_oln"``.
     reviewed
-        If True (default), restrict the auto-download query to
-        reviewed (Swiss-Prot) entries.
+        If True, restrict the auto-download query to reviewed
+        (Swiss-Prot) entries. Default False, as the adapter default
+        ``uniprot.reviewed``.
     auto_download
         If True (default) and ``path`` is missing, trigger
         ``download_uniprot`` before parsing. Set to False to keep
@@ -185,6 +186,26 @@ def load_uniprot_tsv(
         eccodes=eccodes,
         mw=np.array(mw_da, dtype=float),
         sequences=sequences,
+    )
+
+
+def _load_project_uniprot(adapter) -> UniprotDB:
+    """``data/uniprot.tsv`` of the adapter's project, downloaded with its ``[uniprot]``
+    settings when missing, as GECKO's ``loadDatabases`` does.
+
+    Raises ``FileNotFoundError`` when the file is missing and ``[uniprot] id`` is
+    empty, as ``loadDatabases`` raises ``loadDatabases:noUniprotID``.
+    """
+    path = Path(adapter.params.path) / "data" / "uniprot.tsv"
+    uniprot = adapter.params.uniprot
+    if not path.is_file() and not uniprot.id:
+        raise FileNotFoundError(
+            f"{path} does not exist and [uniprot] id in model_adapter.toml is empty. Set the "
+            "UniProt taxonomy or proteome identifier of the organism, or provide the file."
+        )
+    return load_uniprot_tsv(
+        path, uniprot_id=uniprot.id, id_type=uniprot.type,
+        gene_id_field=uniprot.gene_id_field, reviewed=uniprot.reviewed,
     )
 
 

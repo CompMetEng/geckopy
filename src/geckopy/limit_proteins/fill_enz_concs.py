@@ -10,7 +10,7 @@ This only writes the numbers into the data array. To actually
 make the LP respect them, call ``constrain_enz_concs`` next.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/fillEnzConcs.m.
+src/limit_proteins/fillEnzConcs.m.
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def fill_enz_concs(
     samples), ``data_col`` selects which column to use.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/fillEnzConcs.m.
+    src/limit_proteins/fillEnzConcs.m.
 
     Parameters
     ----------

@@ -50,7 +50,6 @@ from geckopy import (
     EcModel,
     ModelAdapter,
     apply_complex_data,
-    apply_custom_kcats,
     apply_kcat_constraints,
     apply_kcat_list,
     constrain_enz_concs,
@@ -72,8 +71,9 @@ from geckopy import (
     merge_kcats,
     save_ec_model,
     set_prot_pool_size,
-    write_dlkcat_input,
 )
+from geckopy.gather_kcats.write_dlkcat_input import _write_dlkcat_input
+from geckopy.upgrade import _apply_custom_kcats
 
 EXAMPLE_DIR = Path(__file__).parents[1] / "examples" / "ecTestGEM"
 DATA_DIR = EXAMPLE_DIR / "data"
@@ -681,9 +681,8 @@ DLKCAT_LIGHT = dict(
 # MATLAB's binary merge always emits "fuzzy followed by dlkcat" regardless
 # of argument order. geckopy's merge_kcats is n-ary and concatenates the
 # surviving rows list by list, so the equivalent call passes the fuzzy list
-# first: merge_kcats(fuzzy, dlkcat, ...). Note that the deprecated
-# merge_dlkcat_and_fuzzy_kcats alias is merge_kcats, so it inherits this
-# convention rather than MATLAB's (dlkcat, fuzzy) signature.
+# first: merge_kcats(fuzzy, dlkcat, ...). This differs from
+# MATLAB's (dlkcat, fuzzy) signature.
 _MERGE_KWARGS = dict(
     source_priority=("database_top", "dlkcat", "database_bottom"),
     top_origin_limit=6,
@@ -697,7 +696,7 @@ def test_tc0011_write_dlkcat_input(tmp_path):
     gene, substrate, sequence); rows 4 and 6 (SMILES, kcat placeholder)
     are skipped there and here."""
     model = _extended_ec_model()
-    table = write_dlkcat_input(
+    table = _write_dlkcat_input(
         model,
         tmp_path / "DLKcat_input_test.tsv",
         load_dlkcat_ignore_lists(),
@@ -825,11 +824,11 @@ def test_tc0011_get_kcat_across_isozymes():
     ))
 
 
-def test_tc0011_apply_custom_kcats_from_file():
+def test_tc0011_custom_kcats_from_file():
     """customKcats.tsv sets P3 -> 200, P1+P2 -> 100, and R2_REV/R5 -> 50."""
     model = _constrained_extended_model()
     apply_kcat_constraints(model)
-    apply_custom_kcats(model, path=DATA_DIR / "customKcats.tsv", apply=False)
+    _apply_custom_kcats(model, path=DATA_DIR / "customKcats.tsv", apply=False)
 
     assert _kcat_by_rxn(model) == dict(zip(
         EXP_EXT_EC_RXNS, [100, 200, 50, 50, 100, 200, 1010, 100, 50]

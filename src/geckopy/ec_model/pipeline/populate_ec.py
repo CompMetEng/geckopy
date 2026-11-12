@@ -19,7 +19,7 @@ format. Gecko-light is handled by a separate future module.
 All three functions mutate the ec substructure in place. None of them
 talk to the network.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/makeEcModel.m.
+Ported from GECKO MATLAB: src/change_model/makeEcModel.m.
 """
 from __future__ import annotations
 

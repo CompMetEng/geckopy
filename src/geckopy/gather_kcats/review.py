@@ -34,6 +34,7 @@ import numpy as np
 from ..kcat_tuning.evotune.tying import (
     base_reaction, isozyme_tie_map,
 )
+from .kcat_source_format import parse_kcat_source
 
 #: Checks reported unless asked for explicitly. ``standard`` values are a
 #: deliberate fallback and ``tied`` groups are unresolvable by design, so
@@ -179,7 +180,7 @@ def review_assignment(
         if kcats[i] < slow or kcats[i] > fast:
             checks.append("magnitude")
             detail.append(f"{kcats[i]:g} 1/s is outside {slow:g}-{fast:g}")
-        if (str(sources[i]).lower() == "custom" and st is not None
+        if (parse_kcat_source(str(sources[i])).origin.lower() == "custom" and st is not None
                 and round(float(kcats[i]), 6) in st.values):
             checks.append("custom-duplicate")
             detail.append("custom value equals a database value for its own EC")
@@ -187,7 +188,7 @@ def review_assignment(
             if "tied-isozymes" in include:
                 checks.append("tied-isozymes")
             detail.append(f"{len(idx)} isozyme copies share this value")
-        if str(sources[i]).lower() == "standard":
+        if parse_kcat_source(str(sources[i])).origin.lower() == "standard":
             if "standard-fallback" not in include:
                 continue
             checks.append("standard-fallback")

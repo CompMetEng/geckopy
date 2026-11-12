@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 
 _EXP_SUFFIX_PATTERN = re.compile(r"_EXP_\d+$")
-_SOURCE_TAG = "setKcatForReactions"
 
 
 def set_kcat_for_reactions(
@@ -57,10 +56,8 @@ def set_kcat_for_reactions(
     passing the suffixed reaction IDs explicitly when the mapping
     matters, so intent doesn't depend on ``ec.rxns``'s row order.
 
-    ``ec.source`` is set to ``"setKcatForReactions"`` for every
-    reaction changed by this call, matching MATLAB's ``ec.source``
-    label (its own docstring says ``'from setKcatForReactions'``, but
-    the actual assignment writes the bare function name).
+    ``ec.source`` is set to ``"manual"`` for every reaction changed by
+    this call, which drops any tuning status the source had.
 
     Parameters
     ----------
@@ -142,9 +139,12 @@ def set_kcat_for_reactions(
     for indices in matches_per_input:
         flat_indices.extend(indices)
 
+    # Imported here because gather_kcats imports this module.
+    from ...gather_kcats.kcat_source_format import format_kcat_source
+    source = format_kcat_source("manual")
     for idx, value in zip(flat_indices, kcat_per_index):
         model.ec.kcat[idx] = value
-        model.ec.source[idx] = _SOURCE_TAG
+        model.ec.source[idx] = source
 
     updated_ids = [ec_rxns[i] for i in flat_indices]
 

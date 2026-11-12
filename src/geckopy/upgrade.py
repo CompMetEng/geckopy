@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Optional
 import pandas as pd
 
 from .ec_model.constants import POOL_EXCHANGE_ID, POOL_ID
+from .gather_kcats.kcat_source_format import parse_kcat_source
 
 if TYPE_CHECKING:
     from .adapter import ModelAdapter
@@ -99,7 +100,7 @@ def convert_custom_kcats(
     base, enzymes = ec_rxn_keys(applied)
     rows: dict[tuple[str, str], list[str]] = {}
     for i in range(n):
-        if applied.ec.source[i] != "custom":
+        if parse_kcat_source(applied.ec.source[i]).origin != "custom":
             continue
         note = re.sub(r"[\t\r\n]", " ", applied.ec.notes[i] or "")
         rows.setdefault((base[i], enzymes[i]), [base[i], enzymes[i], "", format_number(float(applied.ec.kcat[i])),

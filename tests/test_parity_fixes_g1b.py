@@ -6,7 +6,14 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from geckopy import EcModel, ModelAdapter, fit_sigma, make_ec_model, sensitivity_tuning
+from geckopy import (
+    EcModel,
+    ModelAdapter,
+    fit_sigma,
+    make_ec_model,
+    parse_kcat_source,
+    sensitivity_tuning,
+)
 from geckopy.ec_model.ec_data import EcData
 from geckopy.ec_model.pipeline import apply_kcat_constraints, set_prot_pool_size
 
@@ -143,33 +150,15 @@ def test_tuned_reactions_are_listed_in_model_order(tmp_path):
 
 def test_rerun_reports_the_kcat_and_source_of_the_input_model(tmp_path):
     model = _chain(_toy_adapter(tmp_path), kcats=[1.0, 0.5])
+    kcat_before = dict(zip(model.ec.rxns, (float(k) for k in model.ec.kcat)))
     sensitivity_tuning(model, desired_growth_rate=1.0, verbose=False)
     result = sensitivity_tuning(model, desired_growth_rate=30.0, verbose=False)
     assert result.rxns
     assert not np.isnan(result.old_kcat).any()
-    assert all(src == "sensitivityTuning" for src in result.source)
+    for rxn, source in zip(result.rxns, result.source):
+        assert source == f"initial | tuned=sensitivity (prior={kcat_before[rxn]:.6g})"
     # The values the second run started from are the tuned ones of the first.
     assert set(result.old_kcat) <= {10.0, 5.0}
-
-
-@pytest.mark.parametrize("value, text", [
-    (10.0, "10"),
-    (float(np.pi), "3.1416"),
-    (0.5, "0.5"),
-    (123456.789, "123456.789"),
-    (1e7, "10000000"),
-    (float("nan"), "NaN"),
-])
-def test_num2str_prints_a_scalar_as_matlab_does(value, text):
-    from geckopy.kcat_tuning.sensitivity_tuning import _num2str
-    assert _num2str(value) == text
-
-
-def test_notes_hold_the_pre_tune_kcat_as_num2str_prints_it(tmp_path):
-    model = _chain(_toy_adapter(tmp_path), kcats=[10.0, float(np.pi)])
-    sensitivity_tuning(model, desired_growth_rate=30.0, verbose=False)
-    assert "preTuneKcat=10 |" in model.ec.notes[0]
-    assert "preTuneKcat=3.1416 |" in model.ec.notes[1]
 
 
 def test_a_tuned_kcat_has_no_upper_limit(tmp_path):
@@ -228,8 +217,7 @@ def test_gecko_light_model_is_tuned():
     )
     assert result.rxns
     assert float(model.optimize().objective_value) > before
-    # ec.source is left as it was on a light model, as in sensitivityTuning.m.
-    assert list(model.ec.source) == source_before
+    tuned_rows = set()
     # Every isozyme row of a tuned reaction was multiplied by the same power of 10.
     for rxn_id in result.rxns:
         rows = [i for i, ec_id in enumerate(model.ec.rxns)
@@ -237,3 +225,14 @@ def test_gecko_light_model_is_tuned():
         ratios = [model.ec.kcat[i] / kcat_before[i] for i in rows]
         assert ratios and np.allclose(ratios, ratios[0])
         assert ratios[0] >= 10.0 - 1e-9
+        tuned_rows.update(rows)
+    # Every changed row has the tuning status with the kcat before tuning as prior;
+    # every other row keeps its source.
+    for i, source in enumerate(model.ec.source):
+        if i in tuned_rows:
+            parsed = parse_kcat_source(source)
+            assert parsed.tuned == ("sensitivity",)
+            assert parsed.prior == pytest.approx(kcat_before[i], rel=1e-5)
+            assert parsed.origin == (parse_kcat_source(source_before[i]).origin or "unknown")
+        else:
+            assert source == source_before[i]

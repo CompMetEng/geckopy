@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _EXP_SUFFIX_REGEX = re.compile(r"_EXP_\d+$")
-_SOURCE_TAG = "custom"
 _NOTES_SEPARATOR = ", "
 
 
@@ -309,9 +308,12 @@ def _apply_to_indices(
     updated_indices: set[int],
 ) -> None:
     """Write kcat, source, and notes to ec.* for the given indices."""
+    # Imported here because gather_kcats imports this module.
+    from ...gather_kcats.kcat_source_format import format_kcat_source
+    source = format_kcat_source("custom")
     for idx in indices:
         model.ec.kcat[idx] = kcat
-        model.ec.source[idx] = _SOURCE_TAG
+        model.ec.source[idx] = source
         if notes:
             existing = model.ec.notes[idx]
             if existing:

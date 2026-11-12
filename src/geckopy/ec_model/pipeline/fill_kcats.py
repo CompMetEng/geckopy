@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _EXP_SUFFIX_REGEX = re.compile(r"_EXP_\d+$")
-_SOURCE_TAG = "isozymes"
 
 _AGGREGATORS = {
     "mean": np.mean,
@@ -116,6 +115,9 @@ def fill_kcats_from_isozymes(
         if known:
             known_by_base.setdefault(bid, []).append(float(k))
 
+    # Imported here because gather_kcats imports this module.
+    from ...gather_kcats.kcat_source_format import format_kcat_source
+    source = format_kcat_source("isozymes")
     # For each missing entry, look up its base group and average if available.
     filled_indices: list[int] = []
     for i, (bid, missing) in enumerate(zip(base_ids, missing_mask)):
@@ -125,7 +127,7 @@ def fill_kcats_from_isozymes(
         if not siblings:
             continue
         model.ec.kcat[i] = float(combine(siblings))
-        model.ec.source[i] = _SOURCE_TAG
+        model.ec.source[i] = source
         filled_indices.append(i)
 
     if not filled_indices:

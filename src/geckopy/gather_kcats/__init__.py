@@ -17,6 +17,7 @@ from .open_kinetics_predictor import (
 from .remove_standard_kcat import remove_standard_kcat
 from .review import EcStats, ec_stats_from_brenda, review_assignment
 from .select_kcat_value import apply_kcat_list
+from .wildkcat import kcats_from_wildkcat
 from .write_dlkcat_input import extract_enzyme_substrate_pairs
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "kcats_from_ec_tree",
     "kcats_from_homologs",
     "kcats_from_okp",
+    "kcats_from_wildkcat",
     "load_kcat_source",
     "merge_kcats",
     "normalize_source",

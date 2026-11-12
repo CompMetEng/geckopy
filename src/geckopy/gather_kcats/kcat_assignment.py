@@ -444,7 +444,8 @@ def update_kcat_sources(
     OpenKineticsPredictor (see :func:`kcats_from_dlkcat`); OKP and DLKcat
     submit or fetch a job and report it as pending while it runs; they need
     an OKP API key (DLKcat only without ``data/DLKcat.tsv``).
-    ``custom.tsv`` and files it cannot gather are left as they are. Calling
+    ``custom.tsv``, ``wildkcat.tsv`` (made by :func:`kcats_from_wildkcat` from
+    a WILDkCAT run) and files it cannot gather are left as they are. Calling
     it again is safe.
 
     Returns
@@ -464,6 +465,8 @@ def update_kcat_sources(
         file = kcat_dir / f"{name}.tsv"
         if name == "custom":
             status, note = "skipped", "curated by hand"
+        elif name == "wildkcat":
+            status, note = "skipped", "imported from a WILDkCAT run with kcats_from_wildkcat"
         elif name not in ("brenda", "dlkcat", "ec_tree", "homologs") and not name.startswith("okp_"):
             status, note = "skipped", "not a source geckopy gathers"
         elif not file.is_file():

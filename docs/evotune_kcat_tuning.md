@@ -86,31 +86,34 @@ sigma0_log_default = 0.3   # trust for any source not listed below
 max_growth_weight = 2.0    # weight the growth-rate data double against flux data
 
 [evotune.source_groups.okp]
-sources = ["OpenKineticsPredictor"]
-match_okp = true
+sources = ["okp_*"]       # a trailing * is a prefix pattern on the origin
+sigma0_log = 0.25
 
 [evotune.source_groups.brenda]
 sources = ["brenda"]
+sigma0_log = 0.2
 
 [evotune.source_groups.custom]
 sources = ["custom"]
-
-[evotune.sigma0_log_source]
-okp = 0.25
-brenda = 0.2
-custom = 0.1
+sigma0_log = 0.1
 ```
 
 What each knob means:
 
-- **Trust tiers** (`source_groups` + `sigma0_log_source` +
-  `sigma0_log_default`). Group your kcats by how much you trust their
-  origin, and give each group a standard deviation in log-space:
-  smaller means more trusted, and the search needs stronger evidence
-  before it moves that kcat far. `custom` (curated by hand) at 0.1 is
-  three times more trusted than an unlabelled prediction at 0.3. This
-  is the one section with no universal default -- your model's own
-  source labels determine it.
+- **Trust tiers** (`source_groups` + `sigma0_log_default`). Group your
+  kcats by how much you trust their origin. Each group is one table
+  with `sources`, the `ec.source` labels it covers, and `sigma0_log`,
+  the standard deviation of the natural log of the kcat: smaller means
+  more trusted, and the search needs stronger evidence before it moves
+  that kcat far. `custom` (curated by hand) at 0.1 is three times more
+  trusted than a kcat in no group at 0.3 (`sigma0_log_default`). A
+  `sources` entry ending in `*` is a prefix pattern on the origin
+  (`okp_*` covers `okp_kinform_h` and `okp_eitlem_kinetics`); exact
+  entries are tried first over all groups, then patterns, the longest
+  prefix first. Without `[evotune.source_groups]` the groups are
+  `custom` 0.1, `brenda` 0.2, `ec_tree` 0.3 and `combined` 0.4; groups
+  in the file replace them. When more than 20 % of the tunable kcats
+  are in no group, tuning warns and names the most common origins.
 - **`max_growth_weight`** (default `1.0`). The combined score is
   `(rmse_flux + w * rmse_max_growth) / (w + 1)`. At `2`, growth-rate
   error counts double against flux error -- useful when growth rate is

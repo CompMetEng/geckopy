@@ -187,13 +187,11 @@ taxonomic_id = 123456
 
 [evotune.source_groups.dlkcat]
 sources = ["dlkcat"]
+sigma0_log = 0.4
 
 [evotune.source_groups.brenda]
 sources = ["brenda"]
-
-[evotune.sigma0_log_source]
-dlkcat = 0.4
-brenda = 0.2
+sigma0_log = 0.2
 
 [matlab]
 make_model_anaerobic = "anaerobicModel_GECKO"
@@ -249,6 +247,8 @@ def test_adapter_parameter_table_matches_schema():
             continue
         expected = tomllib.loads(f"x = {default_text}")["x"]
         default = field.get_default(call_default_factory=True)
+        if isinstance(default, dict):
+            default = {k: v.model_dump() for k, v in default.items()}
         assert default == expected, key
 
 

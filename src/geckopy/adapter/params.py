@@ -160,24 +160,25 @@ class KcatAssignmentParams(BaseModel):
 class SourceGroupRule(BaseModel):
     """One trust-tier entry in ``EvotuneParams.source_groups``.
 
-    ``ec.source`` holds literal strings like ``"dlkcat"``, ``"brenda"``,
-    and -- for OpenKineticsPredictor kcats -- the raw predictor method
-    name (e.g. ``"CataPro"``), not a generic ``"okp"`` tag. A rule
-    matches a given ``ec.source`` value if it's listed in ``sources``,
-    or (when ``match_okp`` is True) if it equals the project's
-    configured OKP method (``OkpParams.method``).
+    ``ec.source`` holds the label of the source of a kcat, such as
+    ``"custom"``, ``"brenda"``, ``"ec_tree"``, ``"dlkcat"``, ``"combined"`` or
+    ``"okp_kinform_h"``. An entry of ``sources`` matches the origin of the
+    label or the whole label, in either case without regard to case. An entry
+    ending in ``*`` is a prefix pattern on the origin: ``"okp_*"`` covers
+    ``okp_eitlem_kinetics`` and ``okp_kinform_h``.
     """
     model_config = ConfigDict(extra="forbid")
 
     sources: list[str] = Field(
-        default_factory=list,
-        description="Literal ec.source strings belonging to this group.",
-    )
-    match_okp: bool = Field(
-        default=False,
         description=(
-            "Also match ec.source values equal to the project's "
-            "configured OpenKineticsPredictor method (OkpParams.method)."
+            "ec.source labels belonging to this group; an entry ending in * "
+            "is a prefix pattern."
+        ),
+    )
+    sigma0_log: float = Field(
+        description=(
+            "Prior standard deviation of the natural log of the kcat for this "
+            "group. Lower is more trusted, and narrows that group's proposal width."
         ),
     )
 
@@ -185,33 +186,28 @@ class SourceGroupRule(BaseModel):
 class EvotuneParams(BaseModel):
     """Hyperparameters for kcat tuning against experimental data.
 
-    Sources not matched by any ``source_groups`` entry fall back to the
-    ``*_default`` fields (matching MATLAB's ``noKcatSource`` behaviour:
-    ``sigma0logDefault`` etc. apply to every kcat first, then only ones
-    with a recognised source get overridden by their group's value).
+    A kcat whose source is in no ``source_groups`` entry takes
+    ``sigma0_log_default``.
     """
     model_config = ConfigDict(extra="forbid")
 
     sigma0_log_default: float = Field(
         default=0.5,
         description=(
-            "Prior standard deviation in log-space for kcats whose source "
-            "matches no source_groups entry."
+            "Prior standard deviation of the natural log of the kcat for kcats "
+            "whose source matches no source_groups entry."
         ),
     )
     source_groups: dict[str, SourceGroupRule] = Field(
         default_factory=lambda: {
-            "dlkcat": SourceGroupRule(sources=["dlkcat"]),
-            "brenda": SourceGroupRule(sources=["brenda"]),
-            "custom": SourceGroupRule(sources=["custom"]),
+            "custom": SourceGroupRule(sources=["custom"], sigma0_log=0.1),
+            "brenda": SourceGroupRule(sources=["brenda"], sigma0_log=0.2),
+            "ec_tree": SourceGroupRule(sources=["ec_tree"], sigma0_log=0.3),
+            "combined": SourceGroupRule(sources=["combined"], sigma0_log=0.4),
         },
-        description="Trust tiers: group name -> which ec.source values it covers.",
-    )
-    sigma0_log_source: dict[str, float] = Field(
-        default_factory=lambda: {"dlkcat": 0.4, "brenda": 0.2, "custom": 0.1},
         description=(
-            "Prior log-space standard deviation per group. Lower is more "
-            "trusted, and narrows that group's proposal width."
+            "Trust tiers: group name -> the ec.source labels it covers and its "
+            "sigma0_log. Groups given in the TOML replace the defaults."
         ),
     )
 
@@ -267,21 +263,6 @@ class EvotuneParams(BaseModel):
             "to an already-tuned result."
         ),
     )
-
-    @model_validator(mode="after")
-    def _check_group_keys(self) -> "EvotuneParams":
-        """The per-source dicts must have exactly ``source_groups``'
-        keys, otherwise a downstream lookup silently falls back to a
-        default."""
-        group_names = set(self.source_groups)
-        for name in ("sigma0_log_source",):
-            keys = set(getattr(self, name))
-            if keys != group_names:
-                raise ValueError(
-                    f"EvotuneParams.{name} keys {sorted(keys)} must match "
-                    f"source_groups keys {sorted(group_names)}."
-                )
-        return self
 
 
 class OkpParams(BaseModel):

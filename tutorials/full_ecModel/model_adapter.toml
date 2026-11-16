@@ -48,21 +48,19 @@ max_generations = 212
 # 30 parts glucose. Same field and value as MATLAB's maxGrowthWeight.
 max_growth_weight = 2.0
 
-# Trust tiers, least to most trusted. This model labels predicted kcats
-# "OpenKineticsPredictor"; match_okp additionally catches models that label
-# them with the predictor method name (OkpParams.method) instead.
-[evotune.source_groups.okp]
-sources = ["OpenKineticsPredictor"]
-match_okp = true
+# Trust tiers, each with its prior width (the standard deviation of the
+# natural log of the kcat; lower is more trusted). The groups match the labels
+# of ec.source that the stages above give: dlkcat (DLKcat predictions), brenda
+# and custom. Kcats with another label, such as standard, take
+# sigma0_log_default.
+[evotune.source_groups.dlkcat]
+sources = ["dlkcat"]
+sigma0_log = 0.4
 
 [evotune.source_groups.brenda]
 sources = ["brenda"]
+sigma0_log = 0.2
 
 [evotune.source_groups.custom]
 sources = ["custom"]
-
-[evotune.sigma0_log_source]
-okp = 0.25
-brenda = 0.2
-custom = 0.1
-
+sigma0_log = 0.1

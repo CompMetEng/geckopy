@@ -21,9 +21,8 @@ uniprot.reviewed	uniprot.reviewed	false	Use only reviewed (Swiss-Prot) entries
 complex.taxonomic_id	complex.taxonomicID		Taxonomy identifier for Complex Portal
 spontaneous.name_contains	spontaneous.name_contains		Reactions whose name contains this text are spontaneous
 spontaneous.file	spontaneous.file		TSV of spontaneous reactions, relative to the project folder: reaction identifiers, optionally a 0/1 column
-evotune.sigma0_log_default	evotune.sigma0logDefault	0.5	Prior standard deviation (log) for kcats whose source is in no group
-evotune.source_groups	evotune.kcatSources		Trust tiers: group name to the ec.source values it covers
-evotune.sigma0_log_source	evotune.sigma0logSource		Prior standard deviation (log) per group
+evotune.sigma0_log_default	evotune.sigma0logDefault	0.5	Prior standard deviation of the natural log of the kcat, for kcats whose source is in no group
+evotune.source_groups	evotune.kcatSources	{ custom = { sources = ["custom"], sigma0_log = 0.1 }, brenda = { sources = ["brenda"], sigma0_log = 0.2 }, ec_tree = { sources = ["ec_tree"], sigma0_log = 0.3 }, combined = { sources = ["combined"], sigma0_log = 0.4 } }	Trust tiers, one table per group ([evotune.source_groups.<group>]): sources, the ec.source labels the group covers (an entry ending in * is a prefix pattern on the origin, e.g. okp_*), and sigma0_log, the prior standard deviation of the natural log of the kcat (the sd of a combined kcat in ec.source is log10). Groups given in the file replace the defaults
 evotune.rmse_threshold	evotune.rmseThreshold	0.2	Stop when the best RMSE reaches this
 evotune.max_generations	evotune.maxGenerations	150	Maximum number of CMA-ES generations
 evotune.max_growth_weight	evotune.maxGrowthWeight	1.0	Weight of the maximum-growth RMSE against the flux RMSE

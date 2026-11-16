@@ -164,7 +164,12 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     for name, model_cls in sections:
         lines.append(f"[{name}]")
         instance = model_cls()
+        tables: list[tuple[str, Any]] = []
         for sub_name, sub_field in model_cls.model_fields.items():
+            value = getattr(instance, sub_name)
+            if isinstance(value, dict) and value and all(isinstance(v, BaseModel) for v in value.values()):
+                tables.append((sub_name, sub_field))  # written last: sub-tables follow the section's keys
+                continue
             if (name, sub_name) in _SET_IN_TEMPLATE:
                 value = _format_toml_value(getattr(instance, sub_name))
                 lines.extend([*_SET_IN_TEMPLATE[(name, sub_name)], f"{sub_name} = {value}", ""])
@@ -175,5 +180,11 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
                 default_value=getattr(instance, sub_name),
                 required=False,
             ))
+        for sub_name, sub_field in tables:
+            lines.append(f"# {sub_field.description}")
+            for group, rule in getattr(instance, sub_name).items():
+                lines.append(f"# [{name}.{sub_name}.{group}]")
+                lines.extend(f"# {key} = {_format_toml_value(val)}" for key, val in rule.model_dump().items())
+                lines.append("")
 
     return "\n".join(lines) + "\n"

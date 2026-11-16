@@ -25,16 +25,17 @@ def test_template_includes_nested_sections():
     assert "[evotune]" in text
 
 
-def test_template_renders_dict_valued_evotune_fields():
-    """The evotune section carries per-source tables, not just scalars."""
+def test_template_renders_source_groups_as_tables():
+    """The evotune section lists the default groups as one table each."""
     text = generate_template_toml()
     uncommented = "\n".join(
-        line.lstrip("# ") for line in text.splitlines()
-        if line.lstrip("# ").startswith(("sigma0_log_source", "source_groups"))
+        line[2:] for line in text.splitlines()
+        if line.startswith("# [evotune.source_groups.") or line.startswith("# sources =") or line.startswith("# sigma0_log =")
     )
-    parsed = tomllib.loads(uncommented)
-    assert parsed["sigma0_log_source"]["brenda"] == 0.2
-    assert parsed["source_groups"]["brenda"]["sources"] == ["brenda"]
+    parsed = tomllib.loads(uncommented)["evotune"]["source_groups"]
+    assert parsed["brenda"] == {"sources": ["brenda"], "sigma0_log": 0.2}
+    assert list(parsed) == ["custom", "brenda", "ec_tree", "combined"]
+    assert "sigma0_log_source" not in text and "match_okp" not in text
 
 
 def test_template_includes_field_descriptions_as_comments():

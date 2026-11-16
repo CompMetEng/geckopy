@@ -1,7 +1,7 @@
 """Extract a context-specific ecModel as a subset of a bigger ecModel.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/getSubsetEcModel.m.
+src/change_model/getSubsetEcModel.m.
 """
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def get_subset_ec_model(
        is not part of the reaction id.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/getSubsetEcModel.m.
+    src/change_model/getSubsetEcModel.m.
 
     If any ``usage_prot_*`` reaction's upper bound differs from the
     default (1000), a warning is logged: protein-concentration

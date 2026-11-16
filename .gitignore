@@ -13,6 +13,9 @@ build/
 htmlcov/
 .claude/
 
+# OpenKineticsPredictor API key of a project (see data/okpApiKey.txt in kcats_from_okp)
+okpApiKey.txt
+
 # Tutorial build outputs (the source yeast-GEM.yml is tracked).
 tutorials/full_ecModel/models/ecYeastGEM*.yml
 tutorials/full_ecModel/output/

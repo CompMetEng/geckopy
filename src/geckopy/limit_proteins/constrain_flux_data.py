@@ -12,7 +12,7 @@ gives the model room to wiggle around the measurement; a numeric
 percentage clamps it within that band.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/constrainFluxData.m.
+src/limit_proteins/constrainFluxData.m.
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def apply_flux_data_constraints(
     adapter's preferred carbon source so the data determines the choice.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/constrainFluxData.m.
+    src/limit_proteins/constrainFluxData.m.
 
     A ``+/-1000`` measured flux means unconstrained, regardless of
     ``loose_strict_flux``:
@@ -192,34 +192,3 @@ def apply_flux_data_constraints(
             hi = flux * (1 + pct / 200.0)
             rxn.lower_bound = float(min(lo, hi))
             rxn.upper_bound = float(max(lo, hi))
-
-
-def constrain_flux_data(
-    model: "EcModel",
-    flux_data: "FluxData",
-    *,
-    condition: int | str = 0,
-    max_min_growth: Literal["max", "min"] = "max",
-    loose_strict_flux: _LooseStrict = "loose",
-) -> None:
-    """Deprecated alias for :func:`apply_flux_data_constraints`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``apply_flux_data_constraints``.
-    """
-    import warnings
-
-    warnings.warn(
-        "constrain_flux_data is deprecated; use "
-        "apply_flux_data_constraints instead. The old name will be "
-        "removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return apply_flux_data_constraints(
-        model, flux_data,
-        condition=condition,
-        max_min_growth=max_min_growth,
-        loose_strict_flux=loose_strict_flux,
-    )

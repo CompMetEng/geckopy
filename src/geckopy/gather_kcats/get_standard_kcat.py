@@ -2,7 +2,7 @@
 without enzyme assignments.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/getStandardKcat.m.
+src/gather_kcats/getStandardKcat.m.
 """
 from __future__ import annotations
 
@@ -41,8 +41,11 @@ def assign_standard_kcat(
     """Add a "standard" pseudoenzyme to ``model`` and assign it to
     reactions without enzyme constraints.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/getStandardKcat.m.
+    src/gather_kcats/getStandardKcat.m.
 
     A standard MW (median of all proteins in ``uniprot_db``) and a
     standard kcat (median of all non-zero, non-NaN ``model.ec.kcat``
@@ -448,30 +451,3 @@ def _fill_zero_kcats(model: "EcModel", standard_kcat: float) -> list[str]:
     for i in indices:
         model.ec.source[int(i)] = format_kcat_source(_STANDARD_NAME)
     return [model.ec.rxns[int(i)] for i in indices]
-
-
-def get_standard_kcat(
-    model: "EcModel",
-    uniprot_db: "UniprotDB",
-    *,
-    threshold: int = 10,
-    fill_zero_kcat: bool = True,
-) -> None:
-    """Deprecated alias for :func:`assign_standard_kcat`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``assign_standard_kcat``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_standard_kcat is deprecated; use assign_standard_kcat "
-        "instead. The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return assign_standard_kcat(
-        model, uniprot_db,
-        threshold=threshold, fill_zero_kcat=fill_zero_kcat,
-    )

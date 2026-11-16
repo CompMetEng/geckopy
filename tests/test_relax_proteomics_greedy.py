@@ -91,6 +91,28 @@ def test_enzyme_set_filter():
     assert set(result.relaxed.keys()).issubset(only)
 
 
+def test_target_reached_by_the_last_allowed_relaxation_converges():
+    """The relaxation made at max_iterations is checked before raising."""
+    model, target = _ec_with_tight_concs(growth_target=0.001)
+    needed = len(relax_proteomics_greedy(model.copy(), minimal_growth=target, max_iterations=20).relaxed)
+    assert needed >= 1
+    result = relax_proteomics_greedy(model, minimal_growth=target, max_iterations=needed)
+    assert result.converged
+    assert len(result.relaxed) == needed
+
+
+def test_last_relaxation_using_up_the_candidates_returns_not_converged(caplog):
+    """As relaxProteomicsGreedy: no candidate left after the last allowed
+    relaxation gives converged=False with a warning, not an error."""
+    model, _ = _ec_with_tight_concs()
+    only = {model.ec.enzymes[0]}
+    with caplog.at_level("WARNING"):
+        result = relax_proteomics_greedy(model, minimal_growth=1e9, enzyme_set=only, max_iterations=1)
+    assert not result.converged
+    assert list(result.relaxed) == list(only)
+    assert "No more candidates" in caplog.text
+
+
 def test_max_iterations_raises():
     """Setting max_iterations=1 on a model needing more raises."""
     model, _ = _ec_with_tight_concs()

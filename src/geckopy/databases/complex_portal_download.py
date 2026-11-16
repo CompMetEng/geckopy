@@ -1,7 +1,7 @@
 """Download complex stoichiometries from EBI Complex Portal.
 
 Ported from GECKO MATLAB:
-src/geckomat/change_model/getComplexData.m.
+src/change_model/getComplexData.m.
 
 Network access is required. The result is cached as
 ``ComplexPortal.json`` in the adapter's data folder; subsequent runs
@@ -44,13 +44,15 @@ def get_complex_data(
     """Download complex stoichiometries from EBI Complex Portal.
 
     Ported from GECKO MATLAB:
-    src/geckomat/change_model/getComplexData.m.
+    src/change_model/getComplexData.m.
 
     Taxonomic ID semantics:
 
     - A positive integer queries that organism only.
     - ``0`` queries all organisms (no species filter).
-    - ``None`` raises ValueError.
+    - ``None`` logs a warning and returns no complexes, without a query or
+      a file written, as GECKO's ``getComplexData`` does without a
+      taxonomic ID.
 
     The response is post-processed to expand "complexes of complexes":
     when a Complex Portal entry references other complexes as subunits,
@@ -69,20 +71,20 @@ def get_complex_data(
     Returns
     -------
     list of ComplexPortalEntry
-        Parsed and post-processed complexes.
+        Parsed and post-processed complexes; empty when ``taxonomic_id`` is
+        None.
 
     Raises
     ------
-    ValueError
-        If ``taxonomic_id`` is None.
     requests.HTTPError
         If the API returns an unrecoverable error.
     """
     if taxonomic_id is None:
-        raise ValueError(
-            "taxonomic_id is required. Use 0 to query all organisms, "
-            "or set adapter.params.complex.taxonomic_id."
+        logger.warning(
+            "No taxonomic_id specified; no complexes are downloaded. Use 0 to "
+            "query all organisms, or set adapter.params.complex.taxonomic_id."
         )
+        return []
 
     session = _make_session()
 

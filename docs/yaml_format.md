@@ -148,7 +148,7 @@ A list, one entry per unique enzyme. Fields:
 | `sequence` | string | optional | Amino acid sequence. Default `""` |
 | `concs` | number | optional | Measured concentration in mmol/gDW (from proteomics). Write NaN as `.nan`. Default NaN |
 
-The `standard` pseudo-gene (added by `get_standard_kcat` to cover
+The `standard` pseudo-gene (added by `assign_standard_kcat` to cover
 reactions without a real gene assignment) appears as both `genes:
 "standard"` and `enzymes: "standard"`.
 

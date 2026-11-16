@@ -1,8 +1,11 @@
 """Flux variability analysis (FVA) on an ecModel.
 
-Standard FVA asks, for each reaction in a model, what's the
-smallest and largest flux that reaction can carry while keeping
-the model feasible at its current objective? The output is a
+FVA gives, for each reaction in a model, the smallest and largest
+flux that reaction can carry within the bounds of the model. The
+current objective is not kept: as in GECKO's ``ecFVA``, every
+objective coefficient is set to 0 and each LP optimises only the
+reaction scanned, so a growth rate or other flux to hold must be set
+with its bounds before the call. The output is a
 ``(min_flux, max_flux)`` pair per reaction, useful for finding
 reactions whose flux is tightly constrained vs reactions with a
 lot of slack.
@@ -19,7 +22,7 @@ This function does the same thing on an ecModel, with two twists:
   ecModels this matters — yeast-GEM has ~4000 conv reactions,
   each needing two LP solves, so a serial run can be slow.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/ecFVA.m.
+Ported from GECKO MATLAB: src/flux_analysis/ecFVA.m.
 """
 from __future__ import annotations
 
@@ -103,7 +106,7 @@ def ec_fva(
     variant across all reactions' solutions and summing.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/ecFVA.m.
+    src/flux_analysis/ecFVA.m.
 
     Parameters
     ----------

@@ -1,7 +1,7 @@
 """Pick one kcat per reaction from a kcat list and write to model.ec.kcat.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/selectKcatValue.m.
+src/deprecated/selectKcatValue.m.
 """
 from __future__ import annotations
 
@@ -43,8 +43,11 @@ def apply_kcat_list(
 ) -> list[str]:
     """Choose one kcat value per reaction and write it to ``model.ec.kcat``.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/selectKcatValue.m.
+    src/gather_kcats/assignKcatValues.m.
 
     For each reaction with one or more entries in ``kcat_list``,
     aggregate the candidate kcats per ``criteria`` (``"max"`` is the
@@ -192,29 +195,3 @@ def _should_overwrite(
         return is_unset
     # "if_higher"
     return is_unset or new > current
-
-
-def select_kcat_value(
-    model: "EcModel",
-    kcat_list: pd.DataFrame,
-    *,
-    criteria: Optional[Literal["max", "min", "median", "mean"]] = None,
-    overwrite: _OverwriteMode = True,
-) -> list[str]:
-    """Deprecated alias for :func:`apply_kcat_list`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``apply_kcat_list``.
-    """
-    import warnings
-
-    warnings.warn(
-        "select_kcat_value is deprecated; use apply_kcat_list instead. "
-        "The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return apply_kcat_list(
-        model, kcat_list, criteria=criteria, overwrite=overwrite,
-    )

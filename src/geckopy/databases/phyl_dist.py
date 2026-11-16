@@ -4,7 +4,7 @@ Used by fuzzy_kcat_matching to find the evolutionarily closest organism
 when an exact match is not available in BRENDA.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/fuzzyKcatMatching.m (the inline `KEGG_struct` helper).
+src/gather_kcats/fuzzyKcatMatching.m (the inline `KEGG_struct` helper).
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def load_phyl_dist(path: str | Path) -> PhylDist:
       -> all matching indices.
 
     Ported from GECKO MATLAB (inline ``KEGG_struct`` helper in
-    src/geckomat/gather_kcats/fuzzyKcatMatching.m).
+    src/gather_kcats/fuzzyKcatMatching.m).
 
     Parameters
     ----------

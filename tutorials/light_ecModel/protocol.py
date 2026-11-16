@@ -157,9 +157,9 @@ print(f"prot_pool_exchange upper bound: "
 #   raises ``NotImplementedError``. The shared ``prot_pool`` is the
 #   only enzyme constraint, so per-enzyme distinctions don't exist in
 #   the LP.
-# - **Isozyme-spanning kcat helpers.** ``fill_kcats_from_isozymes`` /
-#   ``get_kcat_across_isozymes`` are full-model only — the light layout
-#   already represents isozymes natively as separate ec rows.
+# - **Isozyme-spanning kcat helpers.** ``fill_kcats_from_isozymes`` is
+#   full-model only — the light layout already represents isozymes
+#   natively as separate ec rows.
 #
 # **What still works.** ``Enzyme`` proxy reads (``mw``, ``gene``,
 # ``sequence``, ``kcats``, ``reactions``), most kcat-source helpers

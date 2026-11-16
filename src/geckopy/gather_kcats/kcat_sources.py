@@ -247,7 +247,7 @@ def save_kcat_source(
         The ecModel the kcat list refers to.
     kcat_list
         A kcat list as returned by the ``kcats_from_*`` functions,
-        ``fuzzy_kcat_matching``, ``read_dlkcat_output`` or ``merge_kcats``:
+        ``fuzzy_kcat_matching``, ``kcats_from_dlkcat`` or ``merge_kcats``:
         columns ``rxn_id`` and ``kcat``, optionally ``substrates``,
         ``eccode``, ``wildcard_level``, ``origin``, ``source``,
         ``log10_sd`` and ``detail`` (further ``key=value`` pairs for the

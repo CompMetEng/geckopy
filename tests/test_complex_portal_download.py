@@ -1,5 +1,7 @@
 """Tests for get_complex_data (network mocked)."""
 
+import logging
+
 import pytest
 import requests
 
@@ -100,9 +102,16 @@ def test_taxonomic_id_zero_queries_all(monkeypatch):
     assert any(u.endswith("search/*") for u in captured_urls)
 
 
-def test_none_taxonomic_id_raises():
-    with pytest.raises(ValueError, match="taxonomic_id is required"):
-        get_complex_data(taxonomic_id=None)
+def test_none_taxonomic_id_warns_and_returns_nothing(monkeypatch, tmp_path, caplog):
+    """As getComplexData without a taxonomic ID: a warning, no query, no file."""
+    from geckopy.databases import complex_portal_download as mod
+
+    monkeypatch.setattr(mod, "_make_session", lambda: pytest.fail("queried"))
+    out = tmp_path / "ComplexPortal.json"
+    with caplog.at_level(logging.WARNING):
+        assert get_complex_data(taxonomic_id=None, write_to=out) == []
+    assert "No taxonomic_id" in caplog.text
+    assert not out.exists()
 
 
 def test_empty_search_response_raises(monkeypatch):

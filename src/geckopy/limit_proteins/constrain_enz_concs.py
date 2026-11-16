@@ -1,7 +1,7 @@
 """Constrain enzyme usage reactions by measured protein concentrations.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/constrainEnzConcs.m.
+src/limit_proteins/constrainEnzConcs.m.
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def constrain_enz_concs(
     ``relax_proteomics_greedy`` sets the bound back to its default.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/constrainEnzConcs.m.
+    src/limit_proteins/constrainEnzConcs.m.
 
     Parameters
     ----------

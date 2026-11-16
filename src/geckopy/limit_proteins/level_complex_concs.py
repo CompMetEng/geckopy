@@ -241,6 +241,7 @@ def level_complex_concs(
     *,
     statistic: str = "median",
     fill_missing: bool = True,
+    families: Optional[ComplexFamilies] = None,
 ) -> LevelComplexResult:
     """Give every complex in ``model.ec.concs`` one abundance.
 
@@ -258,6 +259,9 @@ def level_complex_concs(
     fill_missing
         Give unmeasured, non-shared subunits the complex's concentration. A
         subunit with a concentration of 0 is measured as absent and stays 0.
+    families
+        The complexes of the model, as returned by ``complex_families``
+        (default: calculated from the model).
 
     Returns
     -------
@@ -272,7 +276,7 @@ def level_complex_concs(
     measured = [i for i in range(len(enzymes)) if np.isfinite(molar[i])]
     ids, levelled, result = level_complex_abundances(
         model, [enzymes[i] for i in measured], molar[measured],
-        statistic=statistic, fill_missing=fill_missing,
+        statistic=statistic, fill_missing=fill_missing, families=families,
     )
     new = concs.copy()
     index = {e: i for i, e in enumerate(enzymes)}

@@ -1,7 +1,7 @@
 """Build human-readable reports of enzyme usage from an LP solution.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/reportEnzymeUsage.m.
+src/enzyme_usage/reportEnzymeUsage.m.
 """
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def report_enzyme_usage(
        of ``prot_pool_exchange`` capacity) replacing ``cap_usage``.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/reportEnzymeUsage.m.
+    src/enzyme_usage/reportEnzymeUsage.m.
 
     Parameters
     ----------

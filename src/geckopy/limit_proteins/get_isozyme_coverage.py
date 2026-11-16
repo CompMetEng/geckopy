@@ -1,7 +1,7 @@
 """Report isozyme groups with partial proteomics coverage.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/getIsozymeCoverage.m.
+src/limit_proteins/getIsozymeCoverage.m.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def get_isozyme_coverage(model: "EcModel") -> tuple[pd.DataFrame, list[str]]:
     cover.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/getIsozymeCoverage.m.
+    src/limit_proteins/getIsozymeCoverage.m.
 
     Parameters
     ----------

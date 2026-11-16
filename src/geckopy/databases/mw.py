@@ -1,7 +1,7 @@
 """Compute molecular weight of a protein from its amino acid sequence.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/calculateMW.m.
+src/get_enzyme_data/calculateMW.m.
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def calculate_mw(sequence: str) -> float:
     """Compute the molecular weight of a protein from its sequence.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/calculateMW.m.
+    src/get_enzyme_data/calculateMW.m.
 
     Each residue contributes its average mass; one water mass is added
     once (representing the H + OH at the peptide termini, equivalent to

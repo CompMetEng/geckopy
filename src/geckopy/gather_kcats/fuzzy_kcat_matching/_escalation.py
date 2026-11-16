@@ -5,7 +5,7 @@ replacing its rightmost numeric level with ``-`` and trying
 again. These helpers do just that string manipulation -- no
 BRENDA, no model.
 
-Ported from GECKO MATLAB: src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+Ported from GECKO MATLAB: src/gather_kcats/fuzzyKcatMatching.m.
 """
 from __future__ import annotations
 

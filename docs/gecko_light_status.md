@@ -88,7 +88,7 @@ Tests covering the light path:
 | `Enzyme.concentration` setter (`Kcats.__setitem__`) | requires the per-enzyme usage upper-bound machinery |
 | `constrain_enz_concs`, `flexibilize_enz_concs` | proteomics integration is per-enzyme; the shared pool can't represent it |
 | `pfba_enzymes` | minimises per-enzyme usage reactions, which light doesn't have |
-| `fill_kcats_from_isozymes` / `get_kcat_across_isozymes` | full-model isozyme aggregation; the light layout already represents isozymes as separate ec rows |
+| `fill_kcats_from_isozymes` | full-model isozyme aggregation; the light layout already represents isozymes as separate ec rows |
 
 All of these raise `NotImplementedError` with a clear message rather
 than silently returning meaningless values.

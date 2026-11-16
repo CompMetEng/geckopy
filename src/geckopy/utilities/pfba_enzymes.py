@@ -8,8 +8,8 @@ cobra-py, which does not use enzyme information.
 
 ``pfba_enzymes`` is the enzyme-aware version: among all
 biomass-optimal flux distributions, it selects the one that uses the
-least enzyme mass (the smallest sum of ``usage_prot_*`` fluxes,
-weighted by the cost coefficients in the LP). For ecModels this is
+least enzyme mass (the smallest sum of ``usage_prot_*`` fluxes, each
+with weight 1: the usage fluxes are already in mg/gDCW). For ecModels this is
 usually what you want, because it selects the most parsimonious
 *proteome*, not just the most parsimonious *fluxes*.
 

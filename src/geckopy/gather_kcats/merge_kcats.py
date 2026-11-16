@@ -24,14 +24,14 @@ Anything else in ``source_priority`` is matched against the row's
 ``source`` after normalisation to lowercase ``snake_case`` (so
 ``"DLKcat"`` matches ``"dlkcat"`` and ``"Sabio-RK"`` matches
 ``"sabio_rk"``). A row whose source contains the ``OKP-`` pipeline-stage
-tag (``parse_okp_output``'s output, e.g. ``"OKP-BRENDA"``) is matched
+tag (``_parse_okp_output``'s output, e.g. ``"OKP-BRENDA"``) is matched
 and tiered by its underlying source with the tag stripped -- an
 ``OKP-BRENDA`` row still routes to the database tiers like a bare
 ``BRENDA`` row would -- while the merged output keeps the original,
 tagged ``source`` string.
 
 Ported from / generalizes GECKO MATLAB:
-src/geckomat/gather_kcats/mergeDLKcatAndFuzzyKcats.m.
+src/deprecated/mergeDLKcatAndFuzzyKcats.m.
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ DATABASE_BOTTOM = "database_bottom"
 #: routed to the ``database_top`` / ``database_bottom`` tiers.
 _DEFAULT_DATABASE_SOURCES = ("brenda", "sabio_rk")
 
-#: Normalised prefix ``parse_okp_output`` tags a row's source with
+#: Normalised prefix ``_parse_okp_output`` tags a row's source with
 #: (``"OKP-BRENDA"`` normalises to ``"okp_brenda"``) to mark it as
 #: having come through the OpenKineticsPredictor pipeline stage.
 _OKP_PREFIX = "okp_"
@@ -100,6 +100,9 @@ def merge_kcats(
     database_sources: Iterable[str] = _DEFAULT_DATABASE_SOURCES,
 ) -> pd.DataFrame:
     """Merge any number of kcat lists, keeping the best source per reaction.
+
+    Low-level: ``collect_kcats`` runs this function; call it directly only
+    to merge kcat lists by hand.
 
     All input lists are concatenated and each row is assigned a tier
     (see the module docstring). For every reaction the highest-priority

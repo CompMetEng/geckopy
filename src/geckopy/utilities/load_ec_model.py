@@ -41,7 +41,7 @@ geckopy keeps three application-level concerns:
 geckopy has no global default adapter: pass one explicitly, or use an
 absolute filename.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/loadEcModel.m.
+Ported from GECKO MATLAB: src/io/loadEcModel.m.
 """
 from __future__ import annotations
 

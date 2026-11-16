@@ -1,7 +1,7 @@
 """Map a flux vector from ec-rxn space back to conventional-rxn space.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/mapRxnsToConv.m.
+src/change_model/mapRxnsToConv.m.
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def map_rxns_to_conv(
     ``prot_pool_exchange``) under their stripped labels.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/mapRxnsToConv.m.
+    src/change_model/mapRxnsToConv.m.
 
     Parameters
     ----------

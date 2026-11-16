@@ -4,7 +4,7 @@ OKP returns only (kcat, Source kcat, Protein Sequence, Substrate) per
 row, so each prediction is mapped back to the matching reaction(s) via
 sequence -> ec.genes and SMILES -> metabolite -> ec.rxns, mirroring the
 MATLAB readOpenKineticsPredictorOutput. The output schema matches
-``read_dlkcat_output`` / ``fuzzy_kcat_matching`` so it feeds
+``kcats_from_dlkcat`` / ``fuzzy_kcat_matching`` so it feeds
 ``apply_kcat_list`` directly.
 """
 from __future__ import annotations
@@ -60,7 +60,7 @@ _OUTPUT_COLUMNS = [
 _PREDICTION_PREFIX_RE = re.compile(r"^Prediction from\s+")
 
 
-def parse_okp_output(
+def _parse_okp_output(
     model: "EcModel",
     result: str | Path,
 ) -> pd.DataFrame:
@@ -199,7 +199,7 @@ def parse_okp_output(
 
     if unmatched:
         logger.warning(
-            "parse_okp_output: %d result row(s) could not be mapped to an "
+            "_parse_okp_output: %d result row(s) could not be mapped to an "
             "ec.rxn (sequence and/or SMILES not in the model).", unmatched,
         )
     if not rows:
@@ -220,7 +220,7 @@ def parse_okp_output(
         "origin": pd.array([pd.NA] * n, dtype="Int64"),
         "similarity": [r[5] for r in rows],
     })
-    logger.info("parse_okp_output: mapped %d kcat row(s).", n)
+    logger.info("_parse_okp_output: mapped %d kcat row(s).", n)
     return out
 
 

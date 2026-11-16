@@ -1,7 +1,7 @@
 """Parse ComplexPortal.json into a list of ComplexPortalEntry.
 
 Ported from GECKO MATLAB:
-src/geckomat/change_model/applyComplexData.m (the JSON-loading branch).
+src/change_model/applyComplexData.m (the JSON-loading branch).
 The download branch is deferred to a future module.
 """
 from __future__ import annotations

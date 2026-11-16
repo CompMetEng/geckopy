@@ -120,6 +120,18 @@ def test_level_complex_concs_works_in_mass_units():
     assert np.isnan(new["H"])
 
 
+def test_level_complex_concs_takes_precomputed_families():
+    """As levelComplexConcs' families option: the given complexes are levelled."""
+    concs = np.full(len(ENZYMES), np.nan)
+    concs[ENZYMES.index("A")] = 100.0
+    concs[ENZYMES.index("B")] = 1600.0
+    model = _ec_only(concs, ROWS)
+    only_r2 = complex_families(_ec_only(np.full(len(ENZYMES), np.nan), {"R2": ROWS["R2"]}))
+    result = level_complex_concs(model, families=only_r2)
+    assert result.adjusted == []
+    np.testing.assert_array_equal(model.ec.concs, concs)
+
+
 def test_an_unknown_statistic_is_rejected():
     model = _ec_only(np.full(len(ENZYMES), np.nan), ROWS)
     with pytest.raises(ValueError, match="statistic"):

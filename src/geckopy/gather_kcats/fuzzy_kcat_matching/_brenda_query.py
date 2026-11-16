@@ -10,7 +10,7 @@ org+!subs+kcat, org+SA, any+!subs+kcat, any+SA) are tried in the
 MATLAB-compat order. See the orchestrator's docstring for the
 full background.
 
-Ported from GECKO MATLAB: src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+Ported from GECKO MATLAB: src/gather_kcats/fuzzyKcatMatching.m.
 """
 from __future__ import annotations
 

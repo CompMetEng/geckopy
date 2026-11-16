@@ -2,7 +2,7 @@
 added by `assign_standard_kcat`.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/removeStandardKcat.m.
+src/gather_kcats/removeStandardKcat.m.
 """
 from __future__ import annotations
 
@@ -26,8 +26,11 @@ def remove_standard_kcat(model: "EcModel") -> None:
     """Remove the standard pseudoenzyme and any standard kcat
     assignments from ``model``.
 
+    Low-level: it undoes ``assign_standard_kcat``, which ``collect_kcats``
+    and ``assign_kcats`` run; call it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/removeStandardKcat.m.
+    src/gather_kcats/removeStandardKcat.m.
 
     Inverse of ``assign_standard_kcat``. Cleans up:
 

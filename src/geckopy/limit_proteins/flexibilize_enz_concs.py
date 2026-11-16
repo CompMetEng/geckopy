@@ -21,7 +21,7 @@ unconstrains each selected enzyme, which is faster but looser. See
 ``docs/relaxation_methods.md`` for the full comparison.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/flexibilizeEnzConcs.m.
+src/limit_proteins/flexibilizeEnzConcs.m.
 """
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def flexibilize_enz_concs(
     ``flexibilize_enz_concs`` reports no limiting enzyme for them.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/flexibilizeEnzConcs.m.
+    src/limit_proteins/flexibilizeEnzConcs.m.
 
     Parameters
     ----------

@@ -5,7 +5,7 @@ of ``ModelParameters`` mirror the ``obj.params.*`` fields set in GECKO
 MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings; ``OkpParams`` is a
 geckopy-only extension with no MATLAB equivalent.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
+Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -16,7 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class KeggParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(default="sce", description="KEGG organism code")
+    id: str = Field(
+        default="",
+        description='KEGG organism code (e.g. "sce"); empty: KEGG is not used',
+    )
     gene_id: str = Field(
         default="kegg",
         description=(
@@ -35,8 +38,11 @@ class UniprotParams(BaseModel):
         description="Whether 'id' is a taxonomy ID or a proteome ID",
     )
     id: str = Field(
-        default="559292",
-        description="Taxonomy ID (e.g. '559292') or proteome ID, matching 'type'",
+        default="",
+        description=(
+            "Taxonomy ID (e.g. '559292') or proteome ID (e.g. 'UP000002311'), "
+            "matching 'type'; required unless data/uniprot.tsv is provided"
+        ),
     )
     gene_id_field: str = Field(
         default="gene_oln",
@@ -279,7 +285,7 @@ class EvotuneParams(BaseModel):
 
 
 class OkpParams(BaseModel):
-    """OpenKineticsPredictor settings (used by submit/fetch_open_kinetics_predictor).
+    """OpenKineticsPredictor settings (used by kcats_from_okp).
 
     The API key is intentionally NOT here (it is a secret): provide it as a
     function argument, the OKP_API_KEY environment variable, or the file
@@ -288,7 +294,7 @@ class OkpParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method: str = Field(
-        default="CataPro",
+        default="KinForm-H",
         description=(
             "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
             "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "

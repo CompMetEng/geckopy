@@ -1,7 +1,7 @@
 """Compute enzyme-concentration control coefficients via LP sensitivity.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/getConcControlCoeffs.m.
+src/limit_proteins/getConcControlCoeffs.m.
 """
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ def get_conc_control_coeffs(
     where it does.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/getConcControlCoeffs.m.
+    src/limit_proteins/getConcControlCoeffs.m.
 
     Parameters
     ----------
@@ -114,6 +114,13 @@ def get_conc_control_coeffs(
     control_coeffs
         Float array of length ``len(proteins)``; 0.0 where the
         protein was either skipped or showed no sensitivity.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is unknown, or if the solve of the model as given is
+        not optimal (for example infeasible), as GECKO's
+        ``getConcControlCoeffs`` raises ``getConcControlCoeffs:infeasible``.
     """
     if method not in ("finite_difference", "shadow_price"):
         raise ValueError(
@@ -147,8 +154,7 @@ def _shadow_price_coeffs(
     coeffs = np.zeros(n, dtype=float)
 
     sol = optimize_model(model)
-    if not _solution_is_optimal(sol):
-        return enz_mask, coeffs
+    _require_optimal(sol)
     initial_growth = sol.objective_value
     fluxes = sol.fluxes
 
@@ -265,8 +271,7 @@ def _finite_difference_coeffs(
     coeffs = np.zeros(n, dtype=float)
 
     initial_sol = optimize_model(model)
-    if not _solution_is_optimal(initial_sol):
-        return enz_mask, coeffs
+    _require_optimal(initial_sol)
     initial_growth = initial_sol.objective_value
     initial_fluxes = initial_sol.fluxes
 
@@ -295,6 +300,17 @@ def _finite_difference_coeffs(
             coeffs[i] = delta_growth / (new_ub - prev_ub)
 
     return enz_mask, coeffs
+
+
+def _require_optimal(sol) -> None:
+    """Raise when the solve of the model as given is not optimal, as GECKO's
+    ``getConcControlCoeffs`` raises ``getConcControlCoeffs:infeasible``."""
+    if not _solution_is_optimal(sol):
+        status = getattr(sol, "status", None)
+        raise ValueError(
+            f"get_conc_control_coeffs: the model has no optimal solution (status {status}); "
+            "there are no control coefficients to compute."
+        )
 
 
 def _solution_is_optimal(sol) -> bool:

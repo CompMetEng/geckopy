@@ -25,7 +25,7 @@ the duration of the write (provenance stashed there so raven-toolbox's
 writer emits it) and are restored afterwards, leaving the caller's
 model unchanged.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/saveEcModel.m.
+Ported from GECKO MATLAB: src/io/saveEcModel.m.
 """
 from __future__ import annotations
 

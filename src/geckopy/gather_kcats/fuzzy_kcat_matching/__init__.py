@@ -1,7 +1,7 @@
 """Fuzzy-match each ec reaction's EC + substrates against BRENDA kcat data.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+src/gather_kcats/fuzzyKcatMatching.m.
 
 This subpackage is split into four files by concern:
 
@@ -87,8 +87,11 @@ def fuzzy_kcat_matching(
     """Match each ec reaction to BRENDA kcat data with progressive
     relaxation of EC, substrate, and organism specificity.
 
+    Low-level: ``kcats_from_brenda`` runs this function; call it directly
+    only to inspect or change the BRENDA matches by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+    src/gather_kcats/fuzzyKcatMatching.m.
 
     For each selected reaction, the EC string in
     ``model.ec.eccodes[i]`` is split on ``;`` into one or more EC

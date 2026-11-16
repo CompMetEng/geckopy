@@ -14,7 +14,7 @@ difference. The default scan is the 0.01 grid of GECKO's
 ``[0, 1000]`` first, and stay open on the fitted model.
 
 Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
+src/kcat_tuning/sigmaFitter.m.
 """
 from __future__ import annotations
 
@@ -84,9 +84,7 @@ def _growth_at_sigma(
 
 
 def _sigma_error_pct(growth: float, growth_rate: float) -> float:
-    if growth_rate != 0:
-        return abs((growth_rate - growth) / growth_rate) * 100.0
-    return abs(growth) * 100.0
+    return abs((growth_rate - growth) / growth_rate) * 100.0
 
 
 def fit_sigma(
@@ -120,7 +118,7 @@ def fit_sigma(
     is re-applied to ``model`` before return.
 
     Ported from GECKO MATLAB:
-    src/geckomat/kcat_sensitivity_analysis/sigmaFitter.m.
+    src/kcat_tuning/sigmaFitter.m.
 
     Parameters
     ----------
@@ -157,7 +155,8 @@ def fit_sigma(
     ------
     ValueError
         If ``model.adapter`` is None and any default is needed; if
-        ``n_sigma_steps`` is < 1; or if ``method`` is unknown.
+        ``growth_rate`` is not above 0 (also NaN); if ``n_sigma_steps`` is < 1; or if ``method``
+        is unknown.
     """
     if n_sigma_steps < 1:
         raise ValueError(f"n_sigma_steps must be >= 1, got {n_sigma_steps}")
@@ -174,17 +173,19 @@ def fit_sigma(
         )
     params = model.adapter.params if model.adapter is not None else None
 
-    # sigmaFitter.m opens the bounds of the objective for good.
-    for rxn in model.reactions:
-        if rxn.objective_coefficient != 0:
-            rxn.bounds = (0.0, 1000.0)
-
     if growth_rate is None:
         growth_rate = float(params.gr_exp)
+    if not growth_rate > 0:  # also NaN
+        raise ValueError(f"growth_rate is {growth_rate}; fit_sigma needs a target growth rate above 0.")
     if p_tot is None:
         p_tot = float(params.p_tot)
     if f is None:
         f = float(params.f)
+
+    # sigmaFitter.m opens the bounds of the objective for good.
+    for rxn in model.reactions:
+        if rxn.objective_coefficient != 0:
+            rxn.bounds = (0.0, 1000.0)
 
     plateau_sigma: Optional[float] = None
     if method == "grid":
@@ -255,32 +256,4 @@ def fit_sigma(
         sigma_grid=sigma_grid,
         growth_grid=growth_grid,
         error_grid=error_grid,
-    )
-
-
-def sigma_fitter(
-    model: "EcModel",
-    *,
-    growth_rate: Optional[float] = None,
-    p_tot: Optional[float] = None,
-    f: Optional[float] = None,
-    n_sigma_steps: int = 100,
-) -> SigmaFitterResult:
-    """Deprecated alias for :func:`fit_sigma`.
-
-    Kept for backward compatibility. Will be removed in a future
-    release; switch to ``fit_sigma``.
-    """
-    import warnings
-
-    warnings.warn(
-        "sigma_fitter is deprecated; use fit_sigma instead. "
-        "The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return fit_sigma(
-        model,
-        growth_rate=growth_rate, p_tot=p_tot, f=f,
-        n_sigma_steps=n_sigma_steps,
     )

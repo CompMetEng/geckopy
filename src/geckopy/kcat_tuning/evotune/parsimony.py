@@ -11,8 +11,7 @@ The tuner returns the best-RMSE particle, which on the full ecYeastGEM
 model moves ~99% of kcats by ~8 prior sigmas. Reverting the least-moved
 of those to their priors costs nothing up to about 3 sigma and beats
 the shrunk "blend" estimate at every sparsity level, so a frontier is a
-more honest report than either single vector. See
-``docs/internal/matlab_replication_results.md``.
+more honest report than either single vector.
 """
 from __future__ import annotations
 

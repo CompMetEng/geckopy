@@ -1,7 +1,7 @@
 """Compute per-enzyme usage info from a flux distribution.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/enzymeUsage.m.
+src/deprecated/enzymeUsage.m.
 """
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def enzyme_usage(
       :attr:`Enzyme.cap_usage` and GECKO MATLAB's ``getEnzymeUsage`` give).
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/enzymeUsage.m.
+    src/deprecated/enzymeUsage.m.
 
     Parameters
     ----------

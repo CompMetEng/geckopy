@@ -269,3 +269,21 @@ def test_default_okp_methods_are_kinform_h_and_a_project_list_is_kept(tmp_path):
     assert okp_methods(kcat_assignment_config(adapter)) == ["KinForm-H"]
     adapter.params.kcat_sources["okp"] = {"methods": ["CataPro", "UniKP"]}
     assert okp_methods(kcat_assignment_config(adapter)) == ["CataPro", "UniKP"]
+
+
+@pytest.mark.parametrize("method", ["CatPred", "TurNup"])
+def test_reaction_okp_methods_are_unknown_in_methods(tmp_path, method):
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_methods
+
+    _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
+    adapter.params.kcat_sources["okp"] = {"methods": [method]}
+    with pytest.raises(ValueError, match="Unknown OKP methods"):
+        okp_methods(kcat_assignment_config(adapter))
+
+
+def test_okp_source_file_of_no_known_method_fails_naming_the_file(tmp_path):
+    model, adapter, project = _project(
+        tmp_path, '[[kcat_assignment.stage]]\nsources = ["okp_nosuchmethod"]\n')
+    report = update_kcat_sources(model, adapter=adapter).set_index("source")
+    assert report.loc["okp_nosuchmethod", "status"] == "failed"
+    assert "okp_nosuchmethod is not the source file of a known OKP method" in report.loc["okp_nosuchmethod", "note"]

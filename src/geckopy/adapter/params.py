@@ -2,8 +2,8 @@
 
 ``KeggParams``, ``UniprotParams``, ``ComplexParams``, and the core fields
 of ``ModelParameters`` mirror the ``obj.params.*`` fields set in GECKO
-MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings; ``OkpParams`` is a
-geckopy-only extension with no MATLAB equivalent.
+MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings and
+``OkpParams`` the OpenKineticsPredictor request settings.
 
 Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
@@ -287,20 +287,14 @@ class EvotuneParams(BaseModel):
 class OkpParams(BaseModel):
     """OpenKineticsPredictor settings (used by kcats_from_okp).
 
+    The OKP methods are set in ``[kcat_sources.okp] methods``.
+
     The API key is intentionally NOT here (it is a secret): provide it as a
     function argument, the OKP_API_KEY environment variable, or the file
     ``<path>/data/okpApiKey.txt``.
     """
     model_config = ConfigDict(extra="forbid")
 
-    method: str = Field(
-        default="KinForm-H",
-        description=(
-            "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
-            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "
-            "(see GET /api/v1/methods/)."
-        ),
-    )
     handle_long_sequences: str = Field(
         default="truncate",
         description="How OKP handles sequences exceeding a method's max length.",

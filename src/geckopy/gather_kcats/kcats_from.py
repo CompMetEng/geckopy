@@ -22,7 +22,7 @@ import pandas as pd
 from ..databases import load_brenda_data, load_brenda_measurements, load_dlkcat_ignore_lists, load_phyl_dist
 from .ec_tree import ECTree
 from .fuzzy_kcat_matching import fuzzy_kcat_matching
-from .kcat_sources import format_number, kcat_source_file, save_kcat_source
+from .kcat_sources import format_number, kcat_source_file, okp_file, save_kcat_source
 from .open_kinetics_predictor.run import _fetch_open_kinetics_predictor, _submit_open_kinetics_predictor
 from .open_kinetics_predictor.parse_output import _parse_okp_output
 from .read_dlkcat_output import _read_dlkcat_output
@@ -417,8 +417,8 @@ def kcats_from_okp(
     model
         EcModel with metabolite SMILES and protein sequences.
     method
-        OKP method, e.g. ``"CataPro"``, ``"CatRange"``, ``"UniKP"`` (default:
-        ``params.okp.method``).
+        OKP method, e.g. ``"CataPro"``, ``"CatRange"``, ``"UniKP"`` (default: the
+        first of ``[kcat_sources.okp] methods``, ``"KinForm-H"`` unless set).
     wait
         Wait until the job is done.
     resubmit
@@ -442,16 +442,19 @@ def kcats_from_okp(
     """
     adapter = _adapter(model, adapter, "kcats_from_okp needs params.path")
     if not method:
-        method = adapter.params.okp.method
+        from .kcat_assignment import default_okp_method
+
+        method = default_okp_method(adapter)
     if method in ("CatPred", "TurNup"):
         raise ValueError(f"{method} reads whole reactions (substrate set{', and products' if method == 'TurNup' else ''}); "
                          "kcats_from_okp submits enzyme-substrate pairs only.")
     ec_rxns = _rxn_subset(ec_rxns)
-    tag = re.sub(r"[^A-Za-z0-9]+", "_", method).lower()
+    name_default = okp_file(method)
+    tag = name_default[len("okp_"):]
     data_dir = Path(adapter.params.path) / "data"
     job_file = data_dir / f"OKP_job_{tag}.txt"
     out_file = data_dir / f"OKP_output_{tag}.csv"
-    name = save_as or f"okp_{tag}"
+    name = save_as or name_default
     job = _read_job_file(job_file)
     submitting = not use_stored and (resubmit or "jobId" not in job)
     if ec_rxns is not None and not submitting:

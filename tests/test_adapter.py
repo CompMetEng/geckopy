@@ -268,7 +268,7 @@ def test_uniprot_table_lookup_reads_quoted_cells_and_first_duplicate(tmp_path):
     assert result == ["P12345", "P67890"]
 
 
-def test_default_okp_method_is_kinform_h():
-    from geckopy.adapter.params import ModelParameters
+def test_okp_section_has_no_method():
+    from geckopy.adapter.params import OkpParams
 
-    assert ModelParameters.model_fields["okp"].get_default(call_default_factory=True).method == "KinForm-H"
+    assert "method" not in OkpParams.model_fields

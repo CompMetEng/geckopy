@@ -186,8 +186,6 @@ def _resolve_context(model, adapter, params, evotune_data, bio_rxn, okp_method):
         if adapter is None:
             raise ValueError("bio_rxn not given and model has no adapter.")
         bio_rxn = adapter.params.bio_rxn
-    if okp_method is None and adapter is not None:
-        okp_method = adapter.params.okp.method
     return params, evotune_data, bio_rxn, okp_method
 
 

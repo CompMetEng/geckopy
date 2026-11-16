@@ -466,3 +466,39 @@ def test_kcats_from_dlkcat_run_is_docker(tmp_path, monkeypatch):
     assert done and ran == ["write", "run"]
     _, meta = read_kcat_source(tmp_path / "data" / "kcats" / "dlkcat.tsv")
     assert meta["parameters"] == '{"run":true}'
+
+
+def test_kcats_from_okp_default_method_is_first_of_methods(tmp_path, monkeypatch):
+    """Without a method, kcats_from_okp uses the first entry of [kcat_sources.okp] methods
+    (KinForm-H when the project lists none)."""
+    adapter = _adapter(tmp_path)
+    full = _model(adapter, light=False)
+    submitted = []
+
+    def fake_submit(model, **kw):
+        submitted.append(kw["method"])
+        return "job"
+
+    monkeypatch.setattr(kcats_from_module, "_submit_open_kinetics_predictor", fake_submit)
+    monkeypatch.setattr(kcats_from_module, "_fetch_open_kinetics_predictor", lambda model, **kw: (False, None))
+    assert kcats_from_okp(full, save=False) == (None, False)
+    adapter.params.kcat_sources["okp"] = {"methods": ["UniKP", "CataPro"]}
+    kcats_from_okp(full, save=False, resubmit=True)
+    assert submitted == ["KinForm-H", "UniKP"]
+
+
+@pytest.mark.parametrize("method", ["CatPred", "TurNup"])
+def test_kcats_from_okp_rejects_reaction_methods(tmp_path, method):
+    full = _model(_adapter(tmp_path), light=False)
+    with pytest.raises(ValueError, match="enzyme-substrate pairs only"):
+        kcats_from_okp(full, method=method)
+
+
+@pytest.mark.parametrize("method, file", [
+    ("KinForm-H", "okp_kinform_h"), ("OmniESI-O2DENet", "okp_omniesi_o2denet"), ("UniKP", "okp_unikp"),
+])
+def test_okp_file_names(method, file):
+    from geckopy.gather_kcats.kcat_sources import okp_file, okp_method_of_file
+
+    assert okp_file(method) == file
+    assert okp_method_of_file(file) == method

@@ -473,6 +473,7 @@ def test_kcats_from_okp_default_method_is_first_of_methods(tmp_path, monkeypatch
     (KinForm-H when the project lists none)."""
     adapter = _adapter(tmp_path)
     full = _model(adapter, light=False)
+    (tmp_path / "data").mkdir()
     submitted = []
 
     def fake_submit(model, **kw):
@@ -502,3 +503,9 @@ def test_okp_file_names(method, file):
 
     assert okp_file(method) == file
     assert okp_method_of_file(file) == method
+
+
+def test_kcats_from_brenda_rejects_an_invalid_aggregation(tmp_path):
+    full = _model(_adapter(tmp_path), light=False)
+    with pytest.raises(ValueError, match="^aggregation must be max or median$"):
+        kcats_from_brenda(full, aggregation="mean")

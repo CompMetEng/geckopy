@@ -91,7 +91,9 @@ def kcats_from_brenda(
         EcModel with EC numbers.
     aggregation
         Which BRENDA value per EC number, substrate and organism is used:
-        ``"max"`` or ``"median"`` (default: ``params.kcat_aggregate_brenda``).
+        ``"max"`` or ``"median"`` (default: ``[kcat_sources.brenda] aggregation``
+        as the kcat assignment resolves it: median for the default preset
+        ``brenda_ec_tree``, max for ``gecko_classic``).
     force_wildcard_level
         Force a minimum wildcard level in the EC numbers.
     ec_rxns
@@ -113,10 +115,12 @@ def kcats_from_brenda(
     """
     adapter = _adapter(model, adapter, "kcats_from_brenda needs the BRENDA folder and params")
     if aggregation is None:
-        aggregation = adapter.params.kcat_aggregate_brenda
+        from .kcat_assignment import brenda_aggregation
+
+        aggregation = brenda_aggregation(adapter)
     aggregation = aggregation.lower()
     if aggregation not in ("max", "median"):
-        raise ValueError("aggregation must be 'max' or 'median'")
+        raise ValueError("aggregation must be max or median")
     ec_rxns = _rxn_subset(ec_rxns)
     if save:
         path = kcat_source_file(save_as, model=model, adapter=adapter)  # fails before the matching

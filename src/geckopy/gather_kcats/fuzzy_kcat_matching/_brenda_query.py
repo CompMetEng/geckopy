@@ -125,7 +125,7 @@ def _aggregate_kcats(kcats: np.ndarray, how: str) -> float:
         return float(np.median(kcats))
     if how == "max":
         return float(np.max(kcats))
-    raise ValueError(f"aggregate must be 'max' or 'median', got {how!r}")
+    raise ValueError("aggregation must be max or median")
 
 
 def match_kcat(

@@ -9,9 +9,6 @@ gr_exp	gR_exp	0.41	Growth rate the model should reach when not limited by nutrie
 c_source	c_source	""	Exchange reaction of the main carbon source
 bio_rxn	bioRxn	""	Biomass pseudoreaction
 enzyme_comp	enzyme_comp	"cytoplasm"	Compartment of the protein pseudometabolites
-kcat_aggregate_brenda	kcatAggregation	"max"	BRENDA aggregate read by fuzzyKcatMatching: max or median
-kcat_aggregate_candidates		"max"	Aggregation of several candidate kcats for one reaction (geckopy)
-kcat_aggregate_isozymes		"mean"	Aggregation of isozyme kcats when filling a missing value (geckopy)
 kegg.id	kegg.ID	""	KEGG organism code
 kegg.gene_id	kegg.geneID	"kegg"	Field in the KEGG entry that matches model gene identifiers
 uniprot.type	uniprot.type	"taxonomy"	Whether uniprot.id is a taxonomy or a proteome identifier

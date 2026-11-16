@@ -156,9 +156,9 @@ def fuzzy_kcat_matching(
         How to collapse the BRENDA rows matched at a search level to one
         kcat: ``"max"`` (the highest reported turnover) or ``"median"``
         (more robust to assay outliers / engineered mutants). ``None``
-        (default) reads the value from
-        ``model.adapter.params.kcat_aggregate_brenda``, which itself
-        defaults to ``"max"``.
+        (default) reads ``[kcat_sources.brenda] aggregation`` of the adapter
+        as the kcat assignment resolves it: median for the default preset
+        ``brenda_ec_tree``, max for ``gecko_classic``.
 
         The choice sets both aggregation layers consistently: it selects
         the matching snapshot view (``brenda.kcat_for(aggregate)`` /
@@ -199,7 +199,9 @@ def fuzzy_kcat_matching(
         )
 
     if aggregate is None:
-        aggregate = adapter.params.kcat_aggregate_brenda
+        from ..kcat_assignment import brenda_aggregation
+
+        aggregate = brenda_aggregation(adapter)
     organism_name = (adapter.params.org_name or "").strip()
 
     n = model.ec.n_rxns

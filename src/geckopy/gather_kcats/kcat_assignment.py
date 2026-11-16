@@ -122,6 +122,17 @@ def okp_methods(config: KcatAssignmentConfig) -> list[str]:
     return list(methods)
 
 
+def brenda_aggregation(adapter: "ModelAdapter") -> str:
+    """The BRENDA aggregation of the adapter: ``[kcat_sources.brenda] aggregation``.
+
+    As the kcat assignment config resolves it: the preset's value (median for
+    ``brenda_ec_tree`` and the other median presets, max for ``gecko_classic``)
+    unless the file sets it. ``max`` when neither the preset nor the file sets it
+    (the ``okp`` preset, or stages without a ``[kcat_sources.brenda]`` table).
+    """
+    return str(kcat_assignment_config(adapter).sources.get("brenda", {}).get("aggregation", "max"))
+
+
 def default_okp_method(adapter: "ModelAdapter") -> str:
     """The OKP method used when none is given: the first of ``[kcat_sources.okp] methods``."""
     return okp_methods(kcat_assignment_config(adapter))[0]

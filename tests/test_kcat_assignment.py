@@ -277,8 +277,12 @@ def test_reaction_okp_methods_are_unknown_in_methods(tmp_path, method):
 
     _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
     adapter.params.kcat_sources["okp"] = {"methods": [method]}
-    with pytest.raises(ValueError, match="Unknown OKP methods"):
+    from geckopy.gather_kcats.kcat_sources import OKP_METHODS
+
+    with pytest.raises(ValueError) as err:
         okp_methods(kcat_assignment_config(adapter))
+    assert str(err.value) == (
+        f"Unknown OKP methods in [kcat_sources.okp] methods: {method}; methods: {', '.join(OKP_METHODS)}.")
 
 
 def test_okp_source_file_of_no_known_method_fails_naming_the_file(tmp_path):
@@ -286,4 +290,24 @@ def test_okp_source_file_of_no_known_method_fails_naming_the_file(tmp_path):
         tmp_path, '[[kcat_assignment.stage]]\nsources = ["okp_nosuchmethod"]\n')
     report = update_kcat_sources(model, adapter=adapter).set_index("source")
     assert report.loc["okp_nosuchmethod", "status"] == "failed"
-    assert "okp_nosuchmethod is not the source file of a known OKP method" in report.loc["okp_nosuchmethod", "note"]
+    from geckopy.gather_kcats.kcat_sources import OKP_METHODS, okp_file
+
+    assert report.loc["okp_nosuchmethod", "note"] == (
+        "okp_nosuchmethod is not the file of a known OKP method; the files are "
+        f"{', '.join(okp_file(m) for m in OKP_METHODS)}.")
+
+
+def test_direct_kcats_from_brenda_follows_preset_or_stages(tmp_path):
+    """Without an aggregation: the median under a preset, the maximum under stages without a brenda table."""
+    from geckopy.gather_kcats import read_kcat_source
+
+    model, adapter, project = _project(tmp_path / "preset", '[kcat_assignment]\npreset = "brenda_ec_tree"\n')
+    kcats_from_brenda(model, adapter=adapter)
+    _, meta = read_kcat_source(project / "data" / "kcats" / "brenda.tsv")
+    assert '"aggregation":"median"' in meta["parameters"]
+
+    model, adapter, project = _project(
+        tmp_path / "stages", '[[kcat_assignment.stage]]\nsources = ["custom", "database_top"]\n')
+    kcats_from_brenda(model, adapter=adapter)
+    _, meta = read_kcat_source(project / "data" / "kcats" / "brenda.tsv")
+    assert '"aggregation":"max"' in meta["parameters"]

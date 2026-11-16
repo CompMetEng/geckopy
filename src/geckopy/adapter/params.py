@@ -321,38 +321,6 @@ class ModelParameters(BaseModel):
         description="Compartment where protein pseudometabolites are placed",
     )
 
-    # kcat-aggregation defaults applied when the matching function is called
-    # without an explicit aggregate/criteria argument. One field per function
-    # so each can keep its MATLAB-GECKO default while still being centrally
-    # overridable on the adapter. See docs/kcat_aggregation.md for the
-    # empirical rationale for offering `median` as an alternative to `max`.
-    kcat_aggregate_brenda: Literal["max", "median"] = Field(
-        default="max",
-        description=(
-            "Default aggregation for `fuzzy_kcat_matching` when no `aggregate` "
-            "is passed: collapse the BRENDA rows matched at one search level "
-            "to a single kcat. `max` matches MATLAB GECKO; `median` is more "
-            "robust to engineered-mutant/non-physiological-substrate tails."
-        ),
-    )
-    kcat_aggregate_candidates: Literal["max", "min", "median", "mean"] = Field(
-        default="max",
-        description=(
-            "Default aggregation for `apply_kcat_list` when no `criteria` is "
-            "passed: collapse multiple candidate kcats for the same reaction "
-            "(e.g. several EC tokens per reaction) to one. `max` matches "
-            "MATLAB GECKO."
-        ),
-    )
-    kcat_aggregate_isozymes: Literal["max", "median", "mean"] = Field(
-        default="mean",
-        description=(
-            "Default aggregation for `fill_kcats_from_isozymes` when no "
-            "`aggregate` is passed: combine known kcats across sibling "
-            "isozymes to fill a missing entry. `mean` matches MATLAB GECKO."
-        ),
-    )
-
     kegg: KeggParams = Field(default_factory=KeggParams)
     uniprot: UniprotParams = Field(default_factory=UniprotParams)
     complex: ComplexParams = Field(default_factory=ComplexParams)

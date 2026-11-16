@@ -5,12 +5,14 @@ organism) max and the per-triple median of all raw measurements that
 fell into the triple. They live in the same `kcat.tsv` / `sa.tsv` file
 distinguished by an `aggregation` column; `load_brenda_data` splits
 them into `BrendaData.kcat_max` / `.kcat_median` (and `.sa_*`) so
-consumers never see doubled-up rows. The default
-(`kcat_aggregate_brenda = "max"` on `ModelParameters`) preserves
-MATLAB-GECKO behaviour; flipping that field to `"median"` (or passing
-`fuzzy_kcat_matching(aggregate="median")` per call) makes both
-aggregation layers — the per-triple snapshot view and the per-EC
-runtime collapse — use median together.
+consumers never see doubled-up rows. The setting
+`[kcat_sources.brenda] aggregation` chooses between them: the default
+preset `brenda_ec_tree` uses `"median"`, and `gecko_classic` uses `"max"`,
+which is the GECKO 3 behaviour. A call such as `kcats_from_brenda` or
+`fuzzy_kcat_matching` without an explicit aggregation takes that value
+(`fuzzy_kcat_matching(aggregate="max")` overrides it per call). Either
+value makes both aggregation layers — the per-triple snapshot view and
+the per-EC runtime collapse — use the same aggregation together.
 
 This document quantifies the two layers separately by walking the raw
 BRENDA JSON (BRENDA release 2026.1, ~57 900 raw kcat rows, ~39 000
@@ -56,7 +58,7 @@ triples to a single per-EC kcat. There are four possible
 |---|---|---|---|
 | max | max | **maxmax** | historical default (MATLAB GECKO) |
 | max | median | **maxmed** | the runtime-only median flag we had before |
-| median | median | **medmed** | adapter `kcat_aggregate_brenda="median"` |
+| median | median | **medmed** | `[kcat_sources.brenda] aggregation = "median"` |
 | median | max | medmax | unused; included for symmetry |
 
 `log10` spreads:
@@ -81,7 +83,7 @@ typical BRENDA assay; for 8.6 % it is ≥ 1 000× above. Most of that
 comes from the runtime aggregation layer (`maxmax / maxmed` ≈ 1.38),
 with a small further bias from the snapshot layer (`maxmed / medmed`
 ≈ 0.06). Both swap together when the user sets
-`kcat_aggregate_brenda = "median"`.
+`[kcat_sources.brenda] aggregation = "median"`.
 
 | EC | n | max [1/s] | median [1/s] | max / median |
 |---:|---:|---:|---:|---:|

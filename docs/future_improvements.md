@@ -64,7 +64,7 @@ keep an in-flight release on schedule.
   a range (e.g. `"0.1-2.5"`) is collapsed to its upper bound
   unconditionally in `parse_brenda_json`. After the kcat-aggregation
   refactor moved the rest of the pipeline to be configurable
-  (`kcat_aggregate_brenda = "max" | "median"`), this is the one
+  (`[kcat_sources.brenda] aggregation = "max" | "median"`), this is the one
   residual max-leaning step. Honouring the adapter setting here
   would make every layer consistent. Small effect (only rows
   reported as ranges) — deferred.

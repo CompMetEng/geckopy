@@ -27,9 +27,9 @@ reviewed = true
 [complex]
 taxonomic_id = 559292
 
-# Kcat assignment (assign_kcats): the stages of the gecko_median preset,
-# with the BRENDA aggregation that kcats_from_brenda takes from
-# kcat_aggregate_brenda (the maximum).
+# Kcat assignment (assign_kcats): the stages of the gecko_median preset. There
+# is no [kcat_sources.brenda] table, so the stages use the BRENDA maximum, not
+# the median of the preset.
 [[kcat_assignment.stage]]
 sources = ["custom", "database_top", "dlkcat", "database_bottom"]
 top_origin_limit = 4
@@ -55,7 +55,7 @@ max_growth_weight = 2.0
 # sigma0_log_default.
 [evotune.source_groups.dlkcat]
 sources = ["dlkcat"]
-sigma0_log = 0.4
+sigma0_log = 0.3
 
 [evotune.source_groups.brenda]
 sources = ["brenda"]

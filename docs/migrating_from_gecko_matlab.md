@@ -228,7 +228,7 @@ Each row maps a MATLAB function to its geckopy equivalent. The
 | `applyKcatConstraints`       | `apply_kcat_constraints`      | **`[3→4]`** Writes coefficients with the forward-direction `usage_prot_*` / `prot_pool_exchange` convention.                                                                  |
 | `findMetSmiles`              | `find_met_smiles`             | **`[Py]`** Asynchronous PubChem cache via `requests`; uses a TSV cache (`data/smilesDB.tsv`) so re-runs are offline.                                                          |
 | `getComplexData`             | `get_complex_data`            | —                                                                                                                                                                              |
-| `getKcatAcrossIsozymes`      | `fill_kcats_from_isozymes`    | **`[Py]`** Renamed. Aggregation strategy (`max` / `median` / `mean`) is adapter-configurable via `kcat_aggregate_isozymes`. |
+| `getKcatAcrossIsozymes`      | `fill_kcats_from_isozymes`    | **`[Py]`** Renamed. The `aggregate` argument (`mean`, `median` or `max`) defaults to `mean`. |
 | `getReactionsFromEnzyme`     | `get_reactions_from_enzyme`   | **`[Py]`** Returns one `DataFrame` instead of five parallel cells.                                                                                                            |
 | `setKcatForReactions`        | `set_kcat_for_reactions`      | Matches IDs without regard to letter case, ignores an unknown ID and does not apply the constraints unless `apply=True`, as `setKcatForReactions`; a light-model row is addressed by its `###_` ID.                    |
 | `setProtPoolSize`            | `set_prot_pool_size`          | **`[3→4]`** Sets the **upper** bound of `prot_pool_exchange` (forward direction).                                                                                              |
@@ -422,8 +422,10 @@ JSON; bare EC numbers, plain organism names, `#` release header,
 `references` column). GECKO 3's `max_KCAT.txt` etc. are no longer
 read. **`[Py]`** geckopy additionally includes both **max** and
 **median** rows per (ec, substrate, organism) triple in one file,
-distinguished by an `aggregation` column. The default
-`kcat_aggregate_brenda = "max"` preserves MATLAB-GECKO behaviour.
+distinguished by an `aggregation` column. The
+setting `[kcat_sources.brenda] aggregation` chooses one: the default
+preset `brenda_ec_tree` uses `"median"`; `gecko_classic` uses `"max"`, the
+GECKO 3 behaviour.
 See [kcat_aggregation.md](kcat_aggregation.md).
 
 ---

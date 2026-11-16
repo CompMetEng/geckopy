@@ -143,6 +143,14 @@ def cmd_upgrade(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_adapter_show(args: argparse.Namespace) -> int:
+    """Print every parameter of the project's adapter, with its value and origin."""
+    from .adapter import ModelAdapter, show_adapter_params
+
+    show_adapter_params(ModelAdapter.from_folder(args.folder))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="geckopy", description="Command-line interface for geckopy."
@@ -226,6 +234,15 @@ def main(argv: list[str] | None = None) -> int:
         "--ec-model", help="The full ecModel (YAML) the custom kcats and stored predictions are for",
     )
     upgrade_parser.set_defaults(func=cmd_upgrade)
+
+    adapter_parser = sub.add_parser("adapter", help="Inspect the model adapter of a project")
+    adapter_sub = adapter_parser.add_subparsers(dest="adapter_command", required=True)
+    show_parser = adapter_sub.add_parser(
+        "show",
+        help="Print every parameter of model_adapter.toml with its value and origin (file, preset or default)",
+    )
+    show_parser.add_argument("folder", nargs="?", default=".", help="Project folder (default: the current folder)")
+    show_parser.set_defaults(func=cmd_adapter_show)
 
     args = parser.parse_args(argv)
     return args.func(args)

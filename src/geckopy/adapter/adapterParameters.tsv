@@ -18,8 +18,8 @@ uniprot.reviewed	uniprot.reviewed	false	Use only reviewed (Swiss-Prot) entries
 complex.taxonomic_id	complex.taxonomicID		Taxonomy identifier for Complex Portal
 spontaneous.name_contains	spontaneous.name_contains		Reactions whose name contains this text are spontaneous
 spontaneous.file	spontaneous.file		TSV of spontaneous reactions, relative to the project folder: reaction identifiers, optionally a 0/1 column
-evotune.sigma0_log_default	evotune.sigma0logDefault	0.5	Prior standard deviation of the natural log of the kcat, for kcats whose source is in no group
-evotune.source_groups	evotune.kcatSources	{ custom = { sources = ["custom"], sigma0_log = 0.1 }, brenda = { sources = ["brenda"], sigma0_log = 0.2 }, ec_tree = { sources = ["ec_tree"], sigma0_log = 0.3 }, combined = { sources = ["combined"], sigma0_log = 0.4 } }	Trust tiers, one table per group ([evotune.source_groups.<group>]): sources, the ec.source labels the group covers (an entry ending in * is a prefix pattern on the origin, e.g. okp_*), and sigma0_log, the prior standard deviation of the natural log of the kcat (the sd of a combined kcat in ec.source is log10). Groups given in the file replace the defaults
+evotune.sigma0_log_default	evotune.sigma0logDefault	0.5	Prior standard deviation of the natural log of the kcat, for kcats that match no source group
+evotune.source_groups	evotune.kcatSources		Trust tiers, one table per group with sources (ec.source origins, or prefixes ending in *, such as okp_*) and sigma0_log (standard deviation of the natural log of the kcat; the sd of a combined kcat is log10). Default groups: custom 0.1, brenda 0.2, ec_tree 0.3, combined 0.4
 evotune.rmse_threshold	evotune.rmseThreshold	0.2	Stop when the best RMSE reaches this
 evotune.max_generations	evotune.maxGenerations	150	Maximum number of CMA-ES generations
 evotune.max_growth_weight	evotune.maxGrowthWeight	1.0	Weight of the maximum-growth RMSE against the flux RMSE
@@ -32,6 +32,6 @@ kcat_assignment.preset			Kcat assignment preset: brenda_ec_tree (used when neith
 kcat_assignment.isozymes		true	Fill reactions without a kcat from their isozymes after the stages
 kcat_assignment.standard		true	Give the remaining reactions the standard kcat
 kcat_assignment.stage			Stages instead of a preset: action (select or combine), sources, criteria and BRENDA limits ([[kcat_assignment.stage]])
-kcat_sources			Settings per kcat source, [kcat_sources.<name>]: brenda (aggregation, force_wildcard_level), ec_tree (k), homologs (k, min_identity, coverage), okp (methods: the OKP methods of the okp source group, default ["KinForm-H"]; the first is the default method of kcatsFromOKP), and no keys for custom, dlkcat and okp_<method>; other keys are errors
+kcat_sources			Settings per kcat source file: [kcat_sources.brenda] aggregation and force_wildcard_level, [kcat_sources.ec_tree] k, [kcat_sources.homologs] k, min_identity and coverage, [kcat_sources.okp] methods (the OKP methods of the okp source group; default KinForm-H)
 matlab.make_model_anaerobic	matlab.makeModelAnaerobic		MATLAB function that constrains the ecModel to anaerobic growth
 matlab.change_protein_biomass	matlab.changeProteinBiomass		MATLAB function that changes the protein content of the biomass

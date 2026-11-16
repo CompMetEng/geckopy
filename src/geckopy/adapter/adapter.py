@@ -33,7 +33,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .params import ModelParameters
+from .params import ModelParameters, check_adapter_keys
 
 if TYPE_CHECKING:
     import cobra
@@ -81,6 +81,8 @@ class ModelAdapter:
 
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
+
+        check_adapter_keys(data, config_path)
 
         # The path field is injected from the folder location, not the TOML,
         # so that the TOML file is location-independent.

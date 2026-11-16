@@ -196,3 +196,10 @@ def test_cli_kegg_download_invokes_function(tmp_path, monkeypatch, capsys):
     assert calls["args"][0] == "sce"
     assert calls["args"][2] == "kegg"
     assert out.exists()
+
+
+def test_template_lists_the_kcat_source_keys_after_the_sections():
+    text = generate_template_toml()
+    assert text.index("# [kcat_sources.brenda]") > text.index("# [evotune.source_groups.combined]")
+    for key in ("aggregation", "force_wildcard_level", "min_identity", "coverage", "methods"):
+        assert f"# {key} = " in text

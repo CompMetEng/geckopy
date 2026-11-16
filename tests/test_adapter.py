@@ -70,7 +70,7 @@ def test_missing_toml_raises(tmp_path):
 def test_unknown_field_rejected(tmp_path):
     bad_toml = MINIMAL_TOML + '\nsgma = 0.3\n'  # typo
     folder = _write_adapter_folder(tmp_path, bad_toml)
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError, match="unknown key sgma in model_adapter.toml"):
         ModelAdapter.from_folder(folder)
 
 
@@ -272,3 +272,47 @@ def test_okp_section_has_no_method():
     from geckopy.adapter.params import OkpParams
 
     assert "method" not in OkpParams.model_fields
+
+
+@pytest.mark.parametrize("extra, key", [
+    ("typo = 1\n", "typo"),
+    ("[kegg]\nidd = \"sce\"\n", "kegg.idd"),
+    ("[okp]\nmethod = \"CataPro\"\n", "okp.method"),
+    ("[evotune]\nmatch_okp = true\n", "evotune.match_okp"),
+    ("[evotune.source_groups.brenda]\nsources = [\"brenda\"]\nsigma0_log = 0.2\nmatch_okp = true\n",
+     "evotune.source_groups.brenda.match_okp"),
+    ("[evotune.sigma0_log_source]\nbrenda = 0.2\n", "evotune.sigma0_log_source"),
+    ("[[kcat_assignment.stage]]\nsources = [\"custom\"]\ncriterion = \"max\"\n", "kcat_assignment.stage.criterion"),
+    ("[kcat_sources.brenda]\naggregate = \"max\"\n", "kcat_sources.brenda.aggregate"),
+    ("[kcat_sources.okp_kinform_h]\nmethod = \"KinForm-H\"\n", "kcat_sources.okp_kinform_h.method"),
+    ("[kcat_sources.nosuchsource]\nk = 5\n", "kcat_sources.nosuchsource"),
+    ("[matlab]\nmake_model_anaerobicc = \"f\"\n", "matlab.make_model_anaerobicc"),
+    ("kcat_aggregate_brenda = \"max\"\n", "kcat_aggregate_brenda"),
+])
+def test_an_unknown_key_is_an_error_naming_file_and_key(tmp_path, extra, key):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + extra)
+    with pytest.raises(ValueError) as err:
+        ModelAdapter.from_folder(folder)
+    assert str(err.value) == f"{folder.resolve() / 'model_adapter.toml'}: unknown key {key} in model_adapter.toml"
+
+
+def test_known_kcat_source_keys_and_free_matlab_params_load(tmp_path):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + """\
+[kcat_sources.brenda]
+aggregation = "max"
+force_wildcard_level = 1
+[kcat_sources.ec_tree]
+k = 5
+[kcat_sources.homologs]
+k = 5
+min_identity = 0.4
+coverage = 0.5
+[kcat_sources.okp]
+methods = ["KinForm-H"]
+[kcat_sources.okp_kinform_h]
+[kcat_sources.custom]
+[kcat_sources.dlkcat]
+[matlab.params]
+anything = 1
+""")
+    assert ModelAdapter.from_folder(folder).params.kcat_sources["homologs"]["coverage"] == 0.5

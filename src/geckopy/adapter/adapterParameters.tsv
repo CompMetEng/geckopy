@@ -32,6 +32,6 @@ kcat_assignment.preset			Kcat assignment preset: brenda_ec_tree (used when neith
 kcat_assignment.isozymes		true	Fill reactions without a kcat from their isozymes after the stages
 kcat_assignment.standard		true	Give the remaining reactions the standard kcat
 kcat_assignment.stage			Stages instead of a preset: action (select or combine), sources, criteria and BRENDA limits ([[kcat_assignment.stage]])
-kcat_sources			Settings per kcat source file, e.g. [kcat_sources.brenda] aggregation; [kcat_sources.okp] methods lists the OKP methods of the okp source group
+kcat_sources			Settings per kcat source, [kcat_sources.<name>]: brenda (aggregation, force_wildcard_level), ec_tree (k), homologs (k, min_identity, coverage), okp (methods: the OKP methods of the okp source group, default ["KinForm-H"]; the first is the default method of kcatsFromOKP), and no keys for custom, dlkcat and okp_<method>; other keys are errors
 matlab.make_model_anaerobic	matlab.makeModelAnaerobic		MATLAB function that constrains the ecModel to anaerobic growth
 matlab.change_protein_biomass	matlab.changeProteinBiomass		MATLAB function that changes the protein content of the biomass

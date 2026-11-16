@@ -38,6 +38,24 @@ _SET_IN_TEMPLATE = {
     ],
 }
 
+# Written last: [kcat_sources.<name>] tables follow every other section's keys.
+_KCAT_SOURCES_EXAMPLE = [
+    "# Settings per kcat source. A preset sets the keys it needs; a table here",
+    "# overrides only the keys it sets. The keys each source reads:",
+    "# [kcat_sources.brenda]",
+    '# aggregation = "median"    # "max" or "median"',
+    "# force_wildcard_level = 0",
+    "# [kcat_sources.ec_tree]",
+    "# k = 5",
+    "# [kcat_sources.homologs]",
+    "# k = 5",
+    "# min_identity = 0.4",
+    "# coverage = 0.8",
+    "# [kcat_sources.okp]",
+    '# methods = ["KinForm-H"]   # the first is the default method of kcats_from_okp',
+    "",
+]
+
 
 def _format_toml_value(value: Any) -> str | None:
     """Format a Python value as a TOML literal, or None if unrepresentable."""
@@ -138,7 +156,7 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     sections: list[tuple[str, type[BaseModel]]] = []
 
     for name, field in ModelParameters.model_fields.items():
-        if name in _INJECTED_FIELDS:
+        if name in _INJECTED_FIELDS or name == "kcat_sources":
             continue
         if _is_nested_model(field.annotation):
             sections.append((name, field.annotation))
@@ -187,4 +205,5 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
                 lines.extend(f"# {key} = {_format_toml_value(val)}" for key, val in rule.model_dump().items())
                 lines.append("")
 
+    lines.extend(_KCAT_SOURCES_EXAMPLE)
     return "\n".join(lines) + "\n"

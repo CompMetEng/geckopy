@@ -7,8 +7,9 @@ MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings and
 
 Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
+import math
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -206,8 +207,10 @@ class EvotuneParams(BaseModel):
             "combined": SourceGroupRule(sources=["combined"], sigma0_log=0.4),
         },
         description=(
-            "Trust tiers: group name -> the ec.source labels it covers and its "
-            "sigma0_log. Groups given in the TOML replace the defaults."
+            "Trust tiers: group name -> the ec.source labels it covers (an entry "
+            "ending in * is a prefix pattern, e.g. okp_*) and its sigma0_log, the "
+            "standard deviation of the natural log of the kcat. Groups given in "
+            "the TOML replace the defaults."
         ),
     )
 
@@ -312,7 +315,8 @@ class ModelParameters(BaseModel):
         default=None,
         description=(
             "Growth rate the model should reach when not limited by nutrient "
-            "uptake [1/h]; no default, functions that need it fail when it is not set"
+            "uptake [1/h]. Required by the functions that tune kcats or fit "
+            "sigma; there is no default."
         ),
     )
 
@@ -339,3 +343,99 @@ class ModelParameters(BaseModel):
         description="Settings per kcat source file, e.g. kcat_sources.brenda.aggregation.",
     )
     matlab: MatlabParams = Field(default_factory=MatlabParams)
+
+
+#: The keys of ``[kcat_sources.<name>]`` that the kcat source gathering reads
+#: (``update_kcat_sources``): the source name and its keys. A source file
+#: ``okp_<method>`` has no keys.
+KCAT_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
+    "brenda": ("aggregation", "force_wildcard_level"),
+    "ec_tree": ("k",),
+    "homologs": ("k", "min_identity", "coverage"),
+    "okp": ("methods",),
+    "dlkcat": (),
+    "custom": (),
+}
+
+
+def _kcat_source_keys(name: str) -> Optional[tuple[str, ...]]:
+    """The allowed keys of ``[kcat_sources.<name>]``, or None for an unknown source."""
+    from ..gather_kcats.kcat_sources import OKP_METHODS, okp_file
+
+    if name in {okp_file(m) for m in OKP_METHODS}:
+        return ()
+    return KCAT_SOURCE_KEYS.get(name)
+
+
+def _check_table(cls: type[BaseModel], data: dict, prefix: str, file: Path | str) -> None:
+    for key, value in data.items():
+        dotted = f"{prefix}{key}"
+        field = cls.model_fields.get(key)
+        if field is None or (cls is ModelParameters and key == "path"):
+            raise ValueError(f"{file}: unknown key {dotted} in model_adapter.toml")
+        annotation = field.annotation
+        args = [a for a in get_args(annotation) if a is not type(None)]
+        if get_origin(annotation) is None and isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if isinstance(value, dict):
+                _check_table(annotation, value, dotted + ".", file)
+        elif get_origin(annotation) is list and args and issubclass(args[0], BaseModel):
+            for item in value if isinstance(value, list) else []:
+                if isinstance(item, dict):
+                    _check_table(args[0], item, dotted + ".", file)
+        elif get_origin(annotation) is dict and len(args) == 2 and isinstance(args[1], type) and issubclass(args[1], BaseModel):
+            for name, item in value.items() if isinstance(value, dict) else []:
+                if cls is EvotuneParams:
+                    _check_group(item, f"{dotted}.{name}", file)
+                if isinstance(item, dict):
+                    _check_table(args[1], item, f"{dotted}.{name}.", file)
+        elif cls is ModelParameters and key == "kcat_sources" and isinstance(value, dict):
+            for name, table in value.items():
+                allowed = _kcat_source_keys(name)
+                if allowed is None:
+                    raise ValueError(f"{file}: unknown key {dotted}.{name} in model_adapter.toml")
+                if not isinstance(table, dict):
+                    raise ValueError(f"{file}: {dotted}.{name} must be a table")
+                for k in table:
+                    if k not in allowed:
+                        raise ValueError(f"{file}: unknown key {dotted}.{name}.{k} in model_adapter.toml")
+                _check_source_values(name, table, file)
+
+
+def _check_source_values(name: str, table: dict, file: Path | str) -> None:
+    """The values of ``[kcat_sources.okp] methods`` and ``[kcat_sources.brenda] aggregation``."""
+    if name == "okp" and "methods" in table:
+        methods = table["methods"]
+        if not isinstance(methods, list) or not all(isinstance(m, str) for m in methods):
+            raise ValueError(f"{file}: kcat_sources.okp.methods must be a list of strings")
+        from ..gather_kcats.kcat_sources import check_okp_methods
+
+        check_okp_methods(methods)
+    if name == "brenda" and "aggregation" in table and table["aggregation"] not in ("max", "median"):
+        raise ValueError(f"{file}: kcat_sources.brenda.aggregation must be max or median")
+
+
+def _check_group(item: Any, dotted: str, file: Path | str) -> None:
+    """The shape of one ``[evotune.source_groups.<group>]`` table."""
+    if not isinstance(item, dict):
+        raise ValueError(f"{file}: {dotted} must be a table with sources and sigma0_log")
+    unknown = [k for k in item if k not in ("sources", "sigma0_log")]
+    if unknown:
+        raise ValueError(f"{file}: unknown key {dotted}.{unknown[0]} in model_adapter.toml")
+    if "sources" not in item or "sigma0_log" not in item:
+        raise ValueError(f"{file}: {dotted} needs both sources and sigma0_log")
+    sources, width = item["sources"], item["sigma0_log"]
+    if not isinstance(sources, list) or not sources or not all(isinstance(s, str) for s in sources):
+        raise ValueError(f"{file}: {dotted}.sources must be a non-empty list of strings")
+    if isinstance(width, bool) or not isinstance(width, (int, float)) or not math.isfinite(width) or not width > 0:
+        raise ValueError(f"{file}: {dotted}.sigma0_log must be a positive number")
+
+
+def check_adapter_keys(data: dict, file: Path | str) -> None:
+    """Raise ``ValueError`` for a key of model_adapter.toml that no parameter uses.
+
+    The message is ``<file>: unknown key <dotted.key> in model_adapter.toml``.
+    Every table is checked: the sections, ``evotune.source_groups.<group>``, the
+    ``kcat_assignment.stage`` entries and ``kcat_sources.<name>`` (see
+    :data:`KCAT_SOURCE_KEYS`). ``matlab.params`` is free-form.
+    """
+    _check_table(ModelParameters, data, "", file)

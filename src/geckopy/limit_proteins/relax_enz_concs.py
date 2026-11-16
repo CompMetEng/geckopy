@@ -60,7 +60,7 @@ def relax_enz_concs(
         ``ec.concs`` itself is left unchanged, as in
         ``flexibilize_enz_concs``.
     exp_growth
-        Target growth rate. Defaults to ``params.gr_exp``.
+        Target growth rate. Defaults to ``params.gr_exp``; raises ``ValueError`` when neither is set.
     bio_rxn
         Biomass reaction id. Defaults to ``params.bio_rxn``.
     per_complex
@@ -95,15 +95,11 @@ def relax_enz_concs(
     """
     from optlang.symbolics import add
 
-    from ..adapter import resolve_param
+    from ..adapter import resolve_gr_exp, resolve_param
 
     if weight not in ("relative", "absolute"):
         raise ValueError(f"weight must be 'relative' or 'absolute', not {weight!r}")
-    if exp_growth is None:
-        exp_growth = resolve_param(model, None, "gr_exp", purpose="relax_enz_concs needs `exp_growth`")
-        if exp_growth is None:
-            raise ValueError("exp_growth not provided and params.gr_exp is unset.")
-    exp_growth = float(exp_growth)
+    exp_growth = resolve_gr_exp(model, exp_growth, purpose="relax_enz_concs needs `exp_growth`")
     bio = model.reactions.get_by_id(
         resolve_param(model, bio_rxn, "bio_rxn", purpose="relax_enz_concs needs the biomass reaction id")
     )

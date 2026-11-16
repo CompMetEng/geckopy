@@ -308,7 +308,13 @@ class ModelParameters(BaseModel):
     sigma: float = Field(default=0.5, description="Average enzyme saturation factor")
     p_tot: float = Field(default=0.5, description="Total protein content [g/gDw]")
     f: float = Field(default=0.5, description="Fraction of enzymes in model [g/g]")
-    gr_exp: float = Field(default=0.41, description="Reference growth rate [1/h]")
+    gr_exp: Optional[float] = Field(
+        default=None,
+        description=(
+            "Growth rate the model should reach when not limited by nutrient "
+            "uptake [1/h]; no default, functions that need it fail when it is not set"
+        ),
+    )
 
     c_source: str = Field(
         default="", description="Reaction ID for preferred carbon source exchange"

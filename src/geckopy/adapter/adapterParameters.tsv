@@ -5,7 +5,7 @@ org_name	org_name		Scientific name of the organism
 sigma	sigma	0.5	Average enzyme saturation factor
 p_tot	Ptot	0.5	Total protein content [g protein/gDW]
 f	f	0.5	Fraction of enzymes in the model [g enzyme/g protein]
-gr_exp	gR_exp	0.41	Growth rate the model should reach when not limited by nutrient uptake [1/h]
+gr_exp	gR_exp		Growth rate the model should reach when not limited by nutrient uptake [1/h]; no default, functions that need it fail when it is not set
 c_source	c_source	""	Exchange reaction of the main carbon source
 bio_rxn	bioRxn	""	Biomass pseudoreaction
 enzyme_comp	enzyme_comp	"cytoplasm"	Compartment of the protein pseudometabolites

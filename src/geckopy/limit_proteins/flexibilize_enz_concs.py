@@ -17,7 +17,9 @@ package: same goal, different algorithm. This one ranks by control
 coefficient, relaxes gradually, and runs a tighten-back pass, so it
 yields the *minimal* (most proteomics-faithful) relaxation but is
 slower. ``relax_proteomics_greedy`` ranks by shadow price and fully
-unconstrains each selected enzyme, which is faster but looser.
+unconstrains each selected enzyme, which is faster but looser. The
+guide compares the methods:
+https://gecko-docs.readthedocs.io/en/latest/guide/relaxing-proteomics.html
 
 Ported from GECKO MATLAB:
 src/limit_proteins/flexibilizeEnzConcs.m.

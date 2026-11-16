@@ -115,7 +115,7 @@ def load_brenda_data(
     the raw measurements aggregated per (ec, substrate, organism)
     triple, so a project can opt into median aggregation via
     ``[kcat_sources.brenda] aggregation`` without regenerating the
-    snapshot. See ``docs/kcat_aggregation.md`` for the rationale.
+    snapshot. See https://gecko-docs.readthedocs.io/en/latest/guide/kcat-sources.html for the rationale.
 
     Malformed lines (wrong number of fields, non-numeric value column)
     are skipped with a ``logger.warning``; the rest of the file is

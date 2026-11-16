@@ -41,9 +41,7 @@ NO_MATCH_WC = 1000
 #   1: org+subs+kcat   2: any+subs+kcat   3: org+!subs+kcat
 #   4: any+!subs+kcat  5: org+SA          6: any+SA
 # but the SEARCH order tries org-SA (output 5) BEFORE any-no-subs-kcat
-# (output 4), matching MATLAB exactly -- see "Fix the search-order/
-# output-ranking inconsistency in fuzzyKcatMatching" in
-# docs/future_improvements.md.
+# (output 4), matching MATLAB exactly.
 SEARCH_LEVELS: list[tuple[bool, bool, bool, int]] = [
     (True,  True,  False, 1),
     (False, True,  False, 2),

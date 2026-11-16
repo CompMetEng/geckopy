@@ -164,7 +164,7 @@ def fuzzy_kcat_matching(
         the matching snapshot view (``brenda.kcat_for(aggregate)`` /
         ``brenda.sa_for(aggregate)``) and applies the same reduction
         across whichever rows survive the EC + organism + substrate
-        gates. See ``docs/kcat_aggregation.md`` for the empirical
+        gates. See https://gecko-docs.readthedocs.io/en/latest/guide/kcat-sources.html for the empirical
         rationale.
     adapter
         Model adapter for ``org_name`` and the aggregation default

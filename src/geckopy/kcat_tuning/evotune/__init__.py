@@ -1,6 +1,6 @@
 """Evotune: CMA-ES kcat tuning against experimental data.
 
-See ``docs/evotune_kcat_tuning.md`` for the walkthrough:
+See https://gecko-docs.readthedocs.io/en/latest/guide/evotune.html for the walkthrough:
 :func:`~.tuning.screen_kcat_leverage`, then
 :func:`~.tuning.select_tunable_mask`, then
 :func:`~.tuning.cmaes_kcat_tuning`.

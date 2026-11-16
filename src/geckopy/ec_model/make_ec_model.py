@@ -151,7 +151,7 @@ def make_ec_model(
         in ``ec.rxns`` distinguished by a 3-digit counter prefix
         (e.g. ``001_RXN1``, ``002_RXN1``). Suitable for large GEMs
         (HumanGEM, Recon3D) where the full layout's LP size becomes
-        impractical. See ``docs/gecko_light_status.md``.
+        impractical. See ``dev/gecko_light_status.md``.
     uniprot_db
         Pre-loaded UniprotDB. If None, the function loads
         ``adapter.params.path / "data" / "uniprot.tsv"``, and first

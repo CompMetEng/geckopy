@@ -263,7 +263,7 @@ print(f"Tuned {len(tuning_result.rxns)} kcats; "
 # %% [markdown]
 # Besides step-wise sensitivity tuning, kcats can be fitted to
 # experimental growth rates and exchange fluxes with CMA-ES
-# (`geckopy.kcat_tuning.evotune`; see docs/evotune_kcat_tuning.md):
+# (`geckopy.kcat_tuning.evotune`; see https://gecko-docs.readthedocs.io/en/latest/guide/evotune.html):
 #
 # ```python
 # from geckopy.kcat_tuning.evotune import (

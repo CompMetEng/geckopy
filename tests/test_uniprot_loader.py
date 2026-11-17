@@ -143,25 +143,14 @@ def test_raises_on_duplicate_entry(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# split_gene_cells option
+# Gene cell splitting
 # --------------------------------------------------------------------------- #
 
-def test_split_gene_cells_default_is_false(tmp_path):
-    """Without splitting (the default), multi-gene cells are stored
-    verbatim as a single string."""
+def test_multi_gene_cell_is_one_row_per_gene(tmp_path):
     path = _write_tsv(tmp_path / "u.tsv", [
         "P1\tG1 G2\t1.1.1.1\t10000\tMKAL",
     ])
     db = load_uniprot_tsv(path)
-    assert db.genes == ["G1 G2"]
-    assert db.ids == ["P1"]
-
-
-def test_split_gene_cells_expands_multi_gene_rows(tmp_path):
-    path = _write_tsv(tmp_path / "u.tsv", [
-        "P1\tG1 G2\t1.1.1.1\t10000\tMKAL",
-    ])
-    db = load_uniprot_tsv(path, split_gene_cells=True)
 
     assert db.genes == ["G1", "G2"]
     assert db.ids == ["P1", "P1"]
@@ -170,38 +159,49 @@ def test_split_gene_cells_expands_multi_gene_rows(tmp_path):
     assert db.sequences == ["MKAL", "MKAL"]
 
 
-def test_split_gene_cells_with_multiple_whitespace(tmp_path):
-    """Tabs and multiple spaces in the Gene Names cell all split."""
+def test_semicolon_separated_gene_cell_is_split(tmp_path):
+    path = _write_tsv(tmp_path / "u.tsv", [
+        "P1\tYPR080W; YBR118W\t\t10000\tMKAL",
+        "P2\tG3;G4 ;  G5;\t\t20000\tMNTD",
+    ])
+    db = load_uniprot_tsv(path)
+    assert db.genes == ["YPR080W", "YBR118W", "G3", "G4", "G5"]
+    assert db.ids == ["P1", "P1", "P2", "P2", "P2"]
+    assert db.find_by_gene("YBR118W") == 1
+
+
+def test_gene_cell_with_multiple_whitespace_is_split(tmp_path):
     path = _write_tsv(tmp_path / "u.tsv", [
         "P1\tG1  G2   G3\t\t10000\tMKAL",
     ])
-    db = load_uniprot_tsv(path, split_gene_cells=True)
+    db = load_uniprot_tsv(path)
     assert db.genes == ["G1", "G2", "G3"]
 
 
-def test_split_gene_cells_empty_cell_stays_empty(tmp_path):
+def test_empty_gene_cell_stays_one_row(tmp_path):
     """An empty Gene Names cell produces a single empty-string row,
     not zero rows. This preserves alignment with the source TSV."""
     path = _write_tsv(tmp_path / "u.tsv", [
         "P1\t\t1.1.1.1\t10000\tMKAL",
+        "P2\t ; \t1.1.1.1\t10000\tMKAL",
     ])
-    db = load_uniprot_tsv(path, split_gene_cells=True)
-    assert db.genes == [""]
-    assert db.ids == ["P1"]
+    db = load_uniprot_tsv(path)
+    assert db.genes == ["", ""]
+    assert db.ids == ["P1", "P2"]
 
 
-def test_split_gene_cells_does_not_flag_repetition_as_duplicate(tmp_path):
+def test_repeated_entry_from_splitting_is_not_a_duplicate(tmp_path):
     """Expanded rows share an Entry value, which is expected, not a duplicate."""
     path = _write_tsv(tmp_path / "u.tsv", [
         "P1\tG1 G2\t\t10000\tMKAL",
         "P2\tG3\t\t20000\tMNTD",
     ])
     # Should not raise.
-    db = load_uniprot_tsv(path, split_gene_cells=True)
+    db = load_uniprot_tsv(path)
     assert len(db) == 3
 
 
-def test_split_gene_cells_still_detects_cross_row_duplicates(tmp_path):
+def test_cross_row_duplicates_are_still_detected(tmp_path):
     """Duplicate Entry across distinct source rows must still raise."""
     path = _write_tsv(tmp_path / "u.tsv", [
         "P1\tG1 G2\t\t10000\tMKAL",
@@ -209,7 +209,7 @@ def test_split_gene_cells_still_detects_cross_row_duplicates(tmp_path):
         "P1\tG4\t\t30000\tMSYN",  # second occurrence of P1
     ])
     with pytest.raises(ValueError, match="Duplicate Entry"):
-        load_uniprot_tsv(path, split_gene_cells=True)
+        load_uniprot_tsv(path)
 
 
 # --------------------------------------------------------------------------- #
@@ -257,7 +257,7 @@ def test_quoted_gene_cell_is_split_without_quotes(tmp_path):
     path = _write_tsv(tmp_path / "u.tsv", [
         'P1\t"G1 G2"\t\t10000\tMKAL',
     ])
-    db = load_uniprot_tsv(path, split_gene_cells=True)
+    db = load_uniprot_tsv(path)
     assert db.genes == ["G1", "G2"]
 
 

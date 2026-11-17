@@ -15,16 +15,20 @@ matching MATLAB's dispEM-based hard failure.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
+# Separates the gene names in a Gene Names cell.
+_GENE_SEPARATOR = re.compile(r"[;\s]+")
+
 
 @dataclass
 class UniprotDB:
     """Parsed uniprot.tsv. Arrays are aligned: row i in every field
-    describes the same database entry (or gene-name row when split).
+    describes one gene name of a database entry.
 
     ``mw`` is in Da, matching the Mass column of the TSV verbatim.
     """
@@ -55,7 +59,6 @@ class UniprotDB:
 def load_uniprot_tsv(
     path: str | Path,
     *,
-    split_gene_cells: bool = False,
     uniprot_id: str | int | None = None,
     id_type: str = "taxonomy_id",
     gene_id_field: str = "gene_oln",
@@ -72,15 +75,6 @@ def load_uniprot_tsv(
     path
         Path to uniprot.tsv. May not exist if ``uniprot_id`` triggers
         an auto-download.
-    split_gene_cells
-        If True, rows whose Gene Names cell contains whitespace-separated
-        multiple names are expanded into one row per gene name. All other
-        fields (Entry, EC, MW, sequence) are duplicated across the
-        expanded rows. This matters for organisms where the UniProt
-        ``gene_oln`` field returns multiple space-separated ORF names
-        per entry: with the default of False, the cell is stored
-        verbatim (including any embedded whitespace), so an exact-match
-        lookup against a single ORF name silently misses those genes.
     uniprot_id
         UniProt-side identifier (e.g. NCBI taxonomy ID). Required
         for auto-download; otherwise unused.
@@ -165,10 +159,9 @@ def load_uniprot_tsv(
         except ValueError:
             mass_da = float("nan")
 
-        if split_gene_cells and gene_cell.strip():
-            gene_names = gene_cell.split()
-        else:
-            gene_names = [gene_cell]
+        gene_names = [name for name in _GENE_SEPARATOR.split(gene_cell) if name]
+        if not gene_names:
+            gene_names = [""]
 
         source_row_ids.append(entry)
         for gene_name in gene_names:

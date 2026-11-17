@@ -18,7 +18,7 @@ from scipy import sparse
 
 import cobra
 from geckopy import EcModel, ModelAdapter
-from geckopy.adapter.params import EvotuneParams
+from geckopy.adapter.params import EvotuneParams, SourceGroupRule
 from geckopy.databases.flux_data import FluxData
 from geckopy.ec_model.ec_data import EcData
 from geckopy.kcat_tuning.evotune.tuning import (
@@ -29,6 +29,12 @@ from geckopy.kcat_tuning.evotune.tuning import (
 )
 from geckopy.kcat_tuning.evotune.data import EvotuneData
 from geckopy.kcat_tuning.evotune.tuning import EvotuneResult
+
+GROUPS = {
+    "dlkcat": SourceGroupRule(sources=["dlkcat"], sigma0_log=0.4),
+    "brenda": SourceGroupRule(sources=["brenda"], sigma0_log=0.2),
+    "custom": SourceGroupRule(sources=["custom"], sigma0_log=0.1),
+}
 
 _TRUE_KCAT = 2.0
 _START_KCAT = 1.0
@@ -271,7 +277,7 @@ def test_cmaes_tuning_moves_kcats_toward_truth(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=15, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=15, rmse_threshold=1e-6)
     before = model.ec.kcat.copy()
 
     result = cmaes_kcat_tuning(
@@ -295,7 +301,7 @@ def test_cmaes_tuning_moves_kcats_toward_truth(tmp_path):
 def test_cmaes_tuning_extends_the_source_of_changed_kcats(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    params = EvotuneParams(max_generations=15, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=15, rmse_threshold=1e-6)
     before = model.ec.kcat.copy()
     origins = ["brenda", "dlkcat"]
 
@@ -320,7 +326,7 @@ def test_cmaes_tuning_extends_the_source_of_changed_kcats(tmp_path):
 
 
 def test_cmaes_tuning_n_proc_matches_serial(tmp_path):
-    params = EvotuneParams(max_generations=5, rmse_threshold=-1.0)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=5, rmse_threshold=-1.0)
 
     def _run(n_proc):
         adapter = _adapter(tmp_path)
@@ -346,7 +352,7 @@ def test_tie_isozymes_forces_equal_values(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_tied_toy(adapter)
     evotune_data = _tied_evotune_data()
-    params = EvotuneParams(max_generations=8, rmse_threshold=-1.0,
+    params = EvotuneParams(source_groups=GROUPS, max_generations=8, rmse_threshold=-1.0,
                             tie_isozymes=True)
 
     screen = screen_kcat_leverage(
@@ -368,7 +374,7 @@ def test_tie_isozymes_false_keeps_groups_separate(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_tied_toy(adapter)
     evotune_data = _tied_evotune_data()
-    params = EvotuneParams(tie_isozymes=False)
+    params = EvotuneParams(source_groups=GROUPS, tie_isozymes=False)
 
     screen = screen_kcat_leverage(
         model, adapter=adapter, params=params, evotune_data=evotune_data, n_proc=1,
@@ -402,7 +408,7 @@ def test_tune_prior_penalty_weight_shape_and_fit_cost(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=6, rmse_threshold=-1.0)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=6, rmse_threshold=-1.0)
 
     report = tune_prior_penalty_weight(
         model, adapter=adapter, params=params, evotune_data=evotune_data,
@@ -427,7 +433,7 @@ def test_tune_prior_penalty_weight_restores_model(tmp_path):
     evotune_data = _evotune_data()
     before = model.ec.kcat.copy()
     source_before = list(model.ec.source)
-    params = EvotuneParams(max_generations=4, rmse_threshold=-1.0)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=4, rmse_threshold=-1.0)
 
     tune_prior_penalty_weight(
         model, adapter=adapter, params=params, evotune_data=evotune_data,
@@ -444,7 +450,7 @@ def test_tune_prior_penalty_weight_single_seed_gives_nan_reproducibility(tmp_pat
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=4, rmse_threshold=-1.0)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=4, rmse_threshold=-1.0)
 
     report = tune_prior_penalty_weight(
         model, adapter=adapter, params=params, evotune_data=evotune_data,
@@ -493,7 +499,7 @@ def test_cmaes_tuning_runs_all_generations_on_a_flat_objective(tmp_path, monkeyp
     monkeypatch.setattr(tuning, "_score_kcat_vector", lambda *a, **k: (1.0, 1.0))
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    params = EvotuneParams(max_generations=6, rmse_threshold=-1.0)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=6, rmse_threshold=-1.0)
     result = cmaes_kcat_tuning(
         model, adapter=adapter, params=params, evotune_data=_evotune_data(),
         n_proc=1, seed=0, verbose=False,
@@ -510,3 +516,26 @@ def test_screen_warns_when_the_model_has_no_formulas(tmp_path):
         screen_kcat_leverage(
             model, adapter=adapter, evotune_data=_evotune_data(), n_proc=1,
         )
+
+
+def test_default_groups_label_kcats_by_group_name_through_the_tuning_context(tmp_path, caplog):
+    """With default EvotuneParams, combined and ec_tree kcats get their group's width,
+    the group name labels the kcat, and the unlabelled warning fires for kcats in no group."""
+    from geckopy.kcat_tuning.evotune.tuning import _tunable_context
+
+    model = _build_toy(_adapter(tmp_path))
+    model.ec.source = ["combined (sd=0.10, n=2)", "ec_tree"]
+    with caplog.at_level("WARNING"):
+        out = _tunable_context(model, EvotuneParams(), _evotune_data(), "biomass", None)
+    groups, sigma0_log = out[3], out[4]
+    assert list(groups) == ["combined", "ec_tree"]
+    assert list(sigma0_log) == [0.4, 0.3]
+    assert "match no evotune source group" not in caplog.text
+
+    model.ec.source = ["standard", "standard"]
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        out = _tunable_context(model, EvotuneParams(), _evotune_data(), "biomass", None)
+    assert list(out[3]) == ["unlabelled", "unlabelled"]
+    assert list(out[4]) == [0.5, 0.5]
+    assert "2 of 2 tunable kcats match no evotune source group and get sigma0_log_default (0.5); origins: standard" in caplog.text

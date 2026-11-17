@@ -78,9 +78,7 @@ class BrendaData:
             return self.kcat_median
         if aggregation == "max":
             return self.kcat_max
-        raise ValueError(
-            f"aggregation must be 'max' or 'median', got {aggregation!r}"
-        )
+        raise ValueError("aggregation must be max or median")
 
     def sa_for(self, aggregation: Literal["max", "median"]) -> pd.DataFrame:
         """Return the SA-derived-kcat view for the requested aggregation."""
@@ -88,9 +86,7 @@ class BrendaData:
             return self.sa_median
         if aggregation == "max":
             return self.sa_max
-        raise ValueError(
-            f"aggregation must be 'max' or 'median', got {aggregation!r}"
-        )
+        raise ValueError("aggregation must be max or median")
 
 
 def load_brenda_data(
@@ -118,8 +114,8 @@ def load_brenda_data(
     Both kcat and SA are loaded as separate max and median views over
     the raw measurements aggregated per (ec, substrate, organism)
     triple, so a project can opt into median aggregation via
-    ``adapter.params.kcat_aggregate_brenda`` without regenerating the
-    snapshot. See ``docs/kcat_aggregation.md`` for the rationale.
+    ``[kcat_sources.brenda] aggregation`` without regenerating the
+    snapshot. See https://gecko-docs.readthedocs.io/en/latest/guide/kcat-sources.html for the rationale.
 
     Malformed lines (wrong number of fields, non-numeric value column)
     are skipped with a ``logger.warning``; the rest of the file is

@@ -95,7 +95,6 @@ def sweep_tunable_mask_size(
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
     evotune_data: Optional["EvotuneData"] = None,
-    okp_method: Optional[str] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -157,7 +156,7 @@ def sweep_tunable_mask_size(
     screen
         A precomputed :func:`~.tuning.screen_kcat_leverage` report.
         Computed once, fresh, if not given.
-    adapter, params, evotune_data, okp_method, bio_rxn, make_anaerobic,
+    adapter, params, evotune_data, bio_rxn, make_anaerobic,
     change_protein_biomass, n_proc, verbose
         Forwarded to :func:`~.tuning.screen_kcat_leverage` and
         :func:`~.tuning.cmaes_kcat_tuning`; see their docstrings.
@@ -167,13 +166,13 @@ def sweep_tunable_mask_size(
     list of :class:`MaskSizePoint`, one per share, sorted by
     ``target_impact_share`` ascending.
     """
-    params, evotune_data, bio_rxn, okp_method = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn, okp_method)
+    params, evotune_data, bio_rxn = _resolve_context(
+        model, adapter, params, evotune_data, bio_rxn)
 
     if screen is None:
         screen = screen_kcat_leverage(
             model, adapter=adapter, params=params, evotune_data=evotune_data,
-            okp_method=okp_method, bio_rxn=bio_rxn,
+            bio_rxn=bio_rxn,
             make_anaerobic=make_anaerobic, change_protein_biomass=change_protein_biomass,
             n_proc=n_proc,
         )
@@ -187,7 +186,7 @@ def sweep_tunable_mask_size(
             run_model = model.copy()
             result = cmaes_kcat_tuning(
                 run_model, adapter=adapter, params=params, evotune_data=evotune_data,
-                okp_method=okp_method, bio_rxn=bio_rxn,
+                bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic, change_protein_biomass=change_protein_biomass,
                 tunable_mask=mask, n_proc=n_proc, seed=seed, verbose=False,
             )

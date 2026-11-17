@@ -17,8 +17,8 @@ and often converges in fewer iterations when one or two enzymes
 dominate the infeasibility. The trade-off is that it fully
 unconstrains each selected enzyme with no tighten-back pass, so the
 result is looser (less proteomics-faithful) than
-``flexibilize_enz_concs``. See ``docs/relaxation_methods.md`` for
-the full comparison.
+``flexibilize_enz_concs``. The guide compares the methods:
+https://gecko-docs.readthedocs.io/en/latest/guide/relaxing-proteomics.html
 """
 from __future__ import annotations
 

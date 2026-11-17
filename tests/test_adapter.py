@@ -70,7 +70,7 @@ def test_missing_toml_raises(tmp_path):
 def test_unknown_field_rejected(tmp_path):
     bad_toml = MINIMAL_TOML + '\nsgma = 0.3\n'  # typo
     folder = _write_adapter_folder(tmp_path, bad_toml)
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError, match="unknown key sgma in model_adapter.toml"):
         ModelAdapter.from_folder(folder)
 
 
@@ -187,13 +187,11 @@ taxonomic_id = 123456
 
 [evotune.source_groups.dlkcat]
 sources = ["dlkcat"]
+sigma0_log = 0.4
 
 [evotune.source_groups.brenda]
 sources = ["brenda"]
-
-[evotune.sigma0_log_source]
-dlkcat = 0.4
-brenda = 0.2
+sigma0_log = 0.2
 
 [matlab]
 make_model_anaerobic = "anaerobicModel_GECKO"
@@ -268,7 +266,218 @@ def test_uniprot_table_lookup_reads_quoted_cells_and_first_duplicate(tmp_path):
     assert result == ["P12345", "P67890"]
 
 
-def test_default_okp_method_is_kinform_h():
-    from geckopy.adapter.params import ModelParameters
+def test_okp_section_has_no_method():
+    from geckopy.adapter.params import OkpParams
 
-    assert ModelParameters.model_fields["okp"].get_default(call_default_factory=True).method == "KinForm-H"
+    assert "method" not in OkpParams.model_fields
+
+
+@pytest.mark.parametrize("extra, key", [
+    ("typo = 1\n", "typo"),
+    ("[kegg]\nidd = \"sce\"\n", "kegg.idd"),
+    ("[okp]\nmethod = \"CataPro\"\n", "okp.method"),
+    ("[evotune]\nmatch_okp = true\n", "evotune.match_okp"),
+    ("[evotune.source_groups.brenda]\nsources = [\"brenda\"]\nsigma0_log = 0.2\nmatch_okp = true\n",
+     "evotune.source_groups.brenda.match_okp"),
+    ("[evotune.sigma0_log_source]\nbrenda = 0.2\n", "evotune.sigma0_log_source"),
+    ("[[kcat_assignment.stage]]\nsources = [\"custom\"]\ncriterion = \"max\"\n", "kcat_assignment.stage.criterion"),
+    ("[kcat_sources.brenda]\naggregate = \"max\"\n", "kcat_sources.brenda.aggregate"),
+    ("[kcat_sources.okp_kinform_h]\nmethod = \"KinForm-H\"\n", "kcat_sources.okp_kinform_h.method"),
+    ("[kcat_sources.nosuchsource]\nk = 5\n", "kcat_sources.nosuchsource"),
+    ("[matlab]\nmake_model_anaerobicc = \"f\"\n", "matlab.make_model_anaerobicc"),
+    ("kcat_aggregate_brenda = \"max\"\n", "kcat_aggregate_brenda"),
+])
+def test_an_unknown_key_is_an_error_naming_file_and_key(tmp_path, extra, key):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + extra)
+    with pytest.raises(ValueError) as err:
+        ModelAdapter.from_folder(folder)
+    assert str(err.value) == f"{folder.resolve() / 'model_adapter.toml'}: unknown key {key} in model_adapter.toml"
+
+
+def test_known_kcat_source_keys_and_free_matlab_params_load(tmp_path):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + """\
+[kcat_sources.brenda]
+aggregation = "max"
+force_wildcard_level = 1
+[kcat_sources.ec_tree]
+k = 5
+[kcat_sources.homologs]
+k = 5
+min_identity = 0.4
+coverage = 0.5
+[kcat_sources.okp]
+methods = ["KinForm-H"]
+[kcat_sources.okp_kinform_h]
+[kcat_sources.custom]
+[kcat_sources.dlkcat]
+[matlab.params]
+anything = 1
+""")
+    assert ModelAdapter.from_folder(folder).params.kcat_sources["homologs"]["coverage"] == 0.5
+
+
+SHOW_TOML = MINIMAL_TOML + """\
+gr_exp = 0.5
+
+[kcat_sources.brenda]
+aggregation = "max"
+
+[evotune.source_groups.okp]
+sources = ["okp_*"]
+sigma0_log = 0.25
+"""
+
+
+def test_show_prints_one_line_per_item_in_the_agreed_format(tmp_path, capsys):
+    from geckopy.adapter import show_adapter_params
+
+    show_adapter_params(ModelAdapter.from_folder(_write_adapter_folder(tmp_path, SHOW_TOML)))
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "project_format =  [not set]"
+    for expected in [
+        "org_name = Testus organismus  [file]",
+        "gr_exp = 0.5  [file]",
+        "sigma = 0.5  [default]",
+        "uniprot.reviewed = false  [default]",
+        "kcat_assignment.preset = brenda_ec_tree  [default]",
+        "kcat_assignment.isozymes = true  [default]",
+        "kcat_assignment.stage[1] = select: custom, database_top, ec_tree; top_origin_limit=1  [preset brenda_ec_tree]",
+        "kcat_assignment.stage[2] = combine: okp  [preset brenda_ec_tree]",
+        "kcat_sources.brenda.aggregation = max  [file]",
+        "kcat_sources.ec_tree.k = 5  [preset brenda_ec_tree]",
+        "kcat_sources.okp.methods = KinForm-H  [default]",
+        "evotune.source_groups.okp = okp_*; sigma0_log 0.25  [file]",
+    ]:
+        assert expected in lines, expected
+    assert not any(ln.startswith("Adapter parameters") for ln in lines)
+    # Items in the order of the table; each table key is listed (stage, kcat_sources, groups expanded).
+    table = Path(__file__).resolve().parent.parent / "src" / "geckopy" / "adapter" / "adapterParameters.tsv"
+    expected_keys = [ln.split("\t")[0] for ln in table.read_text().splitlines()[1:]]
+    seen = []
+    for ln in lines:
+        key = ln.split(" =")[0]
+        base = next((k for k in expected_keys if key == k or key.startswith(k + ".") or key.startswith(k + "[")), key)
+        if not seen or seen[-1] != base:
+            seen.append(base)
+    assert seen == expected_keys
+
+
+def test_show_with_stages_and_file_settings(tmp_path, capsys):
+    from geckopy.adapter import show_adapter_params
+
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + """[[kcat_assignment.stage]]
+sources = ["custom", "database_top"]
+top_origin_limit = 2
+criteria = "median"
+[[kcat_assignment.stage]]
+sources = ["okp"]
+action = "combine"
+""")
+    show_adapter_params(ModelAdapter.from_folder(folder))
+    lines = capsys.readouterr().out.splitlines()
+    assert "kcat_assignment.preset = none (stages are given)  [file]" in lines
+    assert "kcat_assignment.stage[1] = select: custom, database_top; criteria=median; top_origin_limit=2  [file]" in lines
+    assert "kcat_assignment.stage[2] = combine: okp  [file]" in lines
+
+
+def test_show_cli_prints_the_project_of_the_folder(tmp_path, capsys):
+    from geckopy.cli import main
+
+    folder = _write_adapter_folder(tmp_path, SHOW_TOML)
+    assert main(["adapter", "show", str(folder)]) == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[0] == "project_format =  [not set]"
+    assert "gr_exp = 0.5  [file]" in out
+
+
+def _group_toml(body: str) -> str:
+    return MINIMAL_TOML + "[evotune.source_groups.g]\n" + body
+
+
+@pytest.mark.parametrize("toml, message", [
+    ("[evotune.source_groups]\ng = 1\n", "evotune.source_groups.g must be a table with sources and sigma0_log"),
+    (_group_toml('sources = ["a"]\n'), "evotune.source_groups.g needs both sources and sigma0_log"),
+    (_group_toml("sigma0_log = 0.1\n"), "evotune.source_groups.g needs both sources and sigma0_log"),
+    (_group_toml('sources = "a"\nsigma0_log = 0.1\n'), "evotune.source_groups.g.sources must be a non-empty list of strings"),
+    (_group_toml('sources = []\nsigma0_log = 0.1\n'), "evotune.source_groups.g.sources must be a non-empty list of strings"),
+    (_group_toml('sources = ["a"]\nsigma0_log = inf\n'), "evotune.source_groups.g.sigma0_log must be a positive number"),
+    (_group_toml('sources = ["a"]\nsigma0_log = nan\n'), "evotune.source_groups.g.sigma0_log must be a positive number"),
+    (_group_toml('sources = ["a", 1]\nsigma0_log = 0.1\n'), "evotune.source_groups.g.sources must be a non-empty list of strings"),
+    (_group_toml('sources = ["a"]\nsigma0_log = "x"\n'), "evotune.source_groups.g.sigma0_log must be a positive number"),
+    (_group_toml('sources = ["a"]\nsigma0_log = 0\n'), "evotune.source_groups.g.sigma0_log must be a positive number"),
+    (_group_toml('sources = ["a"]\nsigma0_log = true\n'), "evotune.source_groups.g.sigma0_log must be a positive number"),
+])
+def test_a_malformed_evotune_group_has_its_own_message(tmp_path, toml, message):
+    folder = _write_adapter_folder(tmp_path, toml)
+    with pytest.raises(ValueError) as err:
+        ModelAdapter.from_folder(folder)
+    assert str(err.value) == f"{folder.resolve() / 'model_adapter.toml'}: {message}"
+
+
+def test_okp_source_tables_are_limited_to_known_methods(tmp_path):
+    ok = _write_adapter_folder(tmp_path, MINIMAL_TOML + "[kcat_sources.okp_unikp]\n")
+    assert "okp_unikp" in ModelAdapter.from_folder(ok).params.kcat_sources
+    for name in ("okp_nosuchmethod", "okp_catpred"):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "model_adapter.toml").write_text(MINIMAL_TOML + f"[kcat_sources.{name}]\n")
+        with pytest.raises(ValueError, match=f"unknown key kcat_sources.{name} in model_adapter.toml"):
+            ModelAdapter.from_folder(folder)
+
+
+@pytest.mark.parametrize("extra, message", [
+    ("[kcat_sources.okp]\nmethods = \"KinForm-H\"\n", "kcat_sources.okp.methods must be a list of strings"),
+    ("[kcat_sources.okp]\nmethods = [1]\n", "kcat_sources.okp.methods must be a list of strings"),
+    ("kcat_sources.brenda = 1\n", "kcat_sources.brenda must be a table"),
+    ("kcat_sources.foo = 1\n", "unknown key kcat_sources.foo in model_adapter.toml"),
+    ("[kcat_sources.brenda]\naggregation = \"mean\"\n", "kcat_sources.brenda.aggregation must be max or median"),
+])
+def test_kcat_source_values_are_checked_at_load(tmp_path, extra, message):
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + extra)
+    with pytest.raises(ValueError) as err:
+        ModelAdapter.from_folder(folder)
+    assert str(err.value) == f"{folder.resolve() / 'model_adapter.toml'}: {message}"
+
+
+def test_unknown_okp_methods_are_an_error_at_load_in_file_order_without_duplicates(tmp_path):
+    from geckopy.gather_kcats.kcat_sources import OKP_METHODS
+
+    folder = _write_adapter_folder(
+        tmp_path, MINIMAL_TOML + '[kcat_sources.okp]\nmethods = ["Zed", "KinForm-H", "Alpha", "Zed", "TurNup"]\n')
+    with pytest.raises(ValueError) as err:
+        ModelAdapter.from_folder(folder)
+    assert str(err.value) == (
+        "Unknown OKP methods in [kcat_sources.okp] methods: Zed, Alpha, TurNup; "
+        f"methods: {', '.join(OKP_METHODS)}.")
+
+
+def test_show_number_formats_and_kcat_sources_order(tmp_path, capsys):
+    from geckopy.adapter import show_adapter_params
+
+    folder = _write_adapter_folder(tmp_path, MINIMAL_TOML + """\
+sigma = 1e6
+[complex]
+taxonomic_id = 5592920
+[kcat_sources.okp]
+methods = ["UniKP"]
+[kcat_sources.ec_tree]
+k = 3
+[kcat_sources.brenda]
+force_wildcard_level = 1
+aggregation = "median"
+[kcat_assignment]
+preset = "gecko_classic"
+""")
+    show_adapter_params(ModelAdapter.from_folder(folder))
+    lines = capsys.readouterr().out.splitlines()
+    assert "sigma = 1000000  [file]" in lines
+    assert "complex.taxonomic_id = 5592920  [file]" in lines
+    assert ("kcat_assignment.stage[1] = select: custom, database_top, dlkcat, database_bottom; "
+            "top_origin_limit=6  [preset gecko_classic]") in lines
+    ks = [ln for ln in lines if ln.startswith("kcat_sources.")]
+    assert ks == [
+        "kcat_sources.brenda.aggregation = median  [file]",
+        "kcat_sources.brenda.force_wildcard_level = 1  [file]",
+        "kcat_sources.ec_tree.k = 3  [file]",
+        "kcat_sources.okp.methods = UniKP  [file]",
+    ]

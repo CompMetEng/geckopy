@@ -12,7 +12,7 @@ from scipy import sparse
 
 import cobra
 from geckopy import EcModel, ModelAdapter
-from geckopy.adapter.params import EvotuneParams
+from geckopy.adapter.params import EvotuneParams, SourceGroupRule
 from geckopy.databases.flux_data import FluxData
 from geckopy.ec_model.ec_data import EcData
 from geckopy.kcat_tuning.evotune.data import EvotuneData
@@ -22,6 +22,12 @@ from geckopy.kcat_tuning.evotune.mask_size import (
     sweep_tunable_mask_size,
 )
 from geckopy.kcat_tuning.evotune.tuning import screen_kcat_leverage
+
+GROUPS = {
+    "dlkcat": SourceGroupRule(sources=["dlkcat"], sigma0_log=0.4),
+    "brenda": SourceGroupRule(sources=["brenda"], sigma0_log=0.2),
+    "custom": SourceGroupRule(sources=["custom"], sigma0_log=0.1),
+}
 
 _TRUE_KCAT = 2.0
 _START_KCAT = 1.0
@@ -126,7 +132,7 @@ def test_sweep_reports_one_point_per_share_sorted(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=10, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     points = sweep_tunable_mask_size(
         model, adapter=adapter, params=params, evotune_data=evotune_data,
@@ -145,7 +151,7 @@ def test_sweep_does_not_mutate_input_model(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=10, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
     before = model.ec.kcat.copy()
 
     sweep_tunable_mask_size(
@@ -160,7 +166,7 @@ def test_sweep_runs_every_seed_at_every_share(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=10, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     points = sweep_tunable_mask_size(
         model, adapter=adapter, params=params, evotune_data=evotune_data,
@@ -180,7 +186,7 @@ def test_sweep_reuses_a_given_screen(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=10, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
     screen = screen_kcat_leverage(
         model, adapter=adapter, evotune_data=evotune_data, n_proc=1,
     )
@@ -299,7 +305,7 @@ def test_sweep_uses_rmse_trace_minimum_not_last_entry(tmp_path, monkeypatch):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
     evotune_data = _evotune_data()
-    params = EvotuneParams(max_generations=10, rmse_threshold=1e-6)
+    params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     # A later generation can improve the (prior-penalised) objective
     # while its own plain RMSE is worse than an earlier generation's --

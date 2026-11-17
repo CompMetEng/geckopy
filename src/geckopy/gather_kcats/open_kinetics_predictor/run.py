@@ -70,8 +70,8 @@ def _submit_open_kinetics_predictor(
         OKP API key. If omitted, resolved from ``OKP_API_KEY`` or
         ``data/okpApiKey.txt`` (see the module docstring).
     method
-        Predictor method. Resolved as: this arg -> ``params.okp.method``
-        -> ``'KinForm-H'``.
+        Predictor method. Resolved as: this arg -> the first of
+        ``[kcat_sources.okp] methods`` (``'KinForm-H'`` unless set).
     ec_rxns
         Optional iterable of reaction IDs to include (default all).
     only_with_smiles
@@ -96,7 +96,10 @@ def _submit_open_kinetics_predictor(
     )
     data_dir = Path(adapter.params.path) / "data"
     api_key = _resolve_api_key(api_key, adapter)
-    method = method or adapter.params.okp.method
+    if not method:
+        from ..kcat_assignment import default_okp_method
+
+        method = default_okp_method(adapter)
     okp = adapter.params.okp
 
     okp_csv = data_dir / "OKP.csv"

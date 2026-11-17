@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -22,7 +21,14 @@ from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
 from .kcat_source_format import format_kcat_source, is_standard_source
-from .kcat_sources import load_kcat_source, read_kcat_source
+from .kcat_sources import (
+    DEFAULT_OKP_METHODS,
+    check_okp_methods,
+    load_kcat_source,
+    okp_file,
+    okp_method_of_file,
+    read_kcat_source,
+)
 from .kcats_from import _brenda_release, _measurements, kcats_from_brenda, kcats_from_dlkcat, kcats_from_ec_tree, kcats_from_okp
 from .merge_kcats import _strip_okp_prefix, merge_kcats, normalize_source
 from .select_kcat_value import apply_kcat_list
@@ -36,20 +42,6 @@ logger = logging.getLogger(__name__)
 
 PRESETS = ("brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic")
 _DATABASE_TOKENS = {"brenda", "sabio_rk"}
-OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
-               "OmniESI", "OmniESI-O2DENet", "TurNup", "UniKP")
-#: OKP methods that read whole reactions (substrate set, and products for TurNup)
-#: instead of enzyme-substrate pairs; kcats_from_okp submits pairs only.
-REACTION_OKP_METHODS = ("CatPred", "TurNup")
-#: The OKP methods of the ``okp`` source group by default; a project lists others in
-#: ``[kcat_sources.okp] methods`` (those that read enzyme-substrate pairs and have
-#: combination parameters: not CatRange, which predicts classes, nor the reaction methods).
-DEFAULT_OKP_METHODS = ("KinForm-H",)
-
-
-def okp_file(method: str) -> str:
-    """The source file name of an OKP method, e.g. ``okp_kinform_h``."""
-    return "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", method).lower().strip("_")
 
 
 @dataclass
@@ -126,11 +118,24 @@ def _source_file(token: str) -> str:
 def okp_methods(config: KcatAssignmentConfig) -> list[str]:
     """The OKP methods of the ``okp`` source group (``[kcat_sources.okp] methods``)."""
     methods = config.sources.get("okp", {}).get("methods") or list(DEFAULT_OKP_METHODS)
-    unknown = [m for m in methods if m not in OKP_METHODS]
-    if unknown:
-        raise ValueError(f"Unknown OKP methods in [kcat_sources.okp] methods: {unknown}; "
-                         f"methods: {', '.join(OKP_METHODS)}.")
+    check_okp_methods(methods)
     return list(methods)
+
+
+def brenda_aggregation(adapter: "ModelAdapter") -> str:
+    """The BRENDA aggregation of the adapter: ``[kcat_sources.brenda] aggregation``.
+
+    As the kcat assignment config resolves it: the preset's value (median for
+    ``brenda_ec_tree`` and the other median presets, max for ``gecko_classic``)
+    unless the file sets it. ``max`` when neither the preset nor the file sets it
+    (the ``okp`` preset, or stages without a ``[kcat_sources.brenda]`` table).
+    """
+    return str(kcat_assignment_config(adapter).sources.get("brenda", {}).get("aggregation", "max"))
+
+
+def default_okp_method(adapter: "ModelAdapter") -> str:
+    """The OKP method used when none is given: the first of ``[kcat_sources.okp] methods``."""
+    return okp_methods(kcat_assignment_config(adapter))[0]
 
 
 def _expand(tokens: list[str], config: KcatAssignmentConfig) -> list[str]:
@@ -409,15 +414,6 @@ def assign_kcats(
     return decisions, report
 
 
-def _okp_method(name: str, wanted: dict[str, Any]) -> str:
-    if "method" in wanted:
-        return str(wanted["method"])
-    for m in OKP_METHODS:
-        if "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", m).lower() == name:
-            return m
-    raise ValueError(f'Set the OKP method of {name} in model_adapter.toml: [kcat_sources.{name}] method = "..."')
-
-
 def _same(a: Any, b: Any) -> bool:
     def norm(v: Any) -> Any:
         return v.lower() if isinstance(v, str) else (int(v) if isinstance(v, bool) else v)
@@ -508,7 +504,7 @@ def _gather(model: "EcModel", name: str, wanted: dict[str, Any], adapter: "Model
             if not done:
                 return "pending", "OKP job for DLKcat still running; call again later"
         else:
-            method = _okp_method(name, wanted)
+            method = okp_method_of_file(name)
             _, done = kcats_from_okp(model, method=method, save_as=name, adapter=adapter)
             if not done:
                 return "pending", f"OKP job for {method} still running; call again later"

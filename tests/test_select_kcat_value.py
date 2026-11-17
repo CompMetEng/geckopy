@@ -1,12 +1,10 @@
 """Tests for apply_kcat_list."""
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
 
-from geckopy import ModelAdapter
 from geckopy.ec_model import EcModel
 from geckopy.ec_model.ec_data import EcData
 from geckopy.gather_kcats import apply_kcat_list
@@ -395,56 +393,20 @@ def test_source_bare_lowercase_token_without_metadata():
 
 
 # --------------------------------------------------------------------------- #
-# Adapter-default criteria (params.kcat_aggregate_candidates)
+# Criteria choice
 # --------------------------------------------------------------------------- #
-
-def _adapter_with_candidates(
-    tmp_path: Path, criteria: str | None = None,
-) -> ModelAdapter:
-    body = ['conv_gem = "dummy.xml"', 'org_name = "yeast"']
-    if criteria is not None:
-        body.append(f'kcat_aggregate_candidates = "{criteria}"')
-    (tmp_path / "model_adapter.toml").write_text("\n".join(body) + "\n")
-    return ModelAdapter.from_folder(tmp_path)
-
-
-def _ec_model_with_adapter(adapter: ModelAdapter, rxn_ids: list[str]) -> EcModel:
-    model = _ec_model(rxn_ids)
-    model.adapter = adapter
-    return model
-
 
 _THREE_CAND = [("r1", 1.0, "src_low"), ("r1", 4.0, "src_mid"),
                ("r1", 9.0, "src_high")]
 
 
-def test_criteria_default_max_with_adapter_default(tmp_path):
-    """Adapter defaults to ``kcat_aggregate_candidates='max'``; omitting
-    ``criteria`` picks the largest of the candidate kcats."""
-    adapter = _adapter_with_candidates(tmp_path)
-    model = _ec_model_with_adapter(adapter, ["r1"])
+def test_criteria_default_is_max():
+    model = _ec_model(["r1"])
     apply_kcat_list(model, _kcat_list(_THREE_CAND))
     assert model.ec.kcat[0] == 9.0
 
 
-def test_criteria_adapter_median_flips_default(tmp_path):
-    """When the adapter sets median, an omitted ``criteria`` follows."""
-    adapter = _adapter_with_candidates(tmp_path, "median")
-    model = _ec_model_with_adapter(adapter, ["r1"])
-    apply_kcat_list(model, _kcat_list(_THREE_CAND))
-    assert model.ec.kcat[0] == 4.0
-
-
-def test_criteria_default_max_when_no_adapter():
-    """Without an adapter attached, ``criteria`` defaults to ``'max'``."""
-    model = _ec_model(["r1"])  # no adapter
-    apply_kcat_list(model, _kcat_list(_THREE_CAND))
-    assert model.ec.kcat[0] == 9.0
-
-
-def test_explicit_criteria_overrides_adapter(tmp_path):
-    """Caller-passed ``criteria=`` wins over the adapter setting."""
-    adapter = _adapter_with_candidates(tmp_path, "median")
-    model = _ec_model_with_adapter(adapter, ["r1"])
+def test_explicit_criteria_is_used():
+    model = _ec_model(["r1"])
     apply_kcat_list(model, _kcat_list(_THREE_CAND), criteria="min")
     assert model.ec.kcat[0] == 1.0

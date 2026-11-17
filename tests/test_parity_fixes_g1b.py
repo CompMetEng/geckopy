@@ -236,3 +236,10 @@ def test_gecko_light_model_is_tuned():
             assert parsed.origin == (parse_kcat_source(source_before[i]).origin or "unknown")
         else:
             assert source == source_before[i]
+
+
+def test_sensitivity_tuning_without_gr_exp_is_an_error(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\nbio_rxn = "biomass"\n')
+    model = _chain(ModelAdapter.from_folder(tmp_path), [1.0, 1.0])
+    with pytest.raises(ValueError, match="gr_exp is not set in model_adapter.toml"):
+        sensitivity_tuning(model)

@@ -17,8 +17,9 @@ package: same goal, different algorithm. This one ranks by control
 coefficient, relaxes gradually, and runs a tighten-back pass, so it
 yields the *minimal* (most proteomics-faithful) relaxation but is
 slower. ``relax_proteomics_greedy`` ranks by shadow price and fully
-unconstrains each selected enzyme, which is faster but looser. See
-``docs/relaxation_methods.md`` for the full comparison.
+unconstrains each selected enzyme, which is faster but looser. The
+guide compares the methods:
+https://gecko-docs.readthedocs.io/en/latest/guide/relaxing-proteomics.html
 
 Ported from GECKO MATLAB:
 src/limit_proteins/flexibilizeEnzConcs.m.
@@ -150,7 +151,7 @@ def flexibilize_enz_concs(
         itself is left unchanged.
     exp_growth
         Target growth rate. Defaults to
-        ``model.adapter.params.gr_exp``.
+        ``model.adapter.params.gr_exp``; raises ``ValueError`` when neither is set.
     fold_change
         Controls how much the limiting enzyme's usage upper bound
         grows each time it is selected: on its ``k``-th selection, the
@@ -188,18 +189,12 @@ def flexibilize_enz_concs(
         flexibilize), or if ``model.adapter`` is None and
         ``exp_growth`` is also None.
     """
-    from ..adapter import resolve_param
-    if exp_growth is None:
-        exp_growth = resolve_param(
-            model, None, "gr_exp",
-            purpose="flexibilize_enz_concs needs `exp_growth` (pass it "
-            "explicitly, or rely on params.gr_exp from the adapter)",
-        )
-        if exp_growth is None:
-            raise ValueError(
-                "exp_growth not provided and params.gr_exp is unset."
-            )
-    exp_growth = float(exp_growth)
+    from ..adapter import resolve_gr_exp, resolve_param
+    exp_growth = resolve_gr_exp(
+        model, exp_growth,
+        purpose="flexibilize_enz_concs needs `exp_growth` (pass it "
+        "explicitly, or set gr_exp in the adapter)",
+    )
 
     if iter_per_enzyme == 0:
         iter_per_enzyme = math.inf

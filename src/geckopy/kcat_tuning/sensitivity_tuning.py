@@ -165,7 +165,7 @@ def sensitivity_tuning(
         installed and a populated ``ec.kcat``. Mutated in place.
     desired_growth_rate
         Target growth rate. Defaults to
-        ``model.adapter.params.gr_exp``.
+        ``model.adapter.params.gr_exp``; raises ``ValueError`` when neither is set.
     fold_change
         Per-iteration kcat multiplier.
     prot_to_ignore
@@ -198,18 +198,12 @@ def sensitivity_tuning(
     light = bool(model.ec.gecko_light)
 
     if desired_growth_rate is None:
-        from ..adapter import resolve_adapter
-        adapter = resolve_adapter(
+        from ..adapter import resolve_gr_exp
+        desired_growth_rate = resolve_gr_exp(
             model,
             purpose="sensitivity_tuning needs `desired_growth_rate` "
-            "(pass it explicitly, or rely on params.gr_exp from the adapter)",
+            "(pass it explicitly, or set gr_exp in the adapter)",
         )
-        if adapter.params.gr_exp is None:
-            raise ValueError(
-                "desired_growth_rate not provided and "
-                "model.adapter.params.gr_exp is unset."
-            )
-        desired_growth_rate = float(adapter.params.gr_exp)
 
     if prot_to_ignore is None:
         prot_to_ignore = []

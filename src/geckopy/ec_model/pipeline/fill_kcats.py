@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -32,7 +32,7 @@ def fill_kcats_from_isozymes(
     model: "EcModel",
     *,
     apply: bool = False,
-    aggregate: Optional[str] = None,
+    aggregate: str = "mean",
 ) -> None:
     """Fill in missing kcats by combining known kcats across sibling isozymes.
 
@@ -67,9 +67,7 @@ def fill_kcats_from_isozymes(
     aggregate
         How to combine sibling kcats: ``"mean"`` (matches MATLAB GECKO),
         ``"median"`` (more robust for log-distributed rate constants), or
-        ``"max"``. ``None`` (default) reads
-        ``model.adapter.params.kcat_aggregate_isozymes`` if an adapter is
-        attached, falling back to ``"mean"`` otherwise.
+        ``"max"``. Default ``"mean"``.
 
     Raises
     ------
@@ -81,13 +79,6 @@ def fill_kcats_from_isozymes(
     if model.ec.gecko_light:
         raise NotImplementedError(
             "fill_kcats_from_isozymes: not applicable to gecko-light models."
-        )
-
-    if aggregate is None:
-        adapter = getattr(model, "adapter", None)
-        aggregate = (
-            adapter.params.kcat_aggregate_isozymes
-            if adapter is not None else "mean"
         )
 
     kcat = model.ec.kcat

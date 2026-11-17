@@ -130,7 +130,7 @@ def fit_sigma(
         return.
     growth_rate
         Experimental growth rate to match. Defaults to
-        ``model.adapter.params.gr_exp``.
+        ``model.adapter.params.gr_exp``; raises ``ValueError`` when neither is set.
     p_tot
         Total protein content (g/gDCW). Defaults to
         ``model.adapter.params.p_tot``.
@@ -174,7 +174,9 @@ def fit_sigma(
     params = model.adapter.params if model.adapter is not None else None
 
     if growth_rate is None:
-        growth_rate = float(params.gr_exp)
+        from ..adapter import resolve_gr_exp
+
+        growth_rate = resolve_gr_exp(model)
     if not growth_rate > 0:  # also NaN
         raise ValueError(f"growth_rate is {growth_rate}; fit_sigma needs a target growth rate above 0.")
     if p_tot is None:

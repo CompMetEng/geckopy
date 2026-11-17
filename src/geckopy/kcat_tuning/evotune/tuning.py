@@ -74,7 +74,7 @@ from ..corrections import Correction, corrections as build_corrections
 from .data import EvotuneData, load_evotune_data
 from .distance import evotune_distance, compute_excarbon
 from .parsimony import fold_change, n_changed
-from .priors import build_sigma0_log, classify_kcat_sources
+from .priors import build_sigma0_log, classify_kcat_sources, warn_unlabelled
 from .simulate import simulate_evotune_dataset
 from .tying import isozyme_tie_map
 
@@ -159,7 +159,7 @@ class EvotuneResult:
         )
 
 
-def _resolve_context(model, adapter, params, evotune_data, bio_rxn, okp_method):
+def _resolve_context(model, adapter, params, evotune_data, bio_rxn):
     """Resolve every optional input against ``model``'s adapter, or
     raise if it can't be and none was given explicitly."""
     if adapter is None:
@@ -186,9 +186,7 @@ def _resolve_context(model, adapter, params, evotune_data, bio_rxn, okp_method):
         if adapter is None:
             raise ValueError("bio_rxn not given and model has no adapter.")
         bio_rxn = adapter.params.bio_rxn
-    if okp_method is None and adapter is not None:
-        okp_method = adapter.params.okp.method
-    return params, evotune_data, bio_rxn, okp_method
+    return params, evotune_data, bio_rxn
 
 
 #: Termination criteria of ``cma`` that a flat objective triggers.
@@ -196,7 +194,7 @@ _FLAT_STOPS = frozenset({"tolfun", "tolfunhist", "tolflatfitness"})
 
 
 def _tunable_context(
-    model, params, evotune_data, bio_rxn, okp_method, tunable_mask,
+    model, params, evotune_data, bio_rxn, tunable_mask,
 ):
     """The tunable subset plus everything derived from it: tie groups,
     trust weights, and the excarbon table. Shared by every function in
@@ -221,7 +219,8 @@ def _tunable_context(
     ec_rxn_ids_tunable = [model.ec.rxns[i] for i in tunable_idx]
     kcat0 = model.ec.kcat[tunable_idx].astype(float).copy()
     sources = [model.ec.source[i] for i in tunable_idx]
-    groups = classify_kcat_sources(sources, params, okp_method=okp_method)
+    groups = classify_kcat_sources(sources, params)
+    warn_unlabelled(groups, sources, params)
     sigma0_log = build_sigma0_log(groups, params)
 
     excarbon_rxn_ids: set[str] = {bio_rxn}
@@ -245,7 +244,6 @@ def screen_kcat_leverage(
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
     evotune_data: Optional[EvotuneData] = None,
-    okp_method: Optional[str] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -292,11 +290,11 @@ def screen_kcat_leverage(
         :func:`select_tunable_mask` needs to expand a row back into a
         mask; drop it before showing the table to a person.
     """
-    params, evotune_data, bio_rxn, okp_method = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn, okp_method)
+    params, evotune_data, bio_rxn = _resolve_context(
+        model, adapter, params, evotune_data, bio_rxn)
     (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
      tie_map) = _tunable_context(
-        model, params, evotune_data, bio_rxn, okp_method, tunable_mask)
+        model, params, evotune_data, bio_rxn, tunable_mask)
 
     reps = np.flatnonzero(tie_map == np.arange(len(tie_map)))
     members_of = {int(r): np.flatnonzero(tie_map == r) for r in reps}
@@ -406,7 +404,6 @@ def cmaes_kcat_tuning(
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
     evotune_data: Optional[EvotuneData] = None,
-    okp_method: Optional[str] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -485,14 +482,14 @@ def cmaes_kcat_tuning(
         parameters remain after masking and tying -- too little for
         CMA-ES to search over.
     """
-    params, evotune_data, bio_rxn, okp_method = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn, okp_method)
+    params, evotune_data, bio_rxn = _resolve_context(
+        model, adapter, params, evotune_data, bio_rxn)
 
     if tunable_mask is None:
         if screen is None:
             screen = screen_kcat_leverage(
                 model, adapter=adapter, params=params, evotune_data=evotune_data,
-                okp_method=okp_method, bio_rxn=bio_rxn,
+                bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
                 n_proc=n_proc,
@@ -502,7 +499,7 @@ def cmaes_kcat_tuning(
 
     (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
      tie_map) = _tunable_context(
-        model, params, evotune_data, bio_rxn, okp_method, tunable_mask)
+        model, params, evotune_data, bio_rxn, tunable_mask)
 
     reps = np.flatnonzero(tie_map == np.arange(len(tie_map)))
     if len(reps) < 2:
@@ -633,7 +630,6 @@ def tune_prior_penalty_weight(
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
     evotune_data: Optional[EvotuneData] = None,
-    okp_method: Optional[str] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -687,7 +683,7 @@ def tune_prior_penalty_weight(
         A kcat counts as "moved" past this fold change from its prior.
         Matches :func:`~.parsimony.fold_change`'s convention.
     tunable_mask, screen, target_impact_share, popsize, n_proc,
-    make_anaerobic, change_protein_biomass, okp_method, bio_rxn
+    make_anaerobic, change_protein_biomass, bio_rxn
         As in :func:`cmaes_kcat_tuning`.
 
     Returns
@@ -704,14 +700,14 @@ def tune_prior_penalty_weight(
         ``median_fold_spread`` and ``max_fold_spread`` (among movers,
         the largest fold-change between what the two seeds landed on).
     """
-    params, evotune_data, bio_rxn, okp_method = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn, okp_method)
+    params, evotune_data, bio_rxn = _resolve_context(
+        model, adapter, params, evotune_data, bio_rxn)
 
     if tunable_mask is None:
         if screen is None:
             screen = screen_kcat_leverage(
                 model, adapter=adapter, params=params, evotune_data=evotune_data,
-                okp_method=okp_method, bio_rxn=bio_rxn,
+                bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
                 n_proc=n_proc,
@@ -738,7 +734,7 @@ def tune_prior_penalty_weight(
                 _reset()
                 result = cmaes_kcat_tuning(
                     model, adapter=adapter, params=lam_params, evotune_data=evotune_data,
-                    okp_method=okp_method, bio_rxn=bio_rxn,
+                    bio_rxn=bio_rxn,
                     make_anaerobic=make_anaerobic,
                     change_protein_biomass=change_protein_biomass,
                     tunable_mask=tunable_mask, popsize=popsize, n_proc=n_proc,

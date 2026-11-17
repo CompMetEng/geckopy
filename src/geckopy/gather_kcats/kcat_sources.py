@@ -40,6 +40,48 @@ _LIGHT_RE = re.compile(r"^\d+_")
 _NUMBER_RE = re.compile(r"^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$|^[-+]?Inf$")
 _META_RE = re.compile(r"^\s*#\s*([A-Za-z][A-Za-z0-9_]{0,62})\s*:\s?(.*)$", re.ASCII)
 
+#: The OKP methods that ``[kcat_sources.okp] methods`` and ``kcats_from_okp`` accept.
+#: The reaction methods CatPred and TurNup are left out: they read whole reactions
+#: (substrate set, and products for TurNup), while ``kcats_from_okp`` submits
+#: enzyme-substrate pairs.
+OKP_METHODS = ("CataPro", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
+               "OmniESI", "OmniESI-O2DENet", "UniKP")
+#: The OKP methods of the ``okp`` source group by default; a project lists others in
+#: ``[kcat_sources.okp] methods`` (those that have combination parameters: not
+#: CatRange, which predicts classes).
+DEFAULT_OKP_METHODS = ("KinForm-H",)
+
+
+def okp_file(method: str) -> str:
+    """The source file name of an OKP method, e.g. ``okp_kinform_h``.
+
+    ``okp_`` and the method in lower case, with each run of characters other
+    than letters and digits as ``_`` and no ``_`` at either end.
+    """
+    return "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", method).lower().strip("_")
+
+
+def check_okp_methods(methods: list[str]) -> None:
+    """Raise ``ValueError`` naming the entries of ``methods`` that are no known OKP method.
+
+    The names are in the order given, each once.
+    """
+    unknown = list(dict.fromkeys(m for m in methods if m not in OKP_METHODS))
+    if unknown:
+        raise ValueError(f"Unknown OKP methods in [kcat_sources.okp] methods: {', '.join(unknown)}; "
+                         f"methods: {', '.join(OKP_METHODS)}.")
+
+
+def okp_method_of_file(name: str) -> str:
+    """The OKP method whose source file is ``name``, e.g. ``KinForm-H`` for ``okp_kinform_h``."""
+    for method in OKP_METHODS:
+        if okp_file(method) == name:
+            return method
+    raise ValueError(
+        f"{name} is not the file of a known OKP method; the files are "
+        f"{', '.join(okp_file(m) for m in OKP_METHODS)}."
+    )
+
 
 def ec_rxn_keys(model: "EcModel") -> tuple[list[str], list[str]]:
     """Build-independent keys of the ``model.ec`` reactions.

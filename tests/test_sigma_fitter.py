@@ -244,3 +244,11 @@ def test_default_method_is_the_full_grid(tmp_path):
     result = fit_sigma(model)  # default == grid
     assert result.sigma == pytest.approx(0.01, abs=1e-12)
     assert len(result.sigma_grid) == 100
+
+
+def test_fit_sigma_without_gr_exp_is_an_error(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\np_tot = 1.0\nf = 1.0\n')
+    model = _build_pool_only_model(ModelAdapter.from_folder(tmp_path))
+    with pytest.raises(ValueError, match="gr_exp is not set in model_adapter.toml"):
+        fit_sigma(model)
+    assert fit_sigma(model, growth_rate=10.0).sigma == pytest.approx(0.01, abs=1e-4)

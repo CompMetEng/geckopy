@@ -9,7 +9,7 @@ prefer, but the flat top-level surface is the canonical user API.
 
 The most-used names, grouped by stage of a typical workflow:
 
-- **Project setup**: ``ModelAdapter``
+- **Project setup**: ``ModelAdapter``, ``show_adapter_params``
 - **Build**: ``load_conventional_gem``, ``make_ec_model``
 - **Enrich kcats**: ``update_kcat_sources`` (``kcats_from_brenda``,
   ``kcats_from_dlkcat``, ``kcats_from_okp``, ...), ``collect_kcats``,
@@ -38,7 +38,7 @@ except PackageNotFoundError:  # running from a source tree without an install
     __version__ = "0.0.0+unknown"
 
 # Adapter
-from geckopy.adapter import ModelAdapter, ModelParameters
+from geckopy.adapter import ModelAdapter, ModelParameters, show_adapter_params
 
 # Databases (loaders + dataclasses)
 from geckopy.databases import (
@@ -171,6 +171,7 @@ __all__ = [
     # Adapter
     "ModelAdapter",
     "ModelParameters",
+    "show_adapter_params",
     # Core data + builder + per-enzyme accessor
     "EcData",
     "EcModel",

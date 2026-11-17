@@ -205,11 +205,11 @@ print(kcat_decisions["stage"].value_counts().to_string())
 #
 # - `brenda_ec_tree` (the default): the organism's own BRENDA value, else
 #   the median of the EC number's measurements (`kcats_from_ec_tree`); the
-#   OpenKineticsPredictor (OKP) methods combined for reactions without an
-#   EC number.
-# - `ec_tree_okp`: the EC tree and the OKP methods combined for every
+#   OpenKineticsPredictor (OKP) predictions combined for reactions without
+#   an EC number.
+# - `ec_tree_okp`: the EC tree and the OKP predictions combined for every
 #   reaction, weighted by how reliable each is.
-# - `okp`: the OKP methods combined only, for when the model's EC numbers
+# - `okp`: the OKP predictions only, for when the model's EC numbers
 #   are not trusted.
 #
 # Custom kcats (`data/kcats/custom.tsv`) come first in every preset.

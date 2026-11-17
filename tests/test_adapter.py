@@ -306,7 +306,7 @@ k = 5
 min_identity = 0.4
 coverage = 0.5
 [kcat_sources.okp]
-methods = ["KinForm-H"]
+method = "KinForm-H"
 [kcat_sources.okp_kinform_h]
 [kcat_sources.custom]
 [kcat_sources.dlkcat]
@@ -345,7 +345,7 @@ def test_show_prints_one_line_per_item_in_the_agreed_format(tmp_path, capsys):
         "kcat_assignment.stage[2] = combine: okp  [preset brenda_ec_tree]",
         "kcat_sources.brenda.aggregation = max  [file]",
         "kcat_sources.ec_tree.k = 5  [preset brenda_ec_tree]",
-        "kcat_sources.okp.methods = KinForm-H  [default]",
+        "kcat_sources.okp.method = KinForm-H  [default]",
         "evotune.source_groups.okp = okp_*; sigma0_log 0.25  [file]",
     ]:
         assert expected in lines, expected
@@ -426,8 +426,9 @@ def test_okp_source_tables_are_limited_to_known_methods(tmp_path):
 
 
 @pytest.mark.parametrize("extra, message", [
-    ("[kcat_sources.okp]\nmethods = \"KinForm-H\"\n", "kcat_sources.okp.methods must be a list of strings"),
-    ("[kcat_sources.okp]\nmethods = [1]\n", "kcat_sources.okp.methods must be a list of strings"),
+    ("[kcat_sources.okp]\nmethod = 1\n", "kcat_sources.okp.method must be a string"),
+    ("[kcat_sources.okp]\nmethod = [1]\n", "kcat_sources.okp.method must be a string"),
+    ("[kcat_sources.okp]\nmethods = \"KinForm-H\"\n", "unknown key kcat_sources.okp.methods in model_adapter.toml"),
     ("kcat_sources.brenda = 1\n", "kcat_sources.brenda must be a table"),
     ("kcat_sources.foo = 1\n", "unknown key kcat_sources.foo in model_adapter.toml"),
     ("[kcat_sources.brenda]\naggregation = \"mean\"\n", "kcat_sources.brenda.aggregation must be max or median"),
@@ -439,16 +440,16 @@ def test_kcat_source_values_are_checked_at_load(tmp_path, extra, message):
     assert str(err.value) == f"{folder.resolve() / 'model_adapter.toml'}: {message}"
 
 
-def test_unknown_okp_methods_are_an_error_at_load_in_file_order_without_duplicates(tmp_path):
+def test_unknown_okp_method_is_an_error_at_load(tmp_path):
     from geckopy.gather_kcats.kcat_sources import OKP_METHODS
 
     folder = _write_adapter_folder(
-        tmp_path, MINIMAL_TOML + '[kcat_sources.okp]\nmethods = ["Zed", "KinForm-H", "Alpha", "Zed", "TurNup"]\n')
+        tmp_path, MINIMAL_TOML + '[kcat_sources.okp]\nmethod = "TurNup"\n')
     with pytest.raises(ValueError) as err:
         ModelAdapter.from_folder(folder)
     assert str(err.value) == (
-        "Unknown OKP methods in [kcat_sources.okp] methods: Zed, Alpha, TurNup; "
-        f"methods: {', '.join(OKP_METHODS)}.")
+        "Unknown OKP method TurNup in [kcat_sources.okp] method; "
+        f"supported: {', '.join(OKP_METHODS)}")
 
 
 def test_show_number_formats_and_kcat_sources_order(tmp_path, capsys):
@@ -459,7 +460,7 @@ sigma = 1e6
 [complex]
 taxonomic_id = 5592920
 [kcat_sources.okp]
-methods = ["UniKP"]
+method = "UniKP"
 [kcat_sources.ec_tree]
 k = 3
 [kcat_sources.brenda]
@@ -479,5 +480,5 @@ preset = "gecko_classic"
         "kcat_sources.brenda.aggregation = median  [file]",
         "kcat_sources.brenda.force_wildcard_level = 1  [file]",
         "kcat_sources.ec_tree.k = 3  [file]",
-        "kcat_sources.okp.methods = UniKP  [file]",
+        "kcat_sources.okp.method = UniKP  [file]",
     ]

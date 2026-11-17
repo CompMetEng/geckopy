@@ -7,11 +7,11 @@ import shutil
 from pathlib import Path
 
 import cobra
-import numpy as np
 import pandas as pd
 import pytest
 
 from geckopy import ModelAdapter, make_ec_model
+from geckopy.adapter import show_adapter_params
 from geckopy.gather_kcats import collect_kcats, save_kcat_source
 from geckopy.gather_kcats.combine_kcats import combine_kcats, evidence_bin, load_combine_params
 from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_file, update_kcat_sources
@@ -92,7 +92,7 @@ def _project(tmp_path: Path, preset: str):
     (project / "data" / "customKcats.tsv").unlink()
     toml = project / "model_adapter.toml"
     toml.write_text(toml.read_text(encoding="utf-8") + f'\n[kcat_assignment]\npreset = "{preset}"\n'
-                    '[kcat_sources.okp]\nmethods = ["CataPro", "UniKP"]\n', encoding="utf-8")
+                    '[kcat_sources.okp]\nmethod = "CataPro"\n', encoding="utf-8")
     adapter = ModelAdapter.from_folder(project)
     model = make_ec_model(cobra.io.read_sbml_model(str(adapter.params.conv_gem)), adapter)
     fill_eccodes_from_gem(model)
@@ -110,20 +110,17 @@ def test_okp_presets(tmp_path):
     assert [st.action for st in config.stages] == ["select", "combine"]
     assert okp_file("KinForm-H") == "okp_kinform_h"
     report = update_kcat_sources(model, dry_run=True, adapter=adapter)
-    assert list(report["source"]) == ["custom", "okp_catapro", "okp_unikp"]
+    assert list(report["source"]) == ["custom", "okp_catapro"]
 
     rxns = [r for r in model.ec.rxns if r.startswith("R")][:3]
     save_kcat_source(model, _okp_list(model, rxns, 100.0, 30, "CataPro"), "okp_catapro", adapter=adapter)
-    save_kcat_source(model, _okp_list(model, rxns[:1], 10.0, 50, "UniKP"), "okp_unikp", adapter=adapter)
     decisions, rep, decided = collect_kcats(model, adapter=adapter, write_report=False)
     d = decisions.set_index("ec_rxn")
-    # rxns[0]: CataPro 100 (bias 0.2, variance 2) and UniKP 10 (bias -0.3, variance 1):
-    # (1.8 * 0.5 + 1.3 * 1) / 1.5 = 1.4667; the okp scale is 1.
-    assert d.loc[rxns[0], "kcat"] == pytest.approx(10 ** ((1.8 * 0.5 + 1.3) / 1.5))
-    assert d.loc[rxns[0], "source"] == f"combined (sd={math.sqrt(1 / 1.5 + 0.25):.2f}, n=2)"
-    assert d.loc[rxns[0], "stage"] == "2" and d.loc[rxns[0], "candidates"] == 2
-    assert d.loc[rxns[1], "kcat"] == pytest.approx(10 ** 1.8)
-    assert np.isfinite(d.loc[rxns[0], "sd_log10"])
+    # rxns[0]: CataPro 100 (bias 0.2, variance 2): the corrected value is 1.8;
+    # sd sqrt(1 / 0.5 + 0.25) with the okp scale 1.
+    assert d.loc[rxns[0], "kcat"] == pytest.approx(10 ** 1.8)
+    assert d.loc[rxns[0], "stage"] == "2"
+    assert d.loc[rxns[0], "sd_log10"] == pytest.approx(math.sqrt(1 / 0.5 + 0.25))
 
     # ec_tree_okp: the EC tree and OKP combined, where both have a value.
     model, adapter, project = _project(tmp_path / "b", "ec_tree_okp")
@@ -136,6 +133,21 @@ def test_okp_presets(tmp_path):
     d = decisions.set_index("ec_rxn")
     assert d.loc[rxns[0], "kcat"] == pytest.approx(10 ** 1.2)
     assert d.loc[rxns[0], "source"].startswith("combined (") and d.loc[rxns[0], "stage"] == "2"
+
+
+def test_okp_method_value_forms(tmp_path, capsys):
+    model, adapter, project = _project(tmp_path, "okp")
+    adapter.params.kcat_sources["okp"]["method"] = ["CataPro", "UniKP"]
+    report = update_kcat_sources(model, dry_run=True, adapter=adapter)
+    assert list(report["source"]) == ["custom", "okp_catapro", "okp_unikp"]
+    rxns = [r for r in model.ec.rxns if r.startswith("R")][:3]
+    save_kcat_source(model, _okp_list(model, rxns, 100.0, 30, "CataPro"), "okp_catapro", adapter=adapter)
+    save_kcat_source(model, _okp_list(model, rxns[:1], 10.0, 50, "UniKP"), "okp_unikp", adapter=adapter)
+    d = collect_kcats(model, adapter=adapter, write_report=False)[0].set_index("ec_rxn")
+    assert d.loc[rxns[0], "kcat"] == pytest.approx(10 ** ((1.8 * 0.5 + 1.3) / 1.5))
+    assert d.loc[rxns[0], "candidates"] == 2
+    show_adapter_params(adapter)
+    assert "kcat_sources.okp.method = CataPro, UniKP" in capsys.readouterr().out
 
 
 def test_exact_homolog_dominates(tmp_path):
@@ -158,6 +170,6 @@ def test_exact_homolog_dominates(tmp_path):
 
 def test_unknown_okp_method(tmp_path):
     model, adapter, project = _project(tmp_path, "okp")
-    adapter.params.kcat_sources["okp"]["methods"] = ["CataPro", "NoSuchMethod"]
+    adapter.params.kcat_sources["okp"]["method"] = "NoSuchMethod"
     with pytest.raises(ValueError, match="NoSuchMethod"):
         update_kcat_sources(model, dry_run=True, adapter=adapter)

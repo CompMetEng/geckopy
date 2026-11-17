@@ -70,8 +70,8 @@ def _submit_open_kinetics_predictor(
         OKP API key. If omitted, resolved from ``OKP_API_KEY`` or
         ``data/okpApiKey.txt`` (see the module docstring).
     method
-        Predictor method. Resolved as: this arg -> the first of
-        ``[kcat_sources.okp] methods`` (``'KinForm-H'`` unless set).
+        Predictor method. Resolved as: this arg ->
+        ``[kcat_sources.okp] method`` (``'KinForm-H'`` unless set).
     ec_rxns
         Optional iterable of reaction IDs to include (default all).
     only_with_smiles

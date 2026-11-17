@@ -52,7 +52,7 @@ _KCAT_SOURCES_EXAMPLE = [
     "# min_identity = 0.4",
     "# coverage = 0.8",
     "# [kcat_sources.okp]",
-    '# methods = ["KinForm-H"]   # the first is the default method of kcats_from_okp',
+    '# method = "KinForm-H"   # the default method of kcats_from_okp',
     "",
 ]
 

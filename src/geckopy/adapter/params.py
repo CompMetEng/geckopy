@@ -118,8 +118,8 @@ class KcatStageParams(BaseModel):
     sources: list[str] = Field(
         min_length=1,
         description=(
-            "Source file names (custom, ec_tree, dlkcat, okp_catapro, ...), the OKP "
-            "methods of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
+            "Source file names (custom, ec_tree, dlkcat, okp_unikp, ...), the OKP "
+            "method of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
             "database_exact, database_top and database_bottom, which read brenda.tsv; "
             "for select the first listed wins."
         ),
@@ -271,7 +271,7 @@ class EvotuneParams(BaseModel):
 class OkpParams(BaseModel):
     """OpenKineticsPredictor settings (used by kcats_from_okp).
 
-    The OKP methods are set in ``[kcat_sources.okp] methods``.
+    The OKP method is set in ``[kcat_sources.okp] method``.
 
     The API key is intentionally NOT here (it is a secret): provide it as a
     function argument, the OKP_API_KEY environment variable, or the file
@@ -352,7 +352,7 @@ KCAT_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "brenda": ("aggregation", "force_wildcard_level"),
     "ec_tree": ("k",),
     "homologs": ("k", "min_identity", "coverage"),
-    "okp": ("methods",),
+    "okp": ("method",),
     "dlkcat": (),
     "custom": (),
 }
@@ -402,14 +402,16 @@ def _check_table(cls: type[BaseModel], data: dict, prefix: str, file: Path | str
 
 
 def _check_source_values(name: str, table: dict, file: Path | str) -> None:
-    """The values of ``[kcat_sources.okp] methods`` and ``[kcat_sources.brenda] aggregation``."""
-    if name == "okp" and "methods" in table:
-        methods = table["methods"]
-        if not isinstance(methods, list) or not all(isinstance(m, str) for m in methods):
-            raise ValueError(f"{file}: kcat_sources.okp.methods must be a list of strings")
-        from ..gather_kcats.kcat_sources import check_okp_methods
+    """The values of ``[kcat_sources.okp] method`` and ``[kcat_sources.brenda] aggregation``."""
+    if name == "okp" and "method" in table:
+        method = table["method"]
+        if not isinstance(method, str) and not (
+            isinstance(method, list) and method and all(isinstance(m, str) for m in method)
+        ):
+            raise ValueError(f"{file}: kcat_sources.okp.method must be a string")
+        from ..gather_kcats.kcat_sources import _okp_method_names
 
-        check_okp_methods(methods)
+        _okp_method_names(method)
     if name == "brenda" and "aggregation" in table and table["aggregation"] not in ("max", "median"):
         raise ValueError(f"{file}: kcat_sources.brenda.aggregation must be max or median")
 

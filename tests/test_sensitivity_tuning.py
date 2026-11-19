@@ -189,10 +189,10 @@ def test_re_tuning_keeps_one_method_and_the_first_prior(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_evidence_of_the_tuned_reactions(tmp_path):
-    adapter = _adapter(tmp_path)
+    adapter = _adapter(tmp_path, gr_exp=300.0)
     model = _build_toy(adapter, initial_kcat=1.0)
     off = sensitivity_tuning(model, verbose=False)
-    assert off.evidence is None
+    assert off.rxns and off.evidence is None
     model = _build_toy(adapter, initial_kcat=1.0)
     tuned = sensitivity_tuning(model, verbose=False, evidence=True)
     assert list(tuned.evidence["ec_rxn"]) == tuned.rxns

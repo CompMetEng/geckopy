@@ -174,7 +174,7 @@ def test_scalar_and_numpy_arguments(tmp_path):
     with pytest.raises(ValueError, match="Not in model.ec.rxns"):
         kcats_from_okp(model, method="KinForm-H", ec_rxns=model.ec.rxns[i] + "x", adapter=adapter)
     # A single name is one reaction, not a list of characters.
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError, match="selects the reactions of a new job"):
         kcats_from_okp(model, method="KinForm-H", ec_rxns=model.ec.rxns[i], job_tag="q", use_stored=True,
                        adapter=adapter)
 

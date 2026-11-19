@@ -130,7 +130,7 @@ def kcat_evidence(
         list of reaction names.
     sources
         Names of the source files, without ``.tsv`` (default: all files in
-        ``data/kcats``, including the ``okp_<method>_query.tsv`` files that
+        ``data/kcats``, including the ``okp_<method>__query.tsv`` files that
         :func:`kcats_for_reactions` wrote; an empty list for none).
     compute
         Sources to compute for the selected reactions; ``"ec_tree"`` is
@@ -172,10 +172,10 @@ def kcat_evidence(
     rows = _select_rows(model, rxns, enzymes, tuned)
     ec_rxns = [model.ec.rxns[i] for i in rows]
 
+    explicit = sources is not None
     if sources is None:
         folder = Path(adapter.params.path) / "data" / "kcats"
         sources = sorted(p.stem for p in folder.glob("*.tsv"))
-    explicit = sources is not None
     sources = list(dict.fromkeys(_as_list(sources)))
     if "ec_tree" in compute:
         sources = [s for s in sources if s != "ec_tree"]

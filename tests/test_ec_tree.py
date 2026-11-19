@@ -110,7 +110,10 @@ def test_kcats_from_ec_tree_writes_file(tmp_path):
     assert meta["parameters"] == '{"k":5}'
     assert meta["data"] == "BRENDA release test"
     assert set(records["source"]) == {"ec_tree"}
-    assert records["detail"].str.match(r"^n=\d+; depth=[234]$").all()
+    assert records["detail"].str.match(r"^n=\d+; depth=[234](; direction=reverse)?$").all()
+    reverse = records["detail"].str.endswith("direction=reverse")
+    assert reverse.equals(records["rxn"].str.endswith("_REV"))
+    assert reverse.any()
     # Without a measurement table in the project, geckopy's BRENDA release is used.
     kcats_from_ec_tree(model, adapter=adapter, save_as="ec_tree_bundled")
     _, meta = read_kcat_source(project / "data" / "kcats" / "ec_tree_bundled.tsv")

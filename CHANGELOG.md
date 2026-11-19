@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* `kcats_from_ec_tree` marks a reverse direction (`_REV`) in `detail` with `direction=reverse`. The estimate depends on the EC number only, as BRENDA measurements have no direction, so the reverse direction has the value of the forward direction. GECKO's `kcatsFromECTree` does the same.
 * `load_uniprot_tsv` always splits a gene cell of uniprot.tsv with several gene names, separated by semicolons and/or whitespace (`YPR080W; YBR118W`), into one row per gene name; the other columns are repeated on every row and an empty cell stays one row. A model gene that is any of the names finds the entry. The `split_gene_cells` option is removed. GECKO's `loadDatabases` does the same.
 * The user guides (evotune, YAML format, relaxation methods, migration from GECKO MATLAB, kcat sources) moved to [gecko-docs](https://gecko-docs.readthedocs.io/en/latest/). The `docs/` folder is gone; the developer notes are in `dev/`.
 * `uniprot.id` and `kegg.id` are empty by default instead of the identifiers of Saccharomyces cerevisiae (`"559292"` and `"sce"`), as in GECKO; `adapterParameters.tsv` is the same as GECKO's. `geckopy init` writes both uncommented as `""`, with examples in the comments. `make_ec_model` and `calculate_f_factor` raise `FileNotFoundError` naming `[uniprot] id` when `data/uniprot.tsv` is missing and the identifier is empty, as GECKO's `loadDatabases` raises `loadDatabases:noUniprotID`; an empty `kegg.id` leaves KEGG out with a warning. A project that relied on the yeast defaults sets the identifiers in model_adapter.toml.

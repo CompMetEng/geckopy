@@ -167,6 +167,9 @@ def _measurements(adapter: "ModelAdapter") -> pd.DataFrame:
         return table
 
 
+_REVERSE = re.compile(r"_REV(_EXP_\d+)?$")
+
+
 def kcats_from_ec_tree(
     model: "EcModel",
     *,
@@ -211,7 +214,11 @@ def kcats_from_ec_tree(
     -------
     pandas.DataFrame
         The kcat list; ``detail`` has the number of measurements of the EC
-        (``n``) and the deepest EC level with measurements (``depth``).
+        (``n``) and the deepest EC level with measurements (``depth``). The
+        estimate depends on the EC number only, because BRENDA measurements
+        have no direction: a reverse direction (``_REV``) gets the value of
+        its forward direction, and its ``detail`` ends with
+        ``direction=reverse``.
     """
     adapter = _adapter(model, adapter, "kcats_from_ec_tree needs the BRENDA folder and project folder")
     ec_rxns = None if ec_rxns is None else list(ec_rxns)
@@ -231,7 +238,7 @@ def kcats_from_ec_tree(
             continue
         rows.append({"rxn_id": rxn, "source": "ec_tree", "eccode": ec, "substrates": [], "genes": [],
                      "kcat": float(10 ** value), "wildcard_level": np.nan, "origin": np.nan,
-                     "detail": f"n={n}; depth={depth}"})
+                     "detail": f"n={n}; depth={depth}" + ("; direction=reverse" if _REVERSE.search(rxn) else "")})
     kcat_list = pd.DataFrame(rows, columns=["rxn_id", "source", "eccode", "substrates", "genes", "kcat",
                                             "wildcard_level", "origin", "detail"])
     if save:

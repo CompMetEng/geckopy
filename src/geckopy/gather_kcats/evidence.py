@@ -155,7 +155,7 @@ def kcat_evidence(
         per selected reaction, with ``ec_rxn``, ``kcat`` (current),
         ``tuned``, ``fold`` (``kcat / prior``), ``prior`` (NaN when untuned or
         without a positive prior), ``origin``, ``enzymes``, ``eccodes`` and
-        one column ``src_<source>`` (characters other than letters, digits and
+        one column ``src_<source>`` per source, in alphabetical order of the source names (characters other than letters, digits and
         ``_`` in the source name become ``_``) with the median kcat of that
         source (NaN without one). ``rows``: the selected indices of
         ``model.ec.rxns``. A conventional reaction name in ``rxns`` or
@@ -246,7 +246,7 @@ def kcat_evidence(
                     for c in (model.ec.eccodes[i] for i in rows)],
     })
     medians = evidence.groupby(["source", "ec_rxn"])["kcat"].median()
-    for name in sources:
+    for name in sorted(sources, key=str.lower):
         summary[f"src_{re.sub(r'[^0-9A-Za-z_]', '_', name)}"] = [medians.get((name, r), np.nan) for r in ec_rxns]
     if save_as is not None:
         summary.to_csv(save_as, sep="\t", index=False)

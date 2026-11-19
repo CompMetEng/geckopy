@@ -163,3 +163,55 @@ def test_a_tagged_query_result_is_not_a_stored_prediction_of_a_method(tmp_path):
     (data / "OKP_output_kinform_h__query.csv").write_text("x\n")
     (data / "OKP_job_kinform_h__query.txt").write_text("jobId: b\nmethod: KinForm-H\n")
     assert _stored_predictions(tmp_path) == ["UniKP"]
+
+
+def test_scalar_and_numpy_arguments(tmp_path):
+    model, adapter, _ = _project(tmp_path)
+    i = _rows_with_enzymes(model, 1)[0]
+    assert list(kcat_evidence(model, rxns=i, sources=[], adapter=adapter).rows) == [i]
+    assert list(kcat_evidence(model, rxns=np.int64(i), sources=[], compute=None, adapter=adapter).rows) == [i]
+    assert list(kcat_evidence(model, rxns=model.ec.rxns[i], sources=[], adapter=adapter).rows) == [i]
+    with pytest.raises(ValueError, match="Not in model.ec.rxns"):
+        kcats_from_okp(model, method="KinForm-H", ec_rxns=model.ec.rxns[i] + "x", adapter=adapter)
+    # A single name is one reaction, not a list of characters.
+    with pytest.raises(FileNotFoundError):
+        kcats_from_okp(model, method="KinForm-H", ec_rxns=model.ec.rxns[i], job_tag="q", use_stored=True,
+                       adapter=adapter)
+
+
+def test_the_ec_tree_k_of_the_adapter_and_a_source_list_without_duplicates(tmp_path):
+    model, adapter, _ = _project(tmp_path, "[kcat_sources.ec_tree]\nk = 10\n")
+    i = _rows_with_enzymes(model, 1)[0]
+    m = _measurements_for(model)
+    result = kcat_evidence(model, rxns=[i], sources=["ec_tree", "ec_tree"], compute=["ec_tree"],
+                           measurements=m, adapter=adapter)
+    from geckopy.gather_kcats.ec_tree import ECTree
+    expected = 10 ** ECTree(m, k=10).estimate(model.ec.eccodes[i])[0]
+    assert result.summary["src_ec_tree"].iloc[0] == pytest.approx(expected)
+    assert len(result.evidence) == 1
+    empty = kcat_evidence(model, rxns=[], sources=[], compute=["ec_tree"], adapter=adapter)
+    assert "src_ec_tree" in empty.summary and len(empty.summary) == 0
+
+
+def test_a_file_that_is_no_source_is_skipped_in_the_default_list_only(tmp_path):
+    model, adapter, project = _project(tmp_path)
+    i = _rows_with_enzymes(model, 1)[0]
+    (project / "data" / "kcats" / "notes.tsv").write_text("this is not a source file\n", encoding="utf-8")
+    result = kcat_evidence(model, rxns=[i], adapter=adapter)
+    assert "src_notes" not in result.summary
+    with pytest.raises(Exception):
+        kcat_evidence(model, rxns=[i], sources=["notes"], adapter=adapter)
+
+
+def test_a_method_without_result_leaves_no_old_query_file(tmp_path, monkeypatch):
+    model, adapter, project = _project(tmp_path)
+    i = _rows_with_enzymes(model, 1)[0]
+    stale = project / "data" / "kcats" / "okp_unikp__query.tsv"
+    _save(model, adapter, "okp_unikp__query", [model.ec.rxns[i]], [3.0])
+    assert stale.is_file()
+    monkeypatch.delenv("OKP_API_KEY", raising=False)
+    result = kcats_for_reactions(model, [i], okp=["UniKP", "UniKP"], measurements=_measurements_for(model),
+                                 adapter=adapter)
+    assert not stale.exists() and "src_okp_unikp__query" not in result.summary
+    result = kcats_for_reactions(model, [i], okp=np.True_, measurements=_measurements_for(model), adapter=adapter)
+    assert len(result.summary) == 1

@@ -306,15 +306,13 @@ def upgrade_project(
 def _stored_predictions(project: Path) -> list[str]:
     """Stored predictions without a source file: ``dlkcat`` and OKP methods."""
     from .gather_kcats.kcat_assignment import okp_file
-    from .gather_kcats.kcat_sources import OKP_METHODS
 
     data = project / "data"
     found = []
     if (data / "DLKcat.tsv").is_file() and not (data / "kcats" / "dlkcat.tsv").exists():
         found.append("dlkcat")
-    known = {okp_file(m)[len("okp_"):] for m in OKP_METHODS}
     for out in sorted(data.glob("OKP_output*.csv")):
-        if out.name != "OKP_output.csv" and out.stem[len("OKP_output_"):] not in known:
+        if "__" in out.stem:
             continue  # the result of a tagged query (kcats_from_okp job_tag)
         job = data / ("OKP_job.txt" if out.name == "OKP_output.csv"
                       else "OKP_job_" + out.stem[len("OKP_output_"):] + ".txt")

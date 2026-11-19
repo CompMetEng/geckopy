@@ -40,8 +40,10 @@ class KcatEvidence(NamedTuple):
 
 
 def _as_list(value) -> list:
-    """A list from a string, an iterable or a numpy array."""
-    if isinstance(value, str):
+    """A list from a scalar, a string, an iterable or a numpy array."""
+    if value is None:
+        return []
+    if isinstance(value, (str, int, np.integer)) or np.ndim(value) == 0:
         return [value]
     return list(value)
 
@@ -133,8 +135,8 @@ def kcat_evidence(
     compute
         Sources to compute for the selected reactions; ``"ec_tree"`` is
         supported. The computed estimate replaces a source file of the same
-        name, so it follows ``measurements`` and the ``k`` of the adapter
-        (default 5) and is not outdated.
+        name, so it follows ``measurements`` and ``[kcat_sources.ec_tree] k``
+        of the adapter (default 5) and is not outdated.
     measurements
         BRENDA measurement table for the EC-tree estimate (default: the
         adapter's table).
@@ -173,13 +175,21 @@ def kcat_evidence(
     if sources is None:
         folder = Path(adapter.params.path) / "data" / "kcats"
         sources = sorted(p.stem for p in folder.glob("*.tsv"))
-    sources = _as_list(sources)
+    explicit = sources is not None
+    sources = list(dict.fromkeys(_as_list(sources)))
     if "ec_tree" in compute:
         sources = [s for s in sources if s != "ec_tree"]
 
     parts = []
-    for name in sources:
-        kcat_list, _ = load_kcat_source(model, name, adapter=adapter)
+    for name in list(sources):
+        try:
+            kcat_list, _ = load_kcat_source(model, name, adapter=adapter)
+        except Exception as err:
+            if explicit:
+                raise
+            logger.warning("%s is not read: %s", name, err)  # a file of the default list that is no source file
+            sources.remove(name)
+            continue
         keep = kcat_list["rxn_id"].isin(ec_rxns)
         sub = kcat_list[keep]
         parts.append(pd.DataFrame({
@@ -189,14 +199,18 @@ def kcat_evidence(
             "substrate": ["; ".join(s) for s in sub["substrates"]],
             "detail": sub["detail"].to_numpy(),
         }))
-    if "ec_tree" in compute and len(rows):
-        from .kcats_from import kcats_from_ec_tree
+    if "ec_tree" in compute:
+        if len(rows):
+            from .kcat_assignment import kcat_assignment_config
+            from .kcats_from import kcats_from_ec_tree
 
-        tree = kcats_from_ec_tree(model, ec_rxns=ec_rxns, save=False, measurements=measurements, adapter=adapter)
-        parts.append(pd.DataFrame({
-            "ec_rxn": tree["rxn_id"].to_numpy(), "source": "ec_tree",
-            "kcat": tree["kcat"].to_numpy(dtype=float), "substrate": "", "detail": tree["detail"].to_numpy(),
-        }))
+            k = float(kcat_assignment_config(adapter).sources.get("ec_tree", {}).get("k", 5))
+            tree = kcats_from_ec_tree(model, k=k, ec_rxns=ec_rxns, save=False, measurements=measurements,
+                                      adapter=adapter)
+            parts.append(pd.DataFrame({
+                "ec_rxn": tree["rxn_id"].to_numpy(), "source": "ec_tree",
+                "kcat": tree["kcat"].to_numpy(dtype=float), "substrate": "", "detail": tree["detail"].to_numpy(),
+            }))
         sources.append("ec_tree")
     columns = ["ec_rxn", "source", "kcat", "substrate", "detail"]
     evidence = (pd.concat(parts, ignore_index=True) if parts
@@ -240,9 +254,9 @@ def kcat_evidence(
 
 
 def _okp_methods(okp, adapter: "ModelAdapter") -> list[str]:
-    if okp is None or okp is False:
-        return []
-    if okp is True:
+    if okp is None or isinstance(okp, (bool, np.bool_, int, np.integer)):
+        if not okp:
+            return []
         from .kcat_assignment import default_okp_method
 
         return [default_okp_method(adapter)]
@@ -250,7 +264,7 @@ def _okp_methods(okp, adapter: "ModelAdapter") -> list[str]:
         if okp.lower() == "all":
             return list(_PAIR_METHODS)
         okp = [okp]
-    methods = list(okp)
+    methods = list(dict.fromkeys(okp))
     unknown = [m for m in methods if m not in _PAIR_METHODS]
     if unknown:
         raise ValueError(f"Unknown OKP methods: {', '.join(unknown)}. Methods: {', '.join(_PAIR_METHODS)}.")
@@ -296,8 +310,10 @@ def kcats_for_reactions(
     okp
         OKP methods to predict with: ``False`` for none (default), ``True``
         for the first method of the adapter, ``"all"`` for every method
-        that :func:`~geckopy.gather_kcats.kcats_from_okp` accepts, or a method
-        name or a list of names.
+        that :func:`~geckopy.gather_kcats.kcats_from_okp` accepts (``CatRange``
+        predicts kcat classes, which are read as their geometric midpoint), or
+        a method name or a list of names. A method that has no result in this
+        call leaves no query file of an earlier call behind.
     sources, compute, measurements, adapter
         As in :func:`kcat_evidence`; ``compute`` is ``("ec_tree",)`` by default.
 
@@ -313,22 +329,23 @@ def kcats_for_reactions(
         raise ValueError("No reaction of model.ec is selected.")
     ec_rxns = [model.ec.rxns[i] for i in rows]
     queried, failed = [], []
+    folder = Path(adapter.params.path) / "data" / "kcats"
     for method in _okp_methods(okp, adapter):
         try:
             _, done = kcats_from_okp(model, method=method, ec_rxns=ec_rxns, job_tag="query",
                                      resubmit=True, wait=True, adapter=adapter)
         except Exception as err:  # one method failing does not stop the others
             logger.warning("OKP %s failed: %s", method, err)
-            failed.append(method)
-            continue
+            done = False
         if done:
             queried.append(f"{okp_file(method)}__query")
         else:
             failed.append(method)
+            # The predictions of an earlier query are not a result of this call.
+            (folder / f"{okp_file(method)}__query.tsv").unlink(missing_ok=True)
     if failed:
         logger.warning("No OKP predictions from: %s.", ", ".join(failed))
     if sources is not None:
-        sources = _as_list(sources)
-        sources = sources + [q for q in queried if q not in sources]
+        sources = list(dict.fromkeys(_as_list(sources) + queried))
     return kcat_evidence(model, rxns=rows, sources=sources, compute=compute,
                          measurements=measurements, adapter=adapter)

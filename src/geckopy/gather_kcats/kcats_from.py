@@ -489,9 +489,10 @@ def kcats_from_okp(
     if method in ("CatPred", "TurNup"):
         raise ValueError(f"{method} reads whole reactions (substrate set{', and products' if method == 'TurNup' else ''}); "
                          "kcats_from_okp submits enzyme-substrate pairs only.")
-    ec_rxns = _rxn_subset(ec_rxns)
+    ec_rxns = _okp_rxn_subset(model, ec_rxns)
     name_default = okp_file(method)
     tag = name_default[len("okp_"):]
+    job_tag = str(job_tag) if job_tag else ""
     if job_tag:
         clean = re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", job_tag.lower()))
         if not clean:
@@ -499,7 +500,6 @@ def kcats_from_okp(
         job_tag = clean
         tag = f"{tag}__{job_tag}"
         name_default = f"okp_{tag}"
-    ec_rxns = _okp_rxn_subset(model, ec_rxns)
     data_dir = Path(adapter.params.path) / "data"
     job_file = data_dir / f"OKP_job_{tag}.txt"
     out_file = data_dir / f"OKP_output_{tag}.csv"
@@ -513,7 +513,7 @@ def kcats_from_okp(
         )
     if save:
         path = kcat_source_file(name, model=model, adapter=adapter)  # fails before submitting
-        if submitting:
+        if submitting and not job_tag:
             _warn_subset(ec_rxns, model, path)
 
     if use_stored:

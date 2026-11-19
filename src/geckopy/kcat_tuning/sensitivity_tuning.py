@@ -381,7 +381,7 @@ def sensitivity_tuning(
         )
 
     result = _build_result(model, tuned_ec_indices, input_kcat, input_source)
-    if evidence and result.rxns:
+    if evidence:
         from ..gather_kcats.evidence import kcat_evidence
 
         try:

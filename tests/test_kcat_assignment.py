@@ -262,27 +262,27 @@ def test_update_kcat_sources_dlkcat_via_okp(tmp_path, monkeypatch):
     assert "API key" in report.loc["dlkcat", "note"]
 
 
-def test_default_okp_methods_are_kinform_h_and_a_project_list_is_kept(tmp_path):
-    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_methods
+def test_default_okp_method_is_kinform_h_and_a_project_method_is_kept(tmp_path):
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, _okp_names
 
     _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
-    assert okp_methods(kcat_assignment_config(adapter)) == ["KinForm-H"]
-    adapter.params.kcat_sources["okp"] = {"methods": ["CataPro", "UniKP"]}
-    assert okp_methods(kcat_assignment_config(adapter)) == ["CataPro", "UniKP"]
+    assert _okp_names(kcat_assignment_config(adapter)) == ["KinForm-H"]
+    adapter.params.kcat_sources["okp"] = {"method": "UniKP"}
+    assert _okp_names(kcat_assignment_config(adapter)) == ["UniKP"]
 
 
 @pytest.mark.parametrize("method", ["CatPred", "TurNup"])
-def test_reaction_okp_methods_are_unknown_in_methods(tmp_path, method):
-    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, okp_methods
+def test_reaction_okp_methods_are_unknown_as_method(tmp_path, method):
+    from geckopy.gather_kcats.kcat_assignment import kcat_assignment_config, _okp_names
 
     _, adapter, _ = _project(tmp_path, '[kcat_assignment]\npreset = "okp"\n')
-    adapter.params.kcat_sources["okp"] = {"methods": [method]}
+    adapter.params.kcat_sources["okp"] = {"method": method}
     from geckopy.gather_kcats.kcat_sources import OKP_METHODS
 
     with pytest.raises(ValueError) as err:
-        okp_methods(kcat_assignment_config(adapter))
+        _okp_names(kcat_assignment_config(adapter))
     assert str(err.value) == (
-        f"Unknown OKP methods in [kcat_sources.okp] methods: {method}; methods: {', '.join(OKP_METHODS)}.")
+        f"Unknown OKP method {method} in [kcat_sources.okp] method; supported: {', '.join(OKP_METHODS)}")
 
 
 def test_okp_source_file_of_no_known_method_fails_naming_the_file(tmp_path):

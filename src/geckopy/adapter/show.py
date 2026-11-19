@@ -57,7 +57,7 @@ def _stage_line(i: int, stage, shown: list[str], origin: str) -> str:
 
 def format_adapter_params(adapter: "ModelAdapter") -> str:
     """The resolved parameters of ``adapter`` as text (see :func:`show_adapter_params`)."""
-    from ..gather_kcats.kcat_assignment import DEFAULT_OKP_METHODS, kcat_assignment_config
+    from ..gather_kcats.kcat_assignment import DEFAULT_OKP_METHOD, kcat_assignment_config
 
     params = adapter.params
     config = kcat_assignment_config(adapter)
@@ -84,8 +84,8 @@ def format_adapter_params(adapter: "ModelAdapter") -> str:
                 out.append(_stage_line(i, stage, shown, "file" if params.kcat_assignment.stage else preset_origin))
         elif key == "kcat_sources":
             sources = {name: dict(keys) for name, keys in config.sources.items()}
-            if "methods" not in sources.get("okp", {}):
-                sources.setdefault("okp", {})["methods"] = list(DEFAULT_OKP_METHODS)
+            if "method" not in sources.get("okp", {}):
+                sources.setdefault("okp", {})["method"] = DEFAULT_OKP_METHOD
             order = ["brenda", "ec_tree", "homologs", "okp"]
             for name in sorted(sources, key=lambda n: (order.index(n), "") if n in order else (len(order), n)):
                 keys = sources[name]
@@ -93,7 +93,7 @@ def format_adapter_params(adapter: "ModelAdapter") -> str:
                     v = keys[k]
                     if k in params.kcat_sources.get(name, {}):
                         where = "file"
-                    elif name == "okp" and k == "methods":
+                    elif name == "okp" and k == "method":
                         where = "default"
                     else:
                         where = preset_origin

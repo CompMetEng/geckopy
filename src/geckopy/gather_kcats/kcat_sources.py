@@ -40,16 +40,16 @@ _LIGHT_RE = re.compile(r"^\d+_")
 _NUMBER_RE = re.compile(r"^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$|^[-+]?Inf$")
 _META_RE = re.compile(r"^\s*#\s*([A-Za-z][A-Za-z0-9_]{0,62})\s*:\s?(.*)$", re.ASCII)
 
-#: The OKP methods that ``[kcat_sources.okp] methods`` and ``kcats_from_okp`` accept.
+#: The OKP methods that ``[kcat_sources.okp] method`` and ``kcats_from_okp`` accept.
 #: The reaction methods CatPred and TurNup are left out: they read whole reactions
 #: (substrate set, and products for TurNup), while ``kcats_from_okp`` submits
 #: enzyme-substrate pairs.
 OKP_METHODS = ("CataPro", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
                "OmniESI", "OmniESI-O2DENet", "UniKP")
-#: The OKP methods of the ``okp`` source group by default; a project lists others in
-#: ``[kcat_sources.okp] methods`` (those that have combination parameters: not
+#: The OKP method of the ``okp`` source group by default; a project sets another in
+#: ``[kcat_sources.okp] method`` (one that has combination parameters: not
 #: CatRange, which predicts classes).
-DEFAULT_OKP_METHODS = ("KinForm-H",)
+DEFAULT_OKP_METHOD = "KinForm-H"
 
 
 def okp_file(method: str) -> str:
@@ -61,15 +61,23 @@ def okp_file(method: str) -> str:
     return "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", method).lower().strip("_")
 
 
-def check_okp_methods(methods: list[str]) -> None:
-    """Raise ``ValueError`` naming the entries of ``methods`` that are no known OKP method.
+def _okp_method_names(method: Any) -> list[str]:
+    """The OKP method names of a ``[kcat_sources.okp] method`` value.
 
-    The names are in the order given, each once.
+    Raise ``ValueError`` when the value is not a string or when a name is no known
+    OKP method.
     """
-    unknown = list(dict.fromkeys(m for m in methods if m not in OKP_METHODS))
+    if isinstance(method, str):
+        names = [method]
+    elif isinstance(method, list) and method and all(isinstance(m, str) for m in method):
+        names = list(method)
+    else:
+        raise ValueError("kcat_sources.okp.method must be a string")
+    unknown = list(dict.fromkeys(m for m in names if m not in OKP_METHODS))
     if unknown:
-        raise ValueError(f"Unknown OKP methods in [kcat_sources.okp] methods: {', '.join(unknown)}; "
-                         f"methods: {', '.join(OKP_METHODS)}.")
+        raise ValueError(f"Unknown OKP method {', '.join(unknown)} in [kcat_sources.okp] method; "
+                         f"supported: {', '.join(OKP_METHODS)}")
+    return names
 
 
 def okp_method_of_file(name: str) -> str:

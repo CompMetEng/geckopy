@@ -420,3 +420,29 @@ def test_make_ec_model_without_kegg_id_leaves_the_gene_unmatched(tmp_path):
     model, adapter, db = _toy_with_missing_gene(tmp_path)
     ec_model = make_ec_model(model, adapter, uniprot_db=db)
     assert sorted(ec_model.ec.enzymes) == ["P1"]
+
+
+def test_make_ec_model_gene_matches_second_name_of_a_gene_cell(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text(
+        'conv_gem = "dummy.xml"\norg_name = "test"\nenzyme_comp = "c"\n'
+    )
+    adapter = ModelAdapter.from_folder(tmp_path)
+    model = cobra.Model("m")
+    model.compartments = {"c": "c"}
+    m_a = cobra.Metabolite("A", compartment="c")
+    m_b = cobra.Metabolite("B", compartment="c")
+    model.add_metabolites([m_a, m_b])
+    r = cobra.Reaction("r1")
+    r.add_metabolites({m_a: -1, m_b: 1})
+    r.lower_bound, r.upper_bound = 0.0, 1000.0
+    r.gene_reaction_rule = "g2"
+    model.add_reactions([r])
+
+    tsv = tmp_path / "uniprot.tsv"
+    tsv.write_text(
+        "Entry\tGene Names\tEC number\tMass\tSequence\n"
+        "P1\tg1; g2\t\t10000\tMK\n"
+    )
+    ec_model = make_ec_model(model, adapter, uniprot_db=load_uniprot_tsv(tsv))
+    assert ec_model.ec.genes == ["g2"]
+    assert ec_model.ec.enzymes == ["P1"]

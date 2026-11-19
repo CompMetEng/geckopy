@@ -599,7 +599,7 @@ def test_tc0010_fuzzy_light_subset(light_ec_model):
 # tc0011 -- testKcats
 #
 # Covers writeDLKcatInput, mergeDLKcatAndFuzzyKcats, selectKcatValue,
-# applyKcatConstraints, getKcatAcrossIsozymes and applyCustomKcats, plus
+# applyKcatConstraints, fillKcatsFromIsozymes and applyCustomKcats, plus
 # the full-vs-light growth-rate equivalence.
 # ========================================================================== #
 

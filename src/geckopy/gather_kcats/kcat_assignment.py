@@ -22,8 +22,8 @@ from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
 from .kcat_source_format import format_kcat_source, is_standard_source
 from .kcat_sources import (
-    DEFAULT_OKP_METHODS,
-    check_okp_methods,
+    DEFAULT_OKP_METHOD,
+    _okp_method_names,
     load_kcat_source,
     okp_file,
     okp_method_of_file,
@@ -115,11 +115,9 @@ def _source_file(token: str) -> str:
     return "brenda" if token.startswith("database_") else token
 
 
-def okp_methods(config: KcatAssignmentConfig) -> list[str]:
-    """The OKP methods of the ``okp`` source group (``[kcat_sources.okp] methods``)."""
-    methods = config.sources.get("okp", {}).get("methods") or list(DEFAULT_OKP_METHODS)
-    check_okp_methods(methods)
-    return list(methods)
+def _okp_names(config: KcatAssignmentConfig) -> list[str]:
+    """The OKP method of the ``okp`` source group, ``[kcat_sources.okp] method``."""
+    return _okp_method_names(config.sources.get("okp", {}).get("method") or DEFAULT_OKP_METHOD)
 
 
 def brenda_aggregation(adapter: "ModelAdapter") -> str:
@@ -134,15 +132,15 @@ def brenda_aggregation(adapter: "ModelAdapter") -> str:
 
 
 def default_okp_method(adapter: "ModelAdapter") -> str:
-    """The OKP method used when none is given: the first of ``[kcat_sources.okp] methods``."""
-    return okp_methods(kcat_assignment_config(adapter))[0]
+    """The OKP method used when none is given: ``[kcat_sources.okp] method``."""
+    return _okp_names(kcat_assignment_config(adapter))[0]
 
 
 def _expand(tokens: list[str], config: KcatAssignmentConfig) -> list[str]:
-    """Stage tokens with the ``okp`` group replaced by its methods' files."""
+    """Stage tokens with the ``okp`` group replaced by the file of its OKP method."""
     out: list[str] = []
     for t in tokens:
-        out.extend(okp_file(m) for m in okp_methods(config)) if t == "okp" else out.append(t)
+        out.extend(okp_file(m) for m in _okp_names(config)) if t == "okp" else out.append(t)
     return list(dict.fromkeys(out))
 
 
@@ -314,22 +312,22 @@ def collect_kcats(
       :mod:`geckopy.gather_kcats.combine_kcats`); ``ec.source`` reads
       ``combined (sd=<log10 sd>, n=<sources>)``.
 
-    In both, ``okp`` stands for the OKP methods of ``[kcat_sources.okp]
-    methods`` (default: KinForm-H).
+    In both, ``okp`` stands for the file of the OKP method of
+    ``[kcat_sources.okp] method`` (default: KinForm-H).
 
     The presets:
 
     - ``brenda_ec_tree`` (the default): custom kcats, the BRENDA median of
       measurements of the organism on the reaction's substrate (origin 1,
       without EC wildcards), the EC tree (:func:`kcats_from_ec_tree`); then
-      the OKP methods combined for the reactions left (without an EC number).
+      the OKP predictions for the reactions left (without an EC number).
     - ``ec_tree_homologs``: custom kcats, the organism's own BRENDA value;
       then the EC tree and homologs (:func:`kcats_from_homologs`) combined;
-      then the OKP methods combined.
+      then the OKP predictions.
     - ``ec_tree_okp``: custom kcats, the organism's own BRENDA value; then
-      the EC tree, homologs and the OKP methods combined; then the OKP
-      methods combined.
-    - ``okp``: custom kcats; then the OKP methods combined.
+      the EC tree, homologs and the OKP predictions combined; then the OKP
+      predictions.
+    - ``okp``: custom kcats; then the OKP predictions.
     - ``gecko_median``: custom kcats, the BRENDA median of matches without
       EC wildcards from the organism or other organisms, with or without the
       substrate (origin 1 to 4), DLKcat, then the other BRENDA matches (EC
@@ -340,10 +338,9 @@ def collect_kcats(
 
     Against measured kcats hidden from the search, the EC tree was closer
     than the BRENDA median at origins 2 and 4 and with EC wildcards and as
-    close at origins 1 and 3; the EC tree combined with the OKP methods was
-    slightly closer than the EC tree, and the OKP methods combined as close.
-    That comparison combined the eight OKP methods with combination
-    parameters; the default ``okp`` group is now KinForm-H alone. In ecModels, values combined with predictions set high-turnover enzymes
+    close at origins 1 and 3; the EC tree combined with OKP predictions was
+    slightly closer than the EC tree. The default OKP method is KinForm-H.
+    In ecModels, values combined with predictions set high-turnover enzymes
     such as ATP synthase too low, which is why the default uses predictions
     only where there is no value from measurements. The BRENDA aggregation is
     ``[kcat_sources.brenda] aggregation`` (see :func:`update_kcat_sources`).

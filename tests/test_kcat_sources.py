@@ -200,8 +200,8 @@ def test_kcats_from_dlkcat_and_okp_write_files(tmp_path, monkeypatch):
 
 
 def test_okp_jobs_per_method(tmp_path, monkeypatch):
-    """The sequence that mixed up methods: two jobs in flight, one fetched,
-    then use_stored for the other. Each method keeps its own job and result."""
+    """A job is submitted and fetched, then use_stored reads the result of a call
+    with another method: each method keeps its own job and result."""
     adapter = _adapter(tmp_path)
     full = _model(adapter, light=False)
     data = tmp_path / "data"
@@ -468,9 +468,9 @@ def test_kcats_from_dlkcat_run_is_docker(tmp_path, monkeypatch):
     assert meta["parameters"] == '{"run":true}'
 
 
-def test_kcats_from_okp_default_method_is_first_of_methods(tmp_path, monkeypatch):
-    """Without a method, kcats_from_okp uses the first entry of [kcat_sources.okp] methods
-    (KinForm-H when the project lists none)."""
+def test_kcats_from_okp_default_method_is_the_configured_method(tmp_path, monkeypatch):
+    """Without a method, kcats_from_okp uses [kcat_sources.okp] method
+    (KinForm-H when the project sets none)."""
     adapter = _adapter(tmp_path)
     full = _model(adapter, light=False)
     (tmp_path / "data").mkdir()
@@ -483,7 +483,7 @@ def test_kcats_from_okp_default_method_is_first_of_methods(tmp_path, monkeypatch
     monkeypatch.setattr(kcats_from_module, "_submit_open_kinetics_predictor", fake_submit)
     monkeypatch.setattr(kcats_from_module, "_fetch_open_kinetics_predictor", lambda model, **kw: (False, None))
     assert kcats_from_okp(full, save=False) == (None, False)
-    adapter.params.kcat_sources["okp"] = {"methods": ["UniKP", "CataPro"]}
+    adapter.params.kcat_sources["okp"] = {"method": "UniKP"}
     kcats_from_okp(full, save=False, resubmit=True)
     assert submitted == ["KinForm-H", "UniKP"]
 

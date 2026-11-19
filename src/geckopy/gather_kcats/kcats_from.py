@@ -409,20 +409,19 @@ def kcats_from_okp(
 
     OKP is a web service with a job queue, so this can be called repeatedly:
     without a job for ``method`` it submits one; with a job it fetches the
-    result, and writes the file once the job is done. Each method keeps its
-    own job in ``data/OKP_job_<method>.txt`` and its own result in
-    ``data/OKP_output_<method>.csv``, so jobs of several methods can run at
-    the same time. The job file records which job the stored result came
-    from; ``use_stored`` only uses a result of the current job. An API key
-    is needed.
+    result, and writes the file once the job is done. The job of a method is
+    kept in ``data/OKP_job_<method>.txt`` and its result in
+    ``data/OKP_output_<method>.csv``. The job file records which job the stored
+    result came from; ``use_stored`` only uses a result of the current job. An
+    API key is needed.
 
     Parameters
     ----------
     model
         EcModel with metabolite SMILES and protein sequences.
     method
-        OKP method, e.g. ``"CataPro"``, ``"CatRange"``, ``"UniKP"`` (default: the
-        first of ``[kcat_sources.okp] methods``, ``"KinForm-H"`` unless set).
+        OKP method, e.g. ``"CataPro"``, ``"CatRange"``, ``"UniKP"`` (default:
+        ``[kcat_sources.okp] method``, ``"KinForm-H"`` unless set).
     wait
         Wait until the job is done.
     resubmit

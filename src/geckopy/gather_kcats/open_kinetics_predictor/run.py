@@ -56,6 +56,7 @@ def _submit_open_kinetics_predictor(
     adapter: Optional["ModelAdapter"] = None,
     base_url: str = _BASE_URL,
     session: Optional[requests.Session] = None,
+    job_tag: str = "",
 ) -> str:
     """Build the OKP input and submit a kcat-prediction job.
 
@@ -83,11 +84,15 @@ def _submit_open_kinetics_predictor(
         Model adapter; falls back to ``model.adapter``.
     base_url, session
         For testing / custom deployments.
+    job_tag
+        With a tag, the input is ``data/OKP_<job_tag>.csv`` and
+        ``data/OKP_job.txt`` is left as it is.
 
     Returns
     -------
     str
-        The OKP job id (also written to ``data/OKP_job.txt``).
+        The OKP job id (also written to ``data/OKP_job.txt`` without a
+        ``job_tag``).
     """
     from ...adapter import resolve_adapter
     adapter = resolve_adapter(
@@ -102,7 +107,7 @@ def _submit_open_kinetics_predictor(
         method = default_okp_method(adapter)
     okp = adapter.params.okp
 
-    okp_csv = data_dir / "OKP.csv"
+    okp_csv = data_dir / (f"OKP_{job_tag}.csv" if job_tag else "OKP.csv")
     if okp_csv.is_file() and not overwrite:
         csv_text = okp_csv.read_text(encoding="utf-8")
         logger.info("Using existing %s (set overwrite=True to rebuild).", okp_csv)
@@ -128,7 +133,8 @@ def _submit_open_kinetics_predictor(
     if not job_id:
         raise OKPError(f"OKP submit returned no jobId: {resp!r}")
 
-    _write_job_metadata(data_dir / "OKP_job.txt", job_id, method)
+    if not job_tag:
+        _write_job_metadata(data_dir / "OKP_job.txt", job_id, method)
     logger.info("Submitted OKP job %s (method: %s).", job_id, method)
     return job_id
 

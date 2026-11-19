@@ -408,6 +408,7 @@ def kcats_from_okp(
     resubmit: bool = False,
     use_stored: bool = False,
     ec_rxns: Optional[Iterable[str]] = None,
+    job_tag: str = "",
     save: bool = True,
     save_as: Optional[str] = None,
     adapter: Optional["ModelAdapter"] = None,
@@ -439,6 +440,14 @@ def kcats_from_okp(
     ec_rxns
         ``model.ec.rxns`` to predict for (default: all); only used when a
         job is submitted.
+    job_tag
+        Keeps the job, its input and its result apart from the job of the
+        method without a tag: they are read and written as
+        ``data/OKP_job_<method>_<job_tag>.txt``, ``data/OKP_<job_tag>.csv``
+        and ``data/OKP_output_<method>_<job_tag>.csv``, and the source file is
+        ``okp_<method>_<job_tag>.tsv`` unless ``save_as`` is given. A job for a
+        few reactions with a tag leaves the job and the result of all
+        reactions as they are.
     save, save_as, adapter
         As in :func:`kcats_from_brenda`; ``save_as`` defaults to
         ``okp_<method>``, in lower case, with other characters than letters
@@ -461,6 +470,10 @@ def kcats_from_okp(
     ec_rxns = _rxn_subset(ec_rxns)
     name_default = okp_file(method)
     tag = name_default[len("okp_"):]
+    job_tag = re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", job_tag.lower()))
+    if job_tag:
+        tag = f"{tag}_{job_tag}"
+        name_default = f"okp_{tag}"
     data_dir = Path(adapter.params.path) / "data"
     job_file = data_dir / f"OKP_job_{tag}.txt"
     out_file = data_dir / f"OKP_output_{tag}.csv"
@@ -478,7 +491,7 @@ def kcats_from_okp(
             _warn_subset(ec_rxns, model, path)
 
     if use_stored:
-        if "jobId" not in job:
+        if "jobId" not in job and not job_tag:
             _adopt_shared_result(model, data_dir, method, job_file, out_file)
             job = _read_job_file(job_file)
         if not out_file.is_file() or job.get("resultOf") != job.get("jobId"):
@@ -491,7 +504,8 @@ def kcats_from_okp(
         if submitting:
             out_file.unlink(missing_ok=True)
             job_id = _submit_open_kinetics_predictor(model, overwrite=True, method=method,
-                                                    ec_rxns=ec_rxns, adapter=adapter)
+                                                    ec_rxns=ec_rxns, adapter=adapter,
+                                                    job_tag=job_tag)
             job = {"jobId": job_id, "method": method,
                    "submittedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
             if ec_rxns is not None:

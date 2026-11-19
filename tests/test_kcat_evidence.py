@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from geckopy.gather_kcats import kcat_evidence, kcats_for_reactions, kcats_from_okp, save_kcat_source
+from geckopy.gather_kcats import ec_rxn_keys, kcat_evidence, kcats_for_reactions, kcats_from_okp, save_kcat_source
 from test_ec_tree import _measurements_for, _project
 
 
@@ -85,5 +85,81 @@ def test_okp_job_tag_has_its_own_files(tmp_path):
     data = project / "data"
     (data / "OKP_job_kinform_h.txt").write_text("jobId: abc\nmethod: KinForm-H\nresultOf: abc\n", encoding="utf-8")
     (data / "OKP_output_kinform_h.csv").write_text("x\n", encoding="utf-8")
-    with pytest.raises(FileNotFoundError, match="OKP_job_kinform_h_query.txt"):
+    with pytest.raises(FileNotFoundError, match="OKP_job_kinform_h__query.txt"):
         kcats_from_okp(model, method="KinForm-H", job_tag="query", use_stored=True, adapter=adapter)
+    with pytest.raises(ValueError, match="no letters or digits"):
+        kcats_from_okp(model, method="KinForm-H", job_tag="!!", use_stored=True, adapter=adapter)
+    with pytest.raises(ValueError, match="Not in model.ec.rxns"):
+        kcats_from_okp(model, method="KinForm-H", ec_rxns=["nope"], adapter=adapter)
+    with pytest.raises(ValueError, match="outside model.ec.rxns"):
+        kcats_from_okp(model, method="KinForm-H", ec_rxns=[10**6], adapter=adapter)
+
+
+def test_tagged_okp_submit_leaves_the_untagged_files(tmp_path, monkeypatch):
+    from geckopy.gather_kcats.open_kinetics_predictor.run import _submit_open_kinetics_predictor
+    from test_open_kinetics_predictor import _FakeResponse, _FakeSession, _adapter, _ec_model, _ignore
+
+    adapter = _adapter(tmp_path)
+    model = _ec_model(adapter)
+    monkeypatch.setenv("OKP_API_KEY", "ak_test")
+    session = _FakeSession([("/submit/", _FakeResponse(201, {"jobId": "JOB7", "status": "Pending"}))])
+    assert _submit_open_kinetics_predictor(model, ignore_lists=_ignore(), session=session,
+                                           job_tag="query", overwrite=True) == "JOB7"
+    data = tmp_path / "data"
+    assert (data / "OKP_query_query.csv").read_text().startswith("Protein Sequence,Substrate")
+    assert not (data / "OKP.csv").exists() and not (data / "OKP_job.txt").exists()
+
+
+def test_empty_and_string_arguments(tmp_path):
+    model, adapter, _ = _project(tmp_path)
+    for kwargs in ({"rxns": []}, {"enzymes": []}, {"tuned": []}):
+        assert len(kcat_evidence(model, sources=[], adapter=adapter, **kwargs).rows) == 0
+    rxn = model.ec.rxns[_rows_with_enzymes(model, 1)[0]]
+    result = kcat_evidence(model, tuned=rxn, sources=[], compute="ec_tree",
+                           measurements=_measurements_for(model), adapter=adapter)
+    assert list(result.summary["ec_rxn"]) == [rxn] and result.summary["src_ec_tree"].notna().all()
+    with pytest.raises(ValueError, match="outside model.ec.rxns"):
+        kcat_evidence(model, rxns=[10**6], adapter=adapter)
+    with pytest.raises(ValueError, match="one per row"):
+        kcat_evidence(model, rxns=np.array([True, False]), adapter=adapter)
+    with pytest.raises(ValueError, match="No reaction"):
+        kcats_for_reactions(model, [], adapter=adapter)
+
+
+def test_assigned_survives_the_rounding_of_the_prior(tmp_path):
+    model, adapter, _ = _project(tmp_path)
+    i = _rows_with_enzymes(model, 1)[0]
+    rxn = model.ec.rxns[i]
+    model.ec.kcat[i] = 123.456789
+    model.ec.source[i] = "custom | tuned=sensitivity (prior=12.3457)"
+    _save(model, adapter, "src_a", [rxn], [12.3456789])
+    result = kcat_evidence(model, rxns=[rxn], sources=["src_a"], adapter=adapter)
+    assert result.evidence["assigned"].all()
+    # A tuning status without a prior is tuned, and compared with the current kcat.
+    model.ec.source[i] = "custom | tuned=cmaes"
+    row = kcat_evidence(model, rxns=[rxn], sources=[], adapter=adapter).summary.iloc[0]
+    assert row["tuned"] and np.isnan(row["prior"]) and np.isnan(row["fold"])
+
+
+def test_a_reverse_direction_is_selected_by_its_conventional_name(tmp_path):
+    model, adapter, _ = _project(tmp_path)
+    base, _ = ec_rxn_keys(model)
+    reverse = [b for b in dict.fromkeys(base) if b.endswith("_REV")]
+    if not reverse:
+        pytest.skip("the test model has no reverse direction")
+    result = kcat_evidence(model, rxns=reverse[:1], sources=[], adapter=adapter)
+    assert len(result.rows) and all(base[i] == reverse[0] for i in result.rows)
+    forward = kcat_evidence(model, rxns=[reverse[0][:-4]], sources=[], adapter=adapter)
+    assert not set(forward.rows) & set(result.rows)
+
+
+def test_a_tagged_query_result_is_not_a_stored_prediction_of_a_method(tmp_path):
+    from geckopy.upgrade import _stored_predictions
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "OKP_output_unikp.csv").write_text("x\n")
+    (data / "OKP_job_unikp.txt").write_text("jobId: a\nmethod: UniKP\n")
+    (data / "OKP_output_kinform_h__query.csv").write_text("x\n")
+    (data / "OKP_job_kinform_h__query.txt").write_text("jobId: b\nmethod: KinForm-H\n")
+    assert _stored_predictions(tmp_path) == ["UniKP"]

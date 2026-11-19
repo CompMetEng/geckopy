@@ -188,6 +188,18 @@ def test_re_tuning_keeps_one_method_and_the_first_prior(tmp_path):
 # prot_to_ignore
 # --------------------------------------------------------------------------- #
 
+def test_evidence_of_the_tuned_reactions(tmp_path):
+    adapter = _adapter(tmp_path)
+    model = _build_toy(adapter, initial_kcat=1.0)
+    off = sensitivity_tuning(model, verbose=False)
+    assert off.evidence is None
+    model = _build_toy(adapter, initial_kcat=1.0)
+    tuned = sensitivity_tuning(model, verbose=False, evidence=True)
+    assert list(tuned.evidence["ec_rxn"]) == tuned.rxns
+    assert tuned.evidence["kcat"].tolist() == tuned.new_kcat.tolist()
+    assert tuned.evidence["prior"].tolist() == tuned.old_kcat.tolist()
+
+
 def test_prot_to_ignore_excludes_enzyme(tmp_path):
     """If the only limiting enzyme is in `prot_to_ignore`, no tuning
     should happen and the function should warn and break."""

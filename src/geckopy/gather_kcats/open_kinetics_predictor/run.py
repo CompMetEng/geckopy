@@ -85,7 +85,7 @@ def _submit_open_kinetics_predictor(
     base_url, session
         For testing / custom deployments.
     job_tag
-        With a tag, the input is ``data/OKP_<job_tag>.csv`` and
+        With a tag, the input is ``data/OKP_query_<job_tag>.csv`` and
         ``data/OKP_job.txt`` is left as it is.
 
     Returns
@@ -107,7 +107,7 @@ def _submit_open_kinetics_predictor(
         method = default_okp_method(adapter)
     okp = adapter.params.okp
 
-    okp_csv = data_dir / (f"OKP_{job_tag}.csv" if job_tag else "OKP.csv")
+    okp_csv = data_dir / (f"OKP_query_{job_tag}.csv" if job_tag else "OKP.csv")
     if okp_csv.is_file() and not overwrite:
         csv_text = okp_csv.read_text(encoding="utf-8")
         logger.info("Using existing %s (set overwrite=True to rebuild).", okp_csv)

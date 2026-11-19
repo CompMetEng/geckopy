@@ -42,6 +42,8 @@ from ..gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_sou
 from .corrections import Correction, corrections as build_corrections
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ..ec_model.ec_model import EcModel
 
 
@@ -78,6 +80,10 @@ class TunedKcatsResult:
     source
         kcat provenance (``model.ec.source``) of the input model,
         parallel to ``rxns``.
+    evidence
+        With ``evidence=True``, the ``summary`` table of
+        :func:`~geckopy.gather_kcats.kcat_evidence` for the tuned reactions
+        (``None`` otherwise).
     """
 
     rxns: list[str] = field(default_factory=list)
@@ -90,6 +96,7 @@ class TunedKcatsResult:
         default_factory=lambda: np.empty(0, dtype=float)
     )
     source: list[str] = field(default_factory=list)
+    evidence: Optional["pd.DataFrame"] = None
 
     def corrections(
         self,
@@ -123,6 +130,7 @@ def sensitivity_tuning(
     max_iterations: int = 1000,
     bio_rxn: Optional[str] = None,
     verbose: bool = True,
+    evidence: bool = False,
 ) -> TunedKcatsResult:
     """Iteratively bump the most-limiting kcat by ``fold_change`` until
     the model can reach ``desired_growth_rate``.
@@ -183,6 +191,11 @@ def sensitivity_tuning(
         neither is available the model's current objective is used.
     verbose
         Whether per-iteration progress is logged at INFO.
+    evidence
+        Add ``TunedKcatsResult.evidence``, the kcats that every source file of
+        the project gives for the tuned reactions next to the tuned kcat (see
+        :func:`~geckopy.gather_kcats.kcat_evidence`). A failure to read the
+        source files is logged as a warning and leaves ``evidence`` empty.
 
     Returns
     -------
@@ -367,7 +380,15 @@ def sensitivity_tuning(
             max_iterations, desired_growth_rate,
         )
 
-    return _build_result(model, tuned_ec_indices, input_kcat, input_source)
+    result = _build_result(model, tuned_ec_indices, input_kcat, input_source)
+    if evidence and result.rxns:
+        from ..gather_kcats.evidence import kcat_evidence
+
+        try:
+            result.evidence = kcat_evidence(model, tuned=result).summary
+        except Exception as err:  # the tuning is done; the evidence is extra
+            logger.warning("The evidence of the tuned kcats could not be read: %s", err)
+    return result
 
 
 def _mark_tuned(model: "EcModel", ec_idx: int) -> None:

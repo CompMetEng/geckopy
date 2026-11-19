@@ -52,6 +52,26 @@ def _rxn_subset(ec_rxns: Optional[Iterable[str]]) -> Optional[list[str]]:
     return ec_rxns
 
 
+def _okp_rxn_subset(model: "EcModel", ec_rxns) -> Optional[list[str]]:
+    """``ec_rxns`` as names of ``model.ec.rxns``, from names, integer indices or a boolean array."""
+    if ec_rxns is None:
+        return None
+    arr = np.asarray([ec_rxns] if isinstance(ec_rxns, str) else list(ec_rxns))
+    if arr.size and arr.dtype == bool:
+        if arr.shape != (len(model.ec.rxns),):
+            raise ValueError(f"A boolean ec_rxns needs {len(model.ec.rxns)} entries, one per row of model.ec.rxns.")
+        return _rxn_subset(model.ec.rxns[i] for i in np.flatnonzero(arr))
+    if arr.size and np.issubdtype(arr.dtype, np.integer):
+        if arr.min() < -len(model.ec.rxns) or arr.max() >= len(model.ec.rxns):
+            raise ValueError(f"ec_rxns has an index outside model.ec.rxns ({len(model.ec.rxns)} rows).")
+        return _rxn_subset(model.ec.rxns[i] for i in arr)
+    names = [str(r) for r in arr]
+    missing = sorted(set(names) - set(model.ec.rxns))
+    if missing:
+        raise ValueError(f"Not in model.ec.rxns: {', '.join(missing)}.")
+    return _rxn_subset(names)
+
+
 def _warn_subset(ec_rxns: Optional[list[str]], model: "EcModel", path: Path) -> None:
     if ec_rxns is not None and len(set(ec_rxns)) < len(model.ec.rxns) and path.is_file():
         logger.warning("%s is replaced by kcats for %d reactions only. Give save_as to keep it.",
@@ -438,14 +458,16 @@ def kcats_from_okp(
     use_stored
         Read the stored result of this method's job without contacting OKP.
     ec_rxns
-        ``model.ec.rxns`` to predict for (default: all); only used when a
-        job is submitted.
+        ``model.ec.rxns`` to predict for (default: all), as names, integer
+        indices or a boolean array; only used when a job is submitted.
     job_tag
         Keeps the job, its input and its result apart from the job of the
         method without a tag: they are read and written as
-        ``data/OKP_job_<method>_<job_tag>.txt``, ``data/OKP_<job_tag>.csv``
-        and ``data/OKP_output_<method>_<job_tag>.csv``, and the source file is
-        ``okp_<method>_<job_tag>.tsv`` unless ``save_as`` is given. A job for a
+        ``data/OKP_job_<method>__<job_tag>.txt``, ``data/OKP_query_<job_tag>.csv``
+        and ``data/OKP_output_<method>__<job_tag>.csv``, and the source file is
+        ``okp_<method>__<job_tag>.tsv`` unless ``save_as`` is given. The tag is
+        written in lower case, with each run of other characters than letters
+        and digits as ``_``; it must have at least one letter or digit. A job for a
         few reactions with a tag leaves the job and the result of all
         reactions as they are.
     save, save_as, adapter
@@ -470,10 +492,14 @@ def kcats_from_okp(
     ec_rxns = _rxn_subset(ec_rxns)
     name_default = okp_file(method)
     tag = name_default[len("okp_"):]
-    job_tag = re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", job_tag.lower()))
     if job_tag:
-        tag = f"{tag}_{job_tag}"
+        clean = re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", job_tag.lower()))
+        if not clean:
+            raise ValueError(f"job_tag {job_tag!r} has no letters or digits.")
+        job_tag = clean
+        tag = f"{tag}__{job_tag}"
         name_default = f"okp_{tag}"
+    ec_rxns = _okp_rxn_subset(model, ec_rxns)
     data_dir = Path(adapter.params.path) / "data"
     job_file = data_dir / f"OKP_job_{tag}.txt"
     out_file = data_dir / f"OKP_output_{tag}.csv"

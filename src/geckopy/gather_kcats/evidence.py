@@ -188,7 +188,7 @@ def kcat_evidence(
     reference = np.where(tuned_mask, prior, current)
     ref_of = dict(zip(ec_rxns, reference))
     ref = evidence["ec_rxn"].map(ref_of).to_numpy(dtype=float)
-    evidence["assigned"] = np.abs(np.log(evidence["kcat"].to_numpy(dtype=float) / ref)) < 1e-6
+    evidence["assigned"] = np.isclose(evidence["kcat"].to_numpy(dtype=float), ref, rtol=1e-6, atol=0)
     evidence = evidence[columns + ["assigned"]]
 
     mat = model.ec.rxn_enz_mat.tocsr()

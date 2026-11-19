@@ -149,12 +149,12 @@ def kcat_evidence(
     -------
     KcatEvidence
         ``evidence``: one row per kcat of a source, with ``ec_rxn``,
-        ``source``, ``kcat``, ``substrate``, ``detail`` and ``assigned`` (the
+        ``kcat``, ``source``, ``substrate``, ``detail`` and ``assigned`` (the
         kcat is the one assigned to the reaction: the kcat before tuning for
         a tuned reaction, the current kcat otherwise). ``summary``: one row
-        per selected reaction, with ``ec_rxn``, ``enzymes``, ``eccodes``,
-        ``kcat`` (current), ``origin``, ``tuned``, ``prior`` (NaN when
-        untuned or without a positive prior), ``fold`` (``kcat / prior``) and
+        per selected reaction, with ``ec_rxn``, ``kcat`` (current),
+        ``tuned``, ``fold`` (``kcat / prior``), ``prior`` (NaN when untuned or
+        without a positive prior), ``origin``, ``enzymes``, ``eccodes`` and
         one column ``src_<source>`` (characters other than letters, digits and
         ``_`` in the source name become ``_``) with the median kcat of that
         source (NaN without one). ``rows``: the selected indices of
@@ -212,10 +212,10 @@ def kcat_evidence(
                 "kcat": tree["kcat"].to_numpy(dtype=float), "substrate": "", "detail": tree["detail"].to_numpy(),
             }))
         sources.append("ec_tree")
-    columns = ["ec_rxn", "source", "kcat", "substrate", "detail"]
+    columns = ["ec_rxn", "kcat", "source", "substrate", "detail"]
     evidence = (pd.concat(parts, ignore_index=True) if parts
-                else pd.DataFrame({"ec_rxn": pd.Series(dtype=object), "source": pd.Series(dtype=object),
-                                   "kcat": pd.Series(dtype=float), "substrate": pd.Series(dtype=object),
+                else pd.DataFrame({"ec_rxn": pd.Series(dtype=object), "kcat": pd.Series(dtype=float),
+                                   "source": pd.Series(dtype=object), "substrate": pd.Series(dtype=object),
                                    "detail": pd.Series(dtype=object)}))
 
     info = [parse_kcat_source(model.ec.source[i]) for i in rows]
@@ -236,14 +236,14 @@ def kcat_evidence(
         enzyme_text.append(";".join(model.ec.enzymes[j] for j in row.indices[row.data != 0]))
     summary = pd.DataFrame({
         "ec_rxn": ec_rxns,
+        "kcat": current,
+        "tuned": tuned_mask,
+        "fold": np.where(prior > 0, current / np.where(prior > 0, prior, 1.0), np.nan),
+        "prior": prior,
+        "origin": [x.origin for x in info],
         "enzymes": enzyme_text,
         "eccodes": [";".join(c) if isinstance(c, (list, tuple)) else (c if isinstance(c, str) else "")
                     for c in (model.ec.eccodes[i] for i in rows)],
-        "kcat": current,
-        "origin": [x.origin for x in info],
-        "tuned": tuned_mask,
-        "prior": prior,
-        "fold": np.where(prior > 0, current / np.where(prior > 0, prior, 1.0), np.nan),
     })
     medians = evidence.groupby(["source", "ec_rxn"])["kcat"].median()
     for name in sources:

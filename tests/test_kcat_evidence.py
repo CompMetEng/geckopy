@@ -29,6 +29,8 @@ def test_evidence_lists_every_source(tmp_path):
     result = kcat_evidence(model, rxns=sel, sources=["src_a", "src_b"], adapter=adapter)
     assert list(result.rows) == rows
     assert list(result.summary["ec_rxn"]) == sel
+    assert list(result.summary.columns)[:8] == ["ec_rxn", "kcat", "tuned", "fold", "prior", "origin", "enzymes", "eccodes"]
+    assert list(result.evidence.columns) == ["ec_rxn", "kcat", "source", "substrate", "detail", "assigned"]
     assert list(result.summary["src_src_a"]) == [1.0, 2.0, 4.0]
     assert result.summary["src_src_b"].iloc[0] == 8.0 and result.summary["src_src_b"].iloc[1:].isna().all()
     assert len(result.evidence) == 4

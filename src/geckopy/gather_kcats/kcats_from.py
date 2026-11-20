@@ -52,6 +52,26 @@ def _rxn_subset(ec_rxns: Optional[Iterable[str]]) -> Optional[list[str]]:
     return ec_rxns
 
 
+def _okp_rxn_subset(model: "EcModel", ec_rxns) -> Optional[list[str]]:
+    """``ec_rxns`` as names of ``model.ec.rxns``, from names, integer indices or a boolean array."""
+    if ec_rxns is None:
+        return None
+    arr = np.asarray([ec_rxns] if isinstance(ec_rxns, str) else list(ec_rxns))
+    if arr.size and arr.dtype == bool:
+        if arr.shape != (len(model.ec.rxns),):
+            raise ValueError(f"A boolean ec_rxns needs {len(model.ec.rxns)} entries, one per row of model.ec.rxns.")
+        return _rxn_subset(model.ec.rxns[i] for i in np.flatnonzero(arr))
+    if arr.size and np.issubdtype(arr.dtype, np.integer):
+        if arr.min() < -len(model.ec.rxns) or arr.max() >= len(model.ec.rxns):
+            raise ValueError(f"ec_rxns has an index outside model.ec.rxns ({len(model.ec.rxns)} rows).")
+        return _rxn_subset(model.ec.rxns[i] for i in arr)
+    names = [str(r) for r in arr]
+    missing = sorted(set(names) - set(model.ec.rxns))
+    if missing:
+        raise ValueError(f"Not in model.ec.rxns: {', '.join(missing)}.")
+    return _rxn_subset(names)
+
+
 def _warn_subset(ec_rxns: Optional[list[str]], model: "EcModel", path: Path) -> None:
     if ec_rxns is not None and len(set(ec_rxns)) < len(model.ec.rxns) and path.is_file():
         logger.warning("%s is replaced by kcats for %d reactions only. Give save_as to keep it.",
@@ -167,6 +187,9 @@ def _measurements(adapter: "ModelAdapter") -> pd.DataFrame:
         return table
 
 
+_REVERSE = re.compile(r"_REV(_EXP_\d+)?$")
+
+
 def kcats_from_ec_tree(
     model: "EcModel",
     *,
@@ -211,7 +234,11 @@ def kcats_from_ec_tree(
     -------
     pandas.DataFrame
         The kcat list; ``detail`` has the number of measurements of the EC
-        (``n``) and the deepest EC level with measurements (``depth``).
+        (``n``) and the deepest EC level with measurements (``depth``). The
+        estimate depends on the EC number only, because BRENDA measurements
+        have no direction: a reverse direction (``_REV``) gets the value of
+        its forward direction, and its ``detail`` ends with
+        ``direction=reverse``.
     """
     adapter = _adapter(model, adapter, "kcats_from_ec_tree needs the BRENDA folder and project folder")
     ec_rxns = None if ec_rxns is None else list(ec_rxns)
@@ -231,7 +258,7 @@ def kcats_from_ec_tree(
             continue
         rows.append({"rxn_id": rxn, "source": "ec_tree", "eccode": ec, "substrates": [], "genes": [],
                      "kcat": float(10 ** value), "wildcard_level": np.nan, "origin": np.nan,
-                     "detail": f"n={n}; depth={depth}"})
+                     "detail": f"n={n}; depth={depth}" + ("; direction=reverse" if _REVERSE.search(rxn) else "")})
     kcat_list = pd.DataFrame(rows, columns=["rxn_id", "source", "eccode", "substrates", "genes", "kcat",
                                             "wildcard_level", "origin", "detail"])
     if save:
@@ -401,6 +428,7 @@ def kcats_from_okp(
     resubmit: bool = False,
     use_stored: bool = False,
     ec_rxns: Optional[Iterable[str]] = None,
+    job_tag: str = "",
     save: bool = True,
     save_as: Optional[str] = None,
     adapter: Optional["ModelAdapter"] = None,
@@ -430,8 +458,18 @@ def kcats_from_okp(
     use_stored
         Read the stored result of this method's job without contacting OKP.
     ec_rxns
-        ``model.ec.rxns`` to predict for (default: all); only used when a
-        job is submitted.
+        ``model.ec.rxns`` to predict for (default: all), as names, integer
+        indices or a boolean array; only used when a job is submitted.
+    job_tag
+        Keeps the job, its input and its result apart from the job of the
+        method without a tag: they are read and written as
+        ``data/OKP_job_<method>__<job_tag>.txt``, ``data/OKP_query_<job_tag>.csv``
+        and ``data/OKP_output_<method>__<job_tag>.csv``, and the source file is
+        ``okp_<method>__<job_tag>.tsv`` unless ``save_as`` is given. The tag is
+        written in lower case, with each run of other characters than letters
+        and digits as ``_``; it must have at least one letter or digit. A job for a
+        few reactions with a tag leaves the job and the result of all
+        reactions as they are.
     save, save_as, adapter
         As in :func:`kcats_from_brenda`; ``save_as`` defaults to
         ``okp_<method>``, in lower case, with other characters than letters
@@ -451,9 +489,17 @@ def kcats_from_okp(
     if method in ("CatPred", "TurNup"):
         raise ValueError(f"{method} reads whole reactions (substrate set{', and products' if method == 'TurNup' else ''}); "
                          "kcats_from_okp submits enzyme-substrate pairs only.")
-    ec_rxns = _rxn_subset(ec_rxns)
+    ec_rxns = _okp_rxn_subset(model, ec_rxns)
     name_default = okp_file(method)
     tag = name_default[len("okp_"):]
+    job_tag = str(job_tag) if job_tag else ""
+    if job_tag:
+        clean = re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", job_tag.lower()))
+        if not clean:
+            raise ValueError(f"job_tag {job_tag!r} has no letters or digits.")
+        job_tag = clean
+        tag = f"{tag}__{job_tag}"
+        name_default = f"okp_{tag}"
     data_dir = Path(adapter.params.path) / "data"
     job_file = data_dir / f"OKP_job_{tag}.txt"
     out_file = data_dir / f"OKP_output_{tag}.csv"
@@ -467,11 +513,11 @@ def kcats_from_okp(
         )
     if save:
         path = kcat_source_file(name, model=model, adapter=adapter)  # fails before submitting
-        if submitting:
+        if submitting and not job_tag:
             _warn_subset(ec_rxns, model, path)
 
     if use_stored:
-        if "jobId" not in job:
+        if "jobId" not in job and not job_tag:
             _adopt_shared_result(model, data_dir, method, job_file, out_file)
             job = _read_job_file(job_file)
         if not out_file.is_file() or job.get("resultOf") != job.get("jobId"):
@@ -484,7 +530,8 @@ def kcats_from_okp(
         if submitting:
             out_file.unlink(missing_ok=True)
             job_id = _submit_open_kinetics_predictor(model, overwrite=True, method=method,
-                                                    ec_rxns=ec_rxns, adapter=adapter)
+                                                    ec_rxns=ec_rxns, adapter=adapter,
+                                                    job_tag=job_tag)
             job = {"jobId": job_id, "method": method,
                    "submittedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
             if ec_rxns is not None:

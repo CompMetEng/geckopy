@@ -312,6 +312,8 @@ def _stored_predictions(project: Path) -> list[str]:
     if (data / "DLKcat.tsv").is_file() and not (data / "kcats" / "dlkcat.tsv").exists():
         found.append("dlkcat")
     for out in sorted(data.glob("OKP_output*.csv")):
+        if "__" in out.stem:
+            continue  # the result of a tagged query (kcats_from_okp job_tag)
         job = data / ("OKP_job.txt" if out.name == "OKP_output.csv"
                       else "OKP_job_" + out.stem[len("OKP_output_"):] + ".txt")
         if not job.is_file():

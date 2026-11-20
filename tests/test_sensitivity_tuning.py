@@ -436,12 +436,12 @@ def test_per_flux_tolerance_overrides_the_default(tmp_path):
     assert result.rxns == []
 
 
-def test_a_condition_no_kcat_can_meet_is_reported_unfixable(tmp_path):
+def test_a_condition_infeasible_in_the_gem_is_marked_and_left_alone(tmp_path):
     """Growth 20 needs 20 mmol/gDW/h of A, and the uptake is limited to 10."""
     model = _build_two_branches(_adapter(tmp_path), uptake=10.0)
     before = model.ec.kcat.copy()
     result = sensitivity_tuning(model, flux_data=_condition(20.0, 0.0))
-    assert result.status == "unfixable"
+    assert result.status == "infeasible_in_gem"
     assert result.rxns == []
     assert np.array_equal(model.ec.kcat, before)
 
@@ -473,3 +473,23 @@ def test_exchange_missing_from_the_model_raises(tmp_path):
 def test_status_is_reported_without_a_condition(tmp_path):
     model = _build_toy(_adapter(tmp_path, gr_exp=300.0))
     assert sensitivity_tuning(model, fold_change=10.0).status == "reached"
+
+
+def test_infeasible_conditions_lists_the_names(tmp_path):
+    from geckopy.kcat_tuning.sensitivity_tuning import infeasible_conditions
+    from geckopy.databases.flux_data import FluxData
+    model = _build_two_branches(_adapter(tmp_path), uptake=10.0)
+    flux = FluxData(
+        conds=["low", "high"], p_tot=np.array([np.nan, np.nan]),
+        gr_rate=np.array([5.0, 20.0]), exch_fluxes=np.array([[0.0], [0.0]]),
+        exch_mets=["P"], exch_rxn_ids=["EX_P"])
+    assert infeasible_conditions(model, flux) == ["high"]
+
+
+def test_a_limit_of_a_single_enzyme_is_unfixable_not_infeasible_in_the_gem(tmp_path):
+    """Feasible without enzyme limits, but the usage of E is capped far below
+    what growth 20 needs, so raising the pool does not help."""
+    model = _build_two_branches(_adapter(tmp_path))
+    model.reactions.usage_prot_E.upper_bound = 0.01
+    result = sensitivity_tuning(model, flux_data=_condition(20.0, 20.0))
+    assert result.status == "unfixable"

@@ -87,9 +87,12 @@ class TunedKcatsResult:
         :func:`~geckopy.gather_kcats.kcat_evidence` for the tuned reactions
         (``None`` otherwise).
     status
-        Why the run stopped: ``reached`` (the target is met), ``unfixable``
-        (the measured condition cannot be met by raising kcats, because it
-        stays infeasible with the protein pool removed as a limit),
+        Why the run stopped: ``reached`` (the target is met),
+        ``infeasible_in_gem`` (the measured condition is infeasible without
+        any enzyme limit, which is the model without enzyme constraints, so no
+        kcat can meet it and the condition should not be used),
+        ``unfixable`` (feasible without enzyme limits and infeasible with the
+        protein pool lifted, so a limit of single enzymes stops it),
         ``stalled`` (the next kcat does not lower the protein needed),
         ``infeasible`` or ``no_candidate`` (the LP has no optimal solution,
         or no enzyme is left to raise) and ``max_iterations``.
@@ -225,11 +228,15 @@ def sensitivity_tuning(
         iteration checks the condition; when it is infeasible the protein
         pool is lifted as a limit, the protein drawn from it is minimised,
         and the kcat of the enzyme that draws the most is raised. A
-        condition that is still infeasible without the pool limit is not
-        something a kcat can fix (a measurement that conflicts with the
-        model, or a limit set elsewhere): the run stops with status
-        ``unfixable``. Without ``flux_data`` the behaviour is as described
-        above.
+        condition that is infeasible without any enzyme limit, which is the
+        model without enzyme constraints, is not something a kcat can fix (a
+        measurement that conflicts with the model): the run stops before any
+        change, with status ``infeasible_in_gem``, and the condition is better
+        left out of the tuning (give it ``weight`` 0, see
+        :func:`infeasible_conditions`). A condition that is feasible without
+        enzyme limits but not with the pool lifted is stopped by a limit of
+        single enzymes, status ``unfixable``. Without ``flux_data`` the
+        behaviour is as described above.
     flux_tolerance, flux_abs_tolerance, flux_tolerances
         A measured flux ``v`` is met within ``[v(1 - t), v(1 + t)]`` widened
         by ``flux_abs_tolerance`` (mmol/gDW/h) on both sides, with ``t`` the
@@ -449,6 +456,61 @@ def _condition_bounds(
     return bounds
 
 
+def _feasible_without_enzyme_limits(
+    model: "EcModel", bounds: Mapping[str, tuple[float, float]], target_growth: float,
+    bio_rxn_id: str, usage_rxn_ids: Sequence[str],
+) -> bool:
+    """Whether the condition is feasible with the protein pool and the usage of
+    every enzyme unlimited, which is the model without enzyme constraints."""
+    with model:
+        for rxn_id, (lo, hi) in bounds.items():
+            model.reactions.get_by_id(rxn_id).bounds = (lo, hi)
+        model.reactions.get_by_id(bio_rxn_id).lower_bound = target_growth
+        model.reactions.get_by_id(POOL_EXCHANGE_ID).upper_bound = 1000.0
+        for uid in usage_rxn_ids:
+            model.reactions.get_by_id(uid).bounds = (0.0, 1000.0)
+        model.objective = bio_rxn_id
+        model.slim_optimize(error_value=float("nan"))
+        return model.solver.status == "optimal"
+
+
+def infeasible_conditions(
+    model: "EcModel",
+    flux_data: "FluxData",
+    *,
+    desired_growth_rate: Optional[float] = None,
+    flux_tolerance: float = 0.1,
+    flux_abs_tolerance: float = 1e-3,
+    flux_tolerances: Optional[Mapping[str, float]] = None,
+    bio_rxn: Optional[str] = None,
+) -> list[str]:
+    """Names of the conditions that are infeasible in the model without enzyme limits.
+
+    The check is the one :func:`sensitivity_tuning` makes first, for every
+    condition of ``flux_data``: growth at the measured rate (or
+    ``desired_growth_rate``) with every measured exchange within its band. No
+    kcat can fix such a condition. Give these conditions ``weight`` 0 in the
+    flux data, so that no tuning is asked to fit them. ``model`` is not
+    changed.
+    """
+    bio_rxn_id = bio_rxn
+    if bio_rxn_id is None and model.adapter is not None:
+        bio_rxn_id = model.adapter.params.bio_rxn
+    if not bio_rxn_id:
+        raise ValueError("The biomass reaction (bio_rxn) is needed.")
+    usage_rxn_ids = [r.id for r in model.reactions if r.id.startswith(USAGE_PREFIX)]
+    infeasible = []
+    for i, name in enumerate(flux_data.conds):
+        bounds = _condition_bounds(
+            flux_data, i, flux_tolerance, flux_abs_tolerance, flux_tolerances or {})
+        target = float(flux_data.gr_rate[i]) if desired_growth_rate is None \
+            else float(desired_growth_rate)
+        if not _feasible_without_enzyme_limits(
+                model, bounds, target, bio_rxn_id, usage_rxn_ids):
+            infeasible.append(name)
+    return infeasible
+
+
 def _tune_to_condition(
     model: "EcModel", flux_data: "FluxData", cond_idx: int, target_growth: float,
     tol: float, abs_tol: float, per_flux: Mapping[str, float], fold_change: float,
@@ -481,6 +543,15 @@ def _tune_to_condition(
             model.reactions.get_by_id(rxn_id).bounds = (lo, hi)
         bio_rxn.lower_bound = target_growth
 
+    if not _feasible_without_enzyme_limits(
+            model, bounds, target_growth, bio_rxn_id, usage_rxn_ids):
+        logger.warning(
+            "sensitivity_tuning: the condition is infeasible without any enzyme "
+            "limit, which is the model without enzyme constraints, so no kcat "
+            "can meet it; check the measured fluxes against the model."
+        )
+        return tuned, "infeasible_in_gem"
+
     for iteration in range(1, max_iterations + 1):
         with model:
             _condition()
@@ -502,9 +573,9 @@ def _tune_to_condition(
             optimal = sol.status == "optimal"
         if not optimal:
             logger.warning(
-                "sensitivity_tuning: the condition is infeasible even without the "
-                "protein pool limit (status %s), so no kcat can fix it; check the "
-                "measured fluxes against the model.", sol.status,
+                "sensitivity_tuning: the condition is feasible without enzyme limits "
+                "but infeasible with the protein pool lifted (status %s), so a "
+                "limit of single enzymes stops it.", sol.status,
             )
             return tuned, "unfixable"
         pool_used = float(sol.objective_value)

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.pipeline.protein_pool import set_prot_pool_size
 
 if TYPE_CHECKING:

@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 from cobra.util import ProcessPool
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import canonicalize_rxn_id
 
 try:

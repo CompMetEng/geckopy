@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import (
     POOL_EXCHANGE_ID,
     USAGE_PREFIX,

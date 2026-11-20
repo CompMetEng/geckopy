@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from ..ec_model.constants import POOL_EXCHANGE_ID
-from ..solver_support import constraint_shadow_prices, optimize_model
+from raven_toolbox.utils.solver import constraint_shadow_prices, optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel

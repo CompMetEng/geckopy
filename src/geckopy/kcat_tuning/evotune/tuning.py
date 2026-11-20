@@ -81,7 +81,7 @@ from raven_toolbox.experiments import (
 )
 from .parsimony import fold_change, n_changed
 from .priors import build_sigma0_log, classify_kcat_sources, warn_unlabelled
-from ...solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from .tying import isozyme_tie_map
 
 with warnings.catch_warnings():

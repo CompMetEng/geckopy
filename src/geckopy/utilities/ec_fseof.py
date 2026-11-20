@@ -51,7 +51,7 @@ import pandas as pd
 from cobra.exceptions import OptimizationError
 from cobra.flux_analysis import pfba
 from raven_toolbox.analysis.fseof import FSEOFResult, fseof
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
 
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import USAGE_PREFIX
 
 logger = logging.getLogger(__name__)

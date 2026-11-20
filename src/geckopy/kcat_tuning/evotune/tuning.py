@@ -184,6 +184,25 @@ class EvotuneResult:
         )
 
 
+def _reject_legacy_weight_column(data_dir: Path) -> None:
+    """Raise if ``fluxData.tsv`` or ``maxGrowth.tsv`` has the column ``evotuneRMSEweight``.
+
+    The weight of a condition is the column ``weight``. A file with the old column name would be
+    read without any weights, so the tuning would treat every condition alike without a message.
+    """
+    for name in ("fluxData.tsv", "maxGrowth.tsv"):
+        path = Path(data_dir) / name
+        if not path.is_file():
+            continue
+        with path.open(encoding="utf-8") as handle:
+            header = handle.readline().rstrip("\r\n").split("\t")
+        if "evotuneRMSEweight" in header:
+            raise ValueError(
+                f"{path} has the column 'evotuneRMSEweight'; the weight of a condition is the "
+                "column 'weight'."
+            )
+
+
 def _resolve_context(model, adapter, params, experiment_data, bio_rxn):
     """Resolve every optional input against ``model``'s adapter, or
     raise if it can't be and none was given explicitly."""
@@ -201,7 +220,9 @@ def _resolve_context(model, adapter, params, experiment_data, bio_rxn):
             raise ValueError(
                 "experiment_data not given and model has no adapter to load it from."
             )
-        experiment_data = load_experiment_data(Path(adapter.params.path) / "data")
+        data_dir = Path(adapter.params.path) / "data"
+        _reject_legacy_weight_column(data_dir)
+        experiment_data = load_experiment_data(data_dir)
     if experiment_data.flux_data is None and experiment_data.max_growth is None:
         raise ValueError(
             "experiment_data has neither flux_data nor max_growth -- nothing to "
@@ -961,8 +982,7 @@ def _score_kcat_vector(
         )
     rmse, _ = experiment_distance(
         experiment_data, flux_sims=flux_sims, max_growth_sims=max_growth_sims,
-        carbon_weights=carbon_weights, bio_rxn_id=bio_rxn_id,
-        max_growth_weight=max_growth_weight,
+        carbon_weights=carbon_weights, max_growth_weight=max_growth_weight,
     )
     # The search may run on a penalised objective, but the plain RMSE
     # is always recorded alongside it so a run stays comparable to

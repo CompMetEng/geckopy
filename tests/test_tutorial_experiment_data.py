@@ -48,7 +48,9 @@ def _model_with_exchanges(rxn_ids):
 def test_the_tutorial_data_is_scored_without_its_weight_zero_condition():
     data = load_experiment_data(TUTORIAL_DATA)
     assert data.flux_data.conds[0] == "Std" and data.flux_data.weight[0] == 0
-    rxn_ids = sorted(set(data.flux_data.exch_rxn_ids) | set(data.max_growth.exch_rxn_ids))
+    rxn_ids = sorted(
+        set(data.flux_data.exch_rxn_ids) | set(data.max_growth.exch_rxn_ids) | set(data.zero_flux)
+    )
     model = _model_with_exchanges(rxn_ids)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -63,11 +65,9 @@ def test_the_tutorial_data_is_scored_without_its_weight_zero_condition():
     )
     rmse, per_cond = dataset_rmse(
         data.flux_data, flux_sims, constrain=True, carbon_weights=carbon_weights,
-        bio_rxn_id="biomass",
     )
     max_growth_rmse, _ = dataset_rmse(
         data.max_growth, max_growth_sims, constrain=False, carbon_weights=carbon_weights,
-        bio_rxn_id="biomass",
     )
 
     assert flux_sims[0].skipped and not any(s.skipped for s in flux_sims[1:])

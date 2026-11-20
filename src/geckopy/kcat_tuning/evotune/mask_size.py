@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from ...adapter import ModelAdapter
     from ...adapter.params import EvotuneParams
     from ...ec_model.ec_model import EcModel
-    from ...experiments.data import ExperimentData
+    from raven_toolbox.experiments import ExperimentData
 
 
 @dataclass(frozen=True)

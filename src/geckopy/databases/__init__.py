@@ -8,7 +8,7 @@ from .complex_portal_loader import (
     load_complex_portal_json,
 )
 from .dlkcat_ignore_lists import DLKcatIgnoreLists, load_dlkcat_ignore_lists
-from .flux_data import FluxData, load_flux_data
+from raven_toolbox.experiments import FluxData, load_flux_data
 from .kegg_download import download_kegg
 from .kegg_loader import KeggDB, load_kegg_tsv
 from .mw import calculate_mw

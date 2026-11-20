@@ -61,6 +61,7 @@ import warnings
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from itertools import combinations
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 import cobra
@@ -71,11 +72,16 @@ from cobra.util import ProcessPool
 from ...ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ...gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 from ..corrections import Correction, corrections as build_corrections
-from ...experiments.data import ExperimentData, load_experiment_data
-from ...experiments.distance import experiment_distance, compute_excarbon
+from raven_toolbox.experiments import (
+    ExperimentData,
+    compute_carbon_weights,
+    experiment_distance,
+    load_experiment_data,
+    simulate_conditions,
+)
 from .parsimony import fold_change, n_changed
 from .priors import build_sigma0_log, classify_kcat_sources, warn_unlabelled
-from ...experiments.conditions import simulate_conditions
+from ...solver_support import optimize_model
 from .tying import isozyme_tie_map
 
 with warnings.catch_warnings():
@@ -176,7 +182,7 @@ def _resolve_context(model, adapter, params, experiment_data, bio_rxn):
             raise ValueError(
                 "experiment_data not given and model has no adapter to load it from."
             )
-        experiment_data = load_experiment_data(adapter)
+        experiment_data = load_experiment_data(Path(adapter.params.path) / "data")
     if experiment_data.flux_data is None and experiment_data.max_growth is None:
         raise ValueError(
             "experiment_data has neither flux_data nor max_growth -- nothing to "
@@ -197,7 +203,7 @@ def _tunable_context(
     model, params, experiment_data, bio_rxn, tunable_mask,
 ):
     """The tunable subset plus everything derived from it: tie groups,
-    trust weights, and the excarbon table. Shared by every function in
+    trust weights, and the carbon_weights table. Shared by every function in
     this module so a screen and the run it feeds are always looking at
     exactly the same parameters."""
     is_tunable = model.ec.kcat > 0
@@ -223,19 +229,19 @@ def _tunable_context(
     warn_unlabelled(groups, sources, params)
     sigma0_log = build_sigma0_log(groups, params)
 
-    excarbon_rxn_ids: set[str] = {bio_rxn}
+    weighted_rxn_ids: set[str] = {bio_rxn}
     for data in (experiment_data.flux_data, experiment_data.max_growth):
         if data is not None:
-            excarbon_rxn_ids.update(data.exch_rxn_ids)
-    excarbon_rxn_ids.update(experiment_data.zero_flux)
-    excarbon = compute_excarbon(model, excarbon_rxn_ids, bio_rxn_id=bio_rxn)
+            weighted_rxn_ids.update(data.exch_rxn_ids)
+    weighted_rxn_ids.update(experiment_data.zero_flux)
+    carbon_weights = compute_carbon_weights(model, weighted_rxn_ids, bio_rxn_id=bio_rxn)
 
     tie_map = (
         isozyme_tie_map(ec_rxn_ids_tunable, kcat0, list(groups))
         if params.tie_isozymes else np.arange(len(kcat0))
     )
     return (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log,
-            excarbon, tie_map)
+            carbon_weights, tie_map)
 
 
 def screen_kcat_leverage(
@@ -292,7 +298,7 @@ def screen_kcat_leverage(
     """
     params, experiment_data, bio_rxn = _resolve_context(
         model, adapter, params, experiment_data, bio_rxn)
-    (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
+    (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, carbon_weights,
      tie_map) = _tunable_context(
         model, params, experiment_data, bio_rxn, tunable_mask)
 
@@ -316,7 +322,7 @@ def screen_kcat_leverage(
     if n_proc == 1:
         rmses = [
             _score_kcat_vector(
-                model, tunable_idx, ec_rxn_ids_tunable, experiment_data, excarbon,
+                model, tunable_idx, ec_rxn_ids_tunable, experiment_data, carbon_weights,
                 bio_rxn, v, make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
                 max_growth_weight=params.max_growth_weight,
@@ -327,7 +333,7 @@ def screen_kcat_leverage(
         with ProcessPool(
             n_proc, initializer=_init_worker,
             initargs=(model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
-                     excarbon, bio_rxn, make_anaerobic, change_protein_biomass,
+                     carbon_weights, bio_rxn, make_anaerobic, change_protein_biomass,
                      params.max_growth_weight, 0.0, None, None),
         ) as pool:
             chunk = max(1, len(vectors) // (n_proc * 4))
@@ -460,7 +466,7 @@ def cmaes_kcat_tuning(
     verbose
         Whether per-generation progress is logged at INFO.
     make_anaerobic, change_protein_biomass
-        Forwarded to ``simulate.simulate_conditions`` -- see its
+        Forwarded to ``raven_toolbox.experiments.simulate_conditions`` -- see its
         docstring; geckopy has no generic organism-agnostic
         implementation of these yet. See the module docstring's
         "Parallel scoring" section for a picklability caveat when
@@ -497,7 +503,7 @@ def cmaes_kcat_tuning(
         tunable_mask = select_tunable_mask(
             model, screen, target_impact_share=target_impact_share)
 
-    (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
+    (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, carbon_weights,
      tie_map) = _tunable_context(
         model, params, experiment_data, bio_rxn, tunable_mask)
 
@@ -543,7 +549,7 @@ def cmaes_kcat_tuning(
         ProcessPool(
             n_proc, initializer=_init_worker,
             initargs=(model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
-                     excarbon, bio_rxn, make_anaerobic, change_protein_biomass,
+                     carbon_weights, bio_rxn, make_anaerobic, change_protein_biomass,
                      params.max_growth_weight, params.prior_penalty_weight,
                      kcat0, sigma0_log),
         )
@@ -554,7 +560,7 @@ def cmaes_kcat_tuning(
             return np.array([
                 _score_kcat_vector(
                     model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
-                    excarbon, bio_rxn, kcat_matrix[:, j],
+                    carbon_weights, bio_rxn, kcat_matrix[:, j],
                     make_anaerobic=make_anaerobic,
                     change_protein_biomass=change_protein_biomass,
                     max_growth_weight=params.max_growth_weight,
@@ -845,7 +851,7 @@ def _score_kcat_vector(
     tunable_idx: np.ndarray,
     ec_rxn_ids_tunable: list[str],
     experiment_data: ExperimentData,
-    excarbon: dict[str, float],
+    carbon_weights: dict[str, float],
     bio_rxn_id: str,
     kcat_vec: np.ndarray,
     *,
@@ -881,6 +887,7 @@ def _score_kcat_vector(
             bio_rxn_id=bio_rxn_id,
             make_anaerobic=make_anaerobic,
             change_protein_biomass=change_protein_biomass,
+            optimize=optimize_model,
         )
     max_growth_sims = None
     if experiment_data.max_growth is not None:
@@ -890,10 +897,11 @@ def _score_kcat_vector(
             bio_rxn_id=bio_rxn_id,
             make_anaerobic=make_anaerobic,
             change_protein_biomass=change_protein_biomass,
+            optimize=optimize_model,
         )
     rmse, _ = experiment_distance(
         experiment_data, flux_sims=flux_sims, max_growth_sims=max_growth_sims,
-        excarbon=excarbon, bio_rxn_id=bio_rxn_id,
+        carbon_weights=carbon_weights, bio_rxn_id=bio_rxn_id,
         max_growth_weight=max_growth_weight,
     )
     # The search may run on a penalised objective, but the plain RMSE
@@ -915,7 +923,7 @@ _WORKER_MODEL: Optional["EcModel"] = None
 _WORKER_TUNABLE_IDX: Optional[np.ndarray] = None
 _WORKER_EC_RXN_IDS_TUNABLE: Optional[list[str]] = None
 _WORKER_EXPERIMENT_DATA: Optional[ExperimentData] = None
-_WORKER_EXCARBON: Optional[dict[str, float]] = None
+_WORKER_CARBON_WEIGHTS: Optional[dict[str, float]] = None
 _WORKER_BIO_RXN: Optional[str] = None
 _WORKER_MAKE_ANAEROBIC = None
 _WORKER_CHANGE_PROTEIN_BIOMASS = None
@@ -930,7 +938,7 @@ def _init_worker(
     tunable_idx: np.ndarray,
     ec_rxn_ids_tunable: list[str],
     experiment_data: ExperimentData,
-    excarbon: dict[str, float],
+    carbon_weights: dict[str, float],
     bio_rxn_id: str,
     make_anaerobic,
     change_protein_biomass,
@@ -943,7 +951,7 @@ def _init_worker(
     (deserialised by ``ProcessPool``, not by us) and everything else
     needed to score a candidate."""
     global _WORKER_MODEL, _WORKER_TUNABLE_IDX, _WORKER_EC_RXN_IDS_TUNABLE
-    global _WORKER_EXPERIMENT_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN
+    global _WORKER_EXPERIMENT_DATA, _WORKER_CARBON_WEIGHTS, _WORKER_BIO_RXN
     global _WORKER_MAKE_ANAEROBIC, _WORKER_CHANGE_PROTEIN_BIOMASS
     global _WORKER_MAX_GROWTH_WEIGHT, _WORKER_PRIOR_PENALTY_WEIGHT
     global _WORKER_KCAT0, _WORKER_SIGMA0_LOG
@@ -951,7 +959,7 @@ def _init_worker(
     _WORKER_TUNABLE_IDX = tunable_idx
     _WORKER_EC_RXN_IDS_TUNABLE = ec_rxn_ids_tunable
     _WORKER_EXPERIMENT_DATA = experiment_data
-    _WORKER_EXCARBON = excarbon
+    _WORKER_CARBON_WEIGHTS = carbon_weights
     _WORKER_BIO_RXN = bio_rxn_id
     _WORKER_MAKE_ANAEROBIC = make_anaerobic
     _WORKER_CHANGE_PROTEIN_BIOMASS = change_protein_biomass
@@ -965,7 +973,7 @@ def _score_worker(kcat_vec: np.ndarray) -> tuple[float, float]:
     assert _WORKER_MODEL is not None, "_score_worker called before _init_worker"
     return _score_kcat_vector(
         _WORKER_MODEL, _WORKER_TUNABLE_IDX, _WORKER_EC_RXN_IDS_TUNABLE,
-        _WORKER_EXPERIMENT_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN, kcat_vec,
+        _WORKER_EXPERIMENT_DATA, _WORKER_CARBON_WEIGHTS, _WORKER_BIO_RXN, kcat_vec,
         make_anaerobic=_WORKER_MAKE_ANAEROBIC,
         change_protein_biomass=_WORKER_CHANGE_PROTEIN_BIOMASS,
         max_growth_weight=_WORKER_MAX_GROWTH_WEIGHT,

@@ -13,9 +13,8 @@ from scipy import sparse
 import cobra
 from geckopy import EcModel, ModelAdapter
 from geckopy.adapter.params import EvotuneParams, SourceGroupRule
-from geckopy.databases.flux_data import FluxData
+from raven_toolbox.experiments import ExperimentData, FluxData
 from geckopy.ec_model.ec_data import EcData
-from geckopy.experiments.data import ExperimentData
 from geckopy.kcat_tuning.evotune.mask_size import (
     MaskSizePoint,
     recommend_target_impact_share,

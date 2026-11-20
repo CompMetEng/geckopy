@@ -9,7 +9,12 @@ from .corrections import (
     corrections,
     corrections_tsv,
 )
-from .sensitivity_tuning import TunedKcatsResult, infeasible_conditions, sensitivity_tuning
+from .sensitivity_tuning import (
+    TunedKcatsResult,
+    diagnose_condition,
+    infeasible_conditions,
+    sensitivity_tuning,
+)
 from .sigma_fitter import SigmaFitterResult, fit_sigma
 
 from . import evotune
@@ -23,6 +28,7 @@ __all__ = [
     "corrections_tsv",
     "evotune",
     "fit_sigma",
+    "diagnose_condition",
     "infeasible_conditions",
     "sensitivity_tuning",
 ]

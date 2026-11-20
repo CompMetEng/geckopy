@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Callable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
@@ -57,6 +57,10 @@ _TUNING_METHOD = "sensitivity"
 # than this (absolute, 1/h). Using a tolerance instead of exact equality
 # avoids spinning on sub-numerical-noise increases.
 _GROWTH_STALL_TOL = 1e-9
+# A measured value smaller than this counts as this size when the stretch of a
+# band is weighted, so that a flux measured near zero is not the cheapest thing
+# to move by a large amount.
+_STRETCH_FLOOR = 0.05
 
 
 @dataclass
@@ -96,6 +100,10 @@ class TunedKcatsResult:
         ``stalled`` (the next kcat does not lower the protein needed),
         ``infeasible`` or ``no_candidate`` (the LP has no optimal solution,
         or no enzyme is left to raise) and ``max_iterations``.
+    conflicts
+        With status ``infeasible_in_gem``, the table of
+        :func:`diagnose_condition`: the measured values that have to move for
+        the condition to become feasible (``None`` otherwise).
     """
 
     rxns: list[str] = field(default_factory=list)
@@ -110,6 +118,7 @@ class TunedKcatsResult:
     source: list[str] = field(default_factory=list)
     evidence: Optional["pd.DataFrame"] = None
     status: str = ""
+    conflicts: Optional["pd.DataFrame"] = None
 
     def corrections(
         self,
@@ -149,6 +158,8 @@ def sensitivity_tuning(
     flux_tolerance: float = 0.1,
     flux_abs_tolerance: float = 1e-3,
     flux_tolerances: Optional[Mapping[str, float]] = None,
+    make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
+    change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
 ) -> TunedKcatsResult:
     """Iteratively bump the most-limiting kcat by ``fold_change`` until
     the model can reach ``desired_growth_rate``.
@@ -237,6 +248,13 @@ def sensitivity_tuning(
         enzyme limits but not with the pool lifted is stopped by a limit of
         single enzymes, status ``unfixable``. Without ``flux_data`` the
         behaviour is as described above.
+    make_anaerobic, change_protein_biomass
+        Organism-specific setup of a condition, as in
+        :func:`~geckopy.kcat_tuning.evotune.cmaes_kcat_tuning`: the first runs
+        in a condition whose oxygen exchange is measured as exactly 0, the
+        second with the total protein content ``Ptot`` of a condition that has
+        one. A condition that needs one of them and gets none is simulated
+        without it. The changes apply only while the condition is checked.
     flux_tolerance, flux_abs_tolerance, flux_tolerances
         A measured flux ``v`` is met within ``[v(1 - t), v(1 + t)]`` widened
         by ``flux_abs_tolerance`` (mmol/gDW/h) on both sides, with ``t`` the
@@ -306,14 +324,15 @@ def sensitivity_tuning(
         ignore_rxn_ids = set()
 
     if flux_data is not None:
-        tuned_ec_indices, status = _tune_to_condition(
+        tuned_ec_indices, status, conflicts = _tune_to_condition(
             model, flux_data, cond_idx, float(desired_growth_rate),
             flux_tolerance, flux_abs_tolerance, flux_tolerances or {},
             fold_change, max_iterations, usage_rxn_ids, ignore_usage_ids,
             ignore_rxn_ids, light, bio_rxn_id, verbose,
+            make_anaerobic, change_protein_biomass,
         )
         return _finish(model, tuned_ec_indices, input_kcat, input_source,
-                       evidence, status)
+                       evidence, status, conflicts)
 
     last_growth = float("nan")
     status = "max_iterations"
@@ -403,15 +422,17 @@ def sensitivity_tuning(
             max_iterations, desired_growth_rate,
         )
 
-    return _finish(model, tuned_ec_indices, input_kcat, input_source, evidence, status)
+    return _finish(model, tuned_ec_indices, input_kcat, input_source, evidence, status, None)
 
 
 def _finish(
     model: "EcModel", tuned_ec_indices: list[int], input_kcat: np.ndarray,
     input_source: list[str], evidence: bool, status: str,
+    conflicts: Optional["pd.DataFrame"],
 ) -> TunedKcatsResult:
     result = _build_result(model, tuned_ec_indices, input_kcat, input_source)
     result.status = status
+    result.conflicts = conflicts
     if evidence:
         from ..gather_kcats.evidence import kcat_evidence
 
@@ -456,13 +477,31 @@ def _condition_bounds(
     return bounds
 
 
+def _setup_condition(
+    model: "EcModel", flux_data: "FluxData", cond_idx: int,
+    make_anaerobic: Optional[Callable[["EcModel"], None]],
+    change_protein_biomass: Optional[Callable[["EcModel", float], None]],
+) -> None:
+    """Apply the anaerobic switch and the protein content of a condition. Call
+    inside ``with model:``."""
+    if make_anaerobic is not None and "oxygen" in flux_data.exch_mets:
+        o2 = flux_data.exch_mets.index("oxygen")
+        if flux_data.exch_fluxes[cond_idx, o2] == 0.0:
+            make_anaerobic(model)
+    ptot = float(flux_data.p_tot[cond_idx])
+    if change_protein_biomass is not None and not (np.isnan(ptot) or ptot == 0.0):
+        change_protein_biomass(model, ptot)
+
+
 def _feasible_without_enzyme_limits(
     model: "EcModel", bounds: Mapping[str, tuple[float, float]], target_growth: float,
-    bio_rxn_id: str, usage_rxn_ids: Sequence[str],
+    bio_rxn_id: str, usage_rxn_ids: Sequence[str], setup: Optional[Callable] = None,
 ) -> bool:
     """Whether the condition is feasible with the protein pool and the usage of
     every enzyme unlimited, which is the model without enzyme constraints."""
     with model:
+        if setup is not None:
+            setup()
         for rxn_id, (lo, hi) in bounds.items():
             model.reactions.get_by_id(rxn_id).bounds = (lo, hi)
         model.reactions.get_by_id(bio_rxn_id).lower_bound = target_growth
@@ -483,6 +522,8 @@ def infeasible_conditions(
     flux_abs_tolerance: float = 1e-3,
     flux_tolerances: Optional[Mapping[str, float]] = None,
     bio_rxn: Optional[str] = None,
+    make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
+    change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
 ) -> list[str]:
     """Names of the conditions that are infeasible in the model without enzyme limits.
 
@@ -491,7 +532,8 @@ def infeasible_conditions(
     ``desired_growth_rate``) with every measured exchange within its band. No
     kcat can fix such a condition. Give these conditions ``weight`` 0 in the
     flux data, so that no tuning is asked to fit them. ``model`` is not
-    changed.
+    changed. ``make_anaerobic`` and ``change_protein_biomass`` are the
+    condition setup of :func:`sensitivity_tuning`.
     """
     bio_rxn_id = bio_rxn
     if bio_rxn_id is None and model.adapter is not None:
@@ -505,10 +547,105 @@ def infeasible_conditions(
             flux_data, i, flux_tolerance, flux_abs_tolerance, flux_tolerances or {})
         target = float(flux_data.gr_rate[i]) if desired_growth_rate is None \
             else float(desired_growth_rate)
+        setup = lambda i=i: _setup_condition(  # noqa: E731
+            model, flux_data, i, make_anaerobic, change_protein_biomass)
         if not _feasible_without_enzyme_limits(
-                model, bounds, target, bio_rxn_id, usage_rxn_ids):
+                model, bounds, target, bio_rxn_id, usage_rxn_ids, setup):
             infeasible.append(name)
     return infeasible
+
+
+def diagnose_condition(
+    model: "EcModel",
+    flux_data: "FluxData",
+    condition: Union[str, int] = 0,
+    *,
+    desired_growth_rate: Optional[float] = None,
+    flux_tolerance: float = 0.1,
+    flux_abs_tolerance: float = 1e-3,
+    flux_tolerances: Optional[Mapping[str, float]] = None,
+    bio_rxn: Optional[str] = None,
+    make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
+    change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
+) -> "pd.DataFrame":
+    """Which measured values of a condition conflict with the model.
+
+    In the model without enzyme limits (the protein pool and the usage of
+    every enzyme unlimited) the bands of the measured exchanges and the
+    growth rate are allowed to stretch, at a cost of the stretch relative to
+    the measured value, and the total cost is minimised. The measurements
+    that have to move for the condition to become feasible are the ones that
+    conflict with the model, with its constraints or with each other.
+
+    One row per measured exchange and one for growth: ``reaction``,
+    ``measured``, ``band_low`` and ``band_high``, ``achieved`` (the flux of the
+    least stretched solution), ``stretch`` (the distance from the achieved
+    flux to the band, 0 inside it) and ``relative_stretch`` (``stretch``
+    divided by the size of the measured value, where a value below 0.05
+    counts as 0.05), sorted with the largest stretch first. A minimal total
+    stretch is not unique in general, so the table names one way to make the
+    condition feasible, not every way. ``model`` is not changed.
+    """
+    cond_idx = _condition_index(flux_data, condition)
+    bio_rxn_id = bio_rxn
+    if bio_rxn_id is None and model.adapter is not None:
+        bio_rxn_id = model.adapter.params.bio_rxn
+    if not bio_rxn_id:
+        raise ValueError("The biomass reaction (bio_rxn) is needed.")
+    target = float(flux_data.gr_rate[cond_idx]) if desired_growth_rate is None \
+        else float(desired_growth_rate)
+    bounds = _condition_bounds(
+        flux_data, cond_idx, flux_tolerance, flux_abs_tolerance, flux_tolerances or {})
+    measured = {
+        r: float(v) for r, v in zip(flux_data.exch_rxn_ids, flux_data.exch_fluxes[cond_idx])
+        if not np.isnan(v) and abs(v) != 1000.0
+    }
+    usage_rxn_ids = [r.id for r in model.reactions if r.id.startswith(USAGE_PREFIX)]
+    rows = []
+    with model:
+        _setup_condition(model, flux_data, cond_idx, make_anaerobic, change_protein_biomass)
+        if POOL_EXCHANGE_ID in model.reactions:
+            model.reactions.get_by_id(POOL_EXCHANGE_ID).upper_bound = 1000.0
+        for uid in usage_rxn_ids:
+            model.reactions.get_by_id(uid).bounds = (0.0, 1000.0)
+        prob = model.problem
+        slacks, cost_terms, new_vars, new_cons = {}, [], [], []
+        bands = {r: bounds[r] for r in measured}
+        bands[bio_rxn_id] = (target, float("inf"))
+        sizes = {r: max(abs(v), _STRETCH_FLOOR) for r, v in measured.items()}
+        sizes[bio_rxn_id] = max(abs(target), _STRETCH_FLOOR)
+        for rxn_id, (lo, hi) in bands.items():
+            rxn = model.reactions.get_by_id(rxn_id)
+            rxn.bounds = (-1000.0, 1000.0) if rxn_id != bio_rxn_id else (0.0, 1000.0)
+            s_lo = prob.Variable(f"stretch_lo_{rxn_id}", lb=0.0)
+            s_hi = prob.Variable(f"stretch_hi_{rxn_id}", lb=0.0)
+            new_vars += [s_lo, s_hi]
+            new_cons.append(prob.Constraint(rxn.flux_expression + s_lo, lb=lo, name=f"band_lo_{rxn_id}"))
+            if np.isfinite(hi):
+                new_cons.append(prob.Constraint(rxn.flux_expression - s_hi, ub=hi, name=f"band_hi_{rxn_id}"))
+            cost_terms += [(s_lo / sizes[rxn_id]), (s_hi / sizes[rxn_id])]
+            slacks[rxn_id] = (s_lo, s_hi)
+        model.add_cons_vars(new_vars + new_cons)
+        model.objective = prob.Objective(sum(cost_terms), direction="min")
+        sol = optimize_model(model)
+        if sol.status != "optimal":
+            raise ValueError(
+                "The condition is infeasible even with every band stretched "
+                f"(status {sol.status!r}); the model itself blocks it."
+            )
+        for rxn_id, (lo, hi) in bands.items():
+            achieved = float(sol.fluxes[rxn_id])
+            stretch = max(lo - achieved, 0.0, achieved - hi if np.isfinite(hi) else 0.0)
+            rows.append({
+                "reaction": rxn_id,
+                "measured": target if rxn_id == bio_rxn_id else measured[rxn_id],
+                "band_low": lo, "band_high": hi, "achieved": achieved,
+                "stretch": stretch, "relative_stretch": stretch / sizes[rxn_id],
+            })
+    import pandas as pd
+
+    table = pd.DataFrame(rows)
+    return table.sort_values("relative_stretch", ascending=False).reset_index(drop=True)
 
 
 def _tune_to_condition(
@@ -516,7 +653,9 @@ def _tune_to_condition(
     tol: float, abs_tol: float, per_flux: Mapping[str, float], fold_change: float,
     max_iterations: int, usage_rxn_ids: list[str], ignore_usage_ids: set[str],
     ignore_rxn_ids: set[str], light: bool, bio_rxn_id: Optional[str], verbose: bool,
-) -> tuple[list[int], str]:
+    make_anaerobic: Optional[Callable] = None,
+    change_protein_biomass: Optional[Callable] = None,
+) -> tuple[list[int], str, Optional["pd.DataFrame"]]:
     """Raise kcats until the model meets growth and the measured fluxes of a condition."""
     if not bio_rxn_id:
         raise ValueError("A condition needs the biomass reaction (bio_rxn).")
@@ -539,18 +678,26 @@ def _tune_to_condition(
     last_pool = float("nan")
 
     def _condition():
+        _setup_condition(model, flux_data, cond_idx, make_anaerobic, change_protein_biomass)
         for rxn_id, (lo, hi) in bounds.items():
             model.reactions.get_by_id(rxn_id).bounds = (lo, hi)
         bio_rxn.lower_bound = target_growth
 
     if not _feasible_without_enzyme_limits(
-            model, bounds, target_growth, bio_rxn_id, usage_rxn_ids):
+            model, bounds, target_growth, bio_rxn_id, usage_rxn_ids,
+            lambda: _setup_condition(
+                model, flux_data, cond_idx, make_anaerobic, change_protein_biomass)):
         logger.warning(
             "sensitivity_tuning: the condition is infeasible without any enzyme "
             "limit, which is the model without enzyme constraints, so no kcat "
             "can meet it; check the measured fluxes against the model."
         )
-        return tuned, "infeasible_in_gem"
+        conflicts = diagnose_condition(
+            model, flux_data, cond_idx, desired_growth_rate=target_growth,
+            flux_tolerance=tol, flux_abs_tolerance=abs_tol, flux_tolerances=per_flux,
+            bio_rxn=bio_rxn_id, make_anaerobic=make_anaerobic,
+            change_protein_biomass=change_protein_biomass)
+        return tuned, "infeasible_in_gem", conflicts
 
     for iteration in range(1, max_iterations + 1):
         with model:
@@ -562,7 +709,7 @@ def _tune_to_condition(
             if verbose:
                 logger.info("sensitivity_tuning: the condition is met after %d "
                             "iteration(s)", iteration)
-            return tuned, "reached"
+            return tuned, "reached", None
 
         with model:
             _condition()
@@ -577,14 +724,14 @@ def _tune_to_condition(
                 "but infeasible with the protein pool lifted (status %s), so a "
                 "limit of single enzymes stops it.", sol.status,
             )
-            return tuned, "unfixable"
+            return tuned, "unfixable", None
         pool_used = float(sol.objective_value)
         if not np.isnan(last_pool) and pool_used >= last_pool - 1e-9:
             logger.warning(
                 "sensitivity_tuning: the protein needed for the condition did not "
                 "fall from %g; tuning stops.", pool_used,
             )
-            return tuned, "stalled"
+            return tuned, "stalled", None
         last_pool = pool_used
         if verbose:
             logger.info("sensitivity_tuning: iteration %d, the condition needs %g "
@@ -595,7 +742,7 @@ def _tune_to_condition(
             if rows is None:
                 logger.warning("sensitivity_tuning: no reaction draws on the "
                                "protein pool; cannot continue tuning.")
-                return tuned, "no_candidate"
+                return tuned, "no_candidate", None
             for i in rows:
                 _mark_tuned(model, i)
                 model.ec.kcat[i] = float(model.ec.kcat[i]) * fold_change
@@ -615,17 +762,17 @@ def _tune_to_condition(
         if best_id is None:
             logger.warning("sensitivity_tuning: no usage rxn carries flux; cannot "
                            "continue tuning.")
-            return tuned, "no_candidate"
+            return tuned, "no_candidate", None
         ec_idx = _bump_usage_enzyme(model, best_id, sol, fold_change)
         if ec_idx is None:
-            return tuned, "no_candidate"
+            return tuned, "no_candidate", None
         if ec_idx not in tuned:
             tuned.append(ec_idx)
     logger.warning(
         "sensitivity_tuning: reached max_iterations (%d) without meeting the "
         "condition; stopping.", max_iterations,
     )
-    return tuned, "max_iterations"
+    return tuned, "max_iterations", None
 
 
 def _bump_usage_enzyme(

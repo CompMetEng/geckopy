@@ -337,7 +337,7 @@ def _build_two_branches(
 
     model = EcModel("toy2", adapter=adapter)
     mets = {n: cobra.Metabolite(n, compartment="c") for n in
-            ("A_e", "A_c", "P_c", "P_e", "prot_pool", "prot_E", "prot_F", "bio_met")}
+            ("A_e", "A_c", "P_c", "P_e", "O_e", "prot_pool", "prot_E", "prot_F", "bio_met")}
     model.add_metabolites(list(mets.values()))
 
     def rxn(rid, stoich, lb, ub):
@@ -354,6 +354,7 @@ def _build_two_branches(
         rxn("R2", {"A_c": -1.0, "prot_F": -mw_f / 3600.0, "P_c": 1.0}, 0.0, 1000.0),
         rxn("TR_P", {"P_c": -1.0, "P_e": 1.0}, 0.0, 1000.0),
         rxn("EX_P", {"P_e": -1.0}, 0.0, 1000.0),
+        rxn("EX_O2", {"O_e": -1.0}, -1000.0, 1000.0),
         rxn("biomass", {"bio_met": -1.0}, 0.0, 1000.0),
         rxn("prot_pool_exchange", {"prot_pool": 1.0}, 0.0, 1.0),
         rxn("usage_prot_E", {"prot_pool": -1.0, "prot_E": 1.0}, 0.0, 1000.0),
@@ -493,3 +494,92 @@ def test_a_limit_of_a_single_enzyme_is_unfixable_not_infeasible_in_the_gem(tmp_p
     model.reactions.usage_prot_E.upper_bound = 0.01
     result = sensitivity_tuning(model, flux_data=_condition(20.0, 20.0))
     assert result.status == "unfixable"
+
+
+def _condition_with_oxygen(growth, p_flux, o2, ptot=np.nan):
+    from geckopy.databases.flux_data import FluxData
+    return FluxData(
+        conds=["c1"], p_tot=np.array([ptot]), gr_rate=np.array([growth]),
+        exch_fluxes=np.array([[p_flux, o2]]), exch_mets=["P", "oxygen"],
+        exch_rxn_ids=["EX_P", "EX_O2"],
+    )
+
+
+def test_diagnose_names_the_measurement_that_has_to_move(tmp_path):
+    from geckopy.kcat_tuning import diagnose_condition
+    model = _build_two_branches(_adapter(tmp_path), uptake=10.0)
+    table = diagnose_condition(model, _condition(20.0, 0.0))
+    first = table.iloc[0]
+    # A is limited to 10, so growth 20 is the thing that has to give.
+    assert first["reaction"] == "biomass"
+    assert first["achieved"] == pytest.approx(10.0)
+    assert first["stretch"] == pytest.approx(10.0)
+    assert table.set_index("reaction").loc["EX_P", "stretch"] == pytest.approx(0.0)
+
+
+def test_result_of_an_infeasible_condition_carries_the_conflicts(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path), uptake=10.0)
+    result = sensitivity_tuning(model, flux_data=_condition(20.0, 0.0))
+    assert result.status == "infeasible_in_gem"
+    assert result.conflicts is not None
+    assert result.conflicts.iloc[0]["reaction"] == "biomass"
+
+
+def test_a_reached_condition_has_no_conflicts(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    assert sensitivity_tuning(model, flux_data=_condition(10.0, 10.0)).conflicts is None
+
+
+def test_anaerobic_switch_runs_for_an_oxygen_free_condition_and_is_undone(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    seen = []
+
+    def anaerobic(m):
+        seen.append("anaerobic")
+        m.reactions.EX_P.lower_bound = 5.0      # a change that must not stay
+
+    result = sensitivity_tuning(
+        model, flux_data=_condition_with_oxygen(20.0, 20.0, 0.0),
+        make_anaerobic=anaerobic)
+    assert seen and set(seen) == {"anaerobic"}
+    assert result.status == "reached"
+    assert model.reactions.EX_P.lower_bound == 0.0
+
+
+def test_anaerobic_switch_is_not_run_for_an_aerobic_condition(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    seen = []
+    sensitivity_tuning(
+        model, flux_data=_condition_with_oxygen(10.0, 10.0, np.nan),
+        make_anaerobic=lambda m: seen.append(1))
+    assert seen == []
+
+
+def test_protein_content_hook_gets_ptot_and_can_change_the_outcome(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    calls = []
+
+    def ptot_hook(m, ptot):
+        calls.append(ptot)
+        m.reactions.prot_pool_exchange.upper_bound = ptot   # a smaller pool
+
+    # Ptot 0.4 g/gDW: growth 10 and P 10 now need more than the pool allows,
+    # so a kcat has to be raised.
+    flux = _condition_with_oxygen(10.0, 10.0, np.nan, ptot=0.4)
+    result = sensitivity_tuning(model, flux_data=flux, change_protein_biomass=ptot_hook)
+    assert calls and calls[0] == pytest.approx(0.4)
+    assert result.status == "reached"
+    assert len(result.rxns) >= 1
+    assert model.reactions.prot_pool_exchange.upper_bound == 1.0
+
+
+def test_infeasible_conditions_uses_the_condition_setup(tmp_path):
+    from geckopy.kcat_tuning import infeasible_conditions
+    model = _build_two_branches(_adapter(tmp_path))
+
+    def block_p(m, ptot):
+        m.reactions.TR_P.upper_bound = 0.0      # P cannot be secreted at all
+
+    flux = _condition_with_oxygen(10.0, 10.0, np.nan, ptot=0.4)
+    assert infeasible_conditions(model, flux) == []
+    assert infeasible_conditions(model, flux, change_protein_biomass=block_p) == ["c1"]

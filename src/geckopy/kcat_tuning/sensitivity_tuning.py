@@ -26,12 +26,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
 from ..solver_support import optimize_model
 from ..ec_model.constants import (
+    POOL_EXCHANGE_ID,
     POOL_ID,
     PROT_PREFIX,
     USAGE_PREFIX,
@@ -44,6 +45,7 @@ from .corrections import Correction, corrections as build_corrections
 if TYPE_CHECKING:
     import pandas as pd
 
+    from ..databases.flux_data import FluxData
     from ..ec_model.ec_model import EcModel
 
 
@@ -84,6 +86,13 @@ class TunedKcatsResult:
         With ``evidence=True``, the ``summary`` table of
         :func:`~geckopy.gather_kcats.kcat_evidence` for the tuned reactions
         (``None`` otherwise).
+    status
+        Why the run stopped: ``reached`` (the target is met), ``unfixable``
+        (the measured condition cannot be met by raising kcats, because it
+        stays infeasible with the protein pool removed as a limit),
+        ``stalled`` (the next kcat does not lower the protein needed),
+        ``infeasible`` or ``no_candidate`` (the LP has no optimal solution,
+        or no enzyme is left to raise) and ``max_iterations``.
     """
 
     rxns: list[str] = field(default_factory=list)
@@ -97,6 +106,7 @@ class TunedKcatsResult:
     )
     source: list[str] = field(default_factory=list)
     evidence: Optional["pd.DataFrame"] = None
+    status: str = ""
 
     def corrections(
         self,
@@ -131,6 +141,11 @@ def sensitivity_tuning(
     bio_rxn: Optional[str] = None,
     verbose: bool = True,
     evidence: bool = False,
+    flux_data: Optional["FluxData"] = None,
+    condition: Union[str, int] = 0,
+    flux_tolerance: float = 0.1,
+    flux_abs_tolerance: float = 1e-3,
+    flux_tolerances: Optional[Mapping[str, float]] = None,
 ) -> TunedKcatsResult:
     """Iteratively bump the most-limiting kcat by ``fold_change`` until
     the model can reach ``desired_growth_rate``.
@@ -197,6 +212,30 @@ def sensitivity_tuning(
         :func:`~geckopy.gather_kcats.kcat_evidence`). A failure to read the
         source files is logged as a warning and leaves ``evidence`` empty.
 
+    flux_data, condition
+        Measured growth rate and exchange fluxes of one condition (see
+        :func:`~geckopy.databases.flux_data.load_flux_data`), given as the
+        condition name or its row. With ``flux_data`` the target is the
+        whole condition: growth at the measured rate, and every measured
+        exchange within ``flux_tolerance`` of its value. The model's own
+        medium is kept apart from the measured exchanges, which take the
+        bounds of the condition (an exchange of ``-1000`` or ``1000`` stays
+        unconstrained in that direction, and ``NaN`` is not measured).
+        ``desired_growth_rate`` replaces the measured growth rate. Each
+        iteration checks the condition; when it is infeasible the protein
+        pool is lifted as a limit, the protein drawn from it is minimised,
+        and the kcat of the enzyme that draws the most is raised. A
+        condition that is still infeasible without the pool limit is not
+        something a kcat can fix (a measurement that conflicts with the
+        model, or a limit set elsewhere): the run stops with status
+        ``unfixable``. Without ``flux_data`` the behaviour is as described
+        above.
+    flux_tolerance, flux_abs_tolerance, flux_tolerances
+        A measured flux ``v`` is met within ``[v(1 - t), v(1 + t)]`` widened
+        by ``flux_abs_tolerance`` (mmol/gDW/h) on both sides, with ``t`` the
+        ``flux_tolerance`` or the entry of ``flux_tolerances`` for the
+        reaction id. Fluxes near zero need the absolute part.
+
     Returns
     -------
     TunedKcatsResult
@@ -209,6 +248,12 @@ def sensitivity_tuning(
         ``prot_to_ignore`` ID has no usage reaction (full model).
     """
     light = bool(model.ec.gecko_light)
+
+    cond_idx = None
+    if flux_data is not None:
+        cond_idx = _condition_index(flux_data, condition)
+        if desired_growth_rate is None:
+            desired_growth_rate = float(flux_data.gr_rate[cond_idx])
 
     if desired_growth_rate is None:
         from ..adapter import resolve_gr_exp
@@ -253,7 +298,18 @@ def sensitivity_tuning(
         ignore_usage_ids = _usage_ids_to_ignore(usage_rxn_ids, prot_to_ignore)
         ignore_rxn_ids = set()
 
+    if flux_data is not None:
+        tuned_ec_indices, status = _tune_to_condition(
+            model, flux_data, cond_idx, float(desired_growth_rate),
+            flux_tolerance, flux_abs_tolerance, flux_tolerances or {},
+            fold_change, max_iterations, usage_rxn_ids, ignore_usage_ids,
+            ignore_rxn_ids, light, bio_rxn_id, verbose,
+        )
+        return _finish(model, tuned_ec_indices, input_kcat, input_source,
+                       evidence, status)
+
     last_growth = float("nan")
+    status = "max_iterations"
     # Indices into model.ec.rxns; on a light model the first isozyme row of
     # each tuned reaction.
     tuned_ec_indices: list[int] = []
@@ -266,6 +322,7 @@ def sensitivity_tuning(
                 "sensitivity_tuning: the model has no optimal solution with the "
                 "increased kcats (status %s); tuning stops.", sol.status,
             )
+            status = "infeasible"
             break
         growth = float(sol.objective_value)
 
@@ -274,6 +331,7 @@ def sensitivity_tuning(
                 "sensitivity_tuning: growth did not increase from %g; "
                 "uptake or pool constraints may be limiting.", growth,
             )
+            status = "stalled"
             break
         last_growth = growth
         if verbose:
@@ -282,6 +340,7 @@ def sensitivity_tuning(
                 iteration, growth,
             )
         if growth >= desired_growth_rate:
+            status = "reached"
             break
 
         iteration += 1
@@ -293,6 +352,7 @@ def sensitivity_tuning(
                     "sensitivity_tuning: no reaction draws on the protein "
                     "pool; cannot continue tuning."
                 )
+                status = "no_candidate"
                 break
             ec_rows = step
             for i in ec_rows:
@@ -320,57 +380,13 @@ def sensitivity_tuning(
                 "sensitivity_tuning: no usage rxn carries flux; cannot "
                 "continue tuning."
             )
+            status = "no_candidate"
             break
 
-        # The enzyme metabolite the usage rxn produces.
-        enzyme_id = best_usage_id[len(USAGE_PREFIX):]
-        prot_met_id = f"{PROT_PREFIX}{enzyme_id}"
-        try:
-            prot_met = model.metabolites.get_by_id(prot_met_id)
-        except KeyError:
-            logger.warning(
-                "sensitivity_tuning: %s not found in model; skipping.",
-                prot_met_id,
-            )
+        ec_idx = _bump_usage_enzyme(model, best_usage_id, sol, fold_change)
+        if ec_idx is None:
+            status = "no_candidate"
             break
-
-        # Find the catalysed rxn consuming the most of this protein.
-        # Consumption: S[prot, rxn] < 0 with positive flux -> negative product.
-        # The rxn with the most-negative S[prot] * flux is selected.
-        target_rxn = None
-        target_value = 0.0
-        for rxn in prot_met.reactions:
-            if rxn.id == best_usage_id:
-                continue
-            coeff = rxn.metabolites[prot_met]
-            flux = float(sol.fluxes.get(rxn.id, 0.0))
-            value = coeff * flux
-            if value < target_value:
-                target_value = value
-                target_rxn = rxn
-
-        if target_rxn is None:
-            logger.warning(
-                "sensitivity_tuning: no catalysed reaction consuming %s; "
-                "cannot tune.", prot_met_id,
-            )
-            break
-
-        # Find the ec entry for this catalysed reaction.
-        if target_rxn.id not in model.ec.rxns:
-            logger.warning(
-                "sensitivity_tuning: rxn %s consumes %s but is not in "
-                "model.ec.rxns; cannot tune.",
-                target_rxn.id, prot_met_id,
-            )
-            break
-        ec_idx = model.ec.rxns.index(target_rxn.id)
-
-        kcat_before = float(model.ec.kcat[ec_idx])
-        _mark_tuned(model, ec_idx)
-        model.ec.kcat[ec_idx] = kcat_before * fold_change
-        apply_kcat_constraints(model, update_rxns=[target_rxn.id])
-
         if ec_idx not in tuned_ec_indices:
             tuned_ec_indices.append(ec_idx)
     else:
@@ -380,7 +396,15 @@ def sensitivity_tuning(
             max_iterations, desired_growth_rate,
         )
 
+    return _finish(model, tuned_ec_indices, input_kcat, input_source, evidence, status)
+
+
+def _finish(
+    model: "EcModel", tuned_ec_indices: list[int], input_kcat: np.ndarray,
+    input_source: list[str], evidence: bool, status: str,
+) -> TunedKcatsResult:
     result = _build_result(model, tuned_ec_indices, input_kcat, input_source)
+    result.status = status
     if evidence:
         from ..gather_kcats.evidence import kcat_evidence
 
@@ -389,6 +413,206 @@ def sensitivity_tuning(
         except Exception as err:  # the tuning is done; the evidence is extra
             logger.warning("The evidence of the tuned kcats could not be read: %s", err)
     return result
+
+
+def _condition_index(flux_data: "FluxData", condition: Union[str, int]) -> int:
+    if isinstance(condition, str):
+        if condition not in flux_data.conds:
+            raise ValueError(
+                f"Condition {condition!r} not found in flux_data.conds "
+                f"({flux_data.conds})"
+            )
+        return flux_data.conds.index(condition)
+    if not 0 <= condition < len(flux_data.conds):
+        raise IndexError(
+            f"condition index {condition} out of range "
+            f"(have {len(flux_data.conds)} condition(s))"
+        )
+    return int(condition)
+
+
+def _condition_bounds(
+    flux_data: "FluxData", cond_idx: int, tol: float, abs_tol: float,
+    per_flux: Mapping[str, float],
+) -> dict[str, tuple[float, float]]:
+    """Bounds that hold every measured exchange of a condition within its band."""
+    bounds: dict[str, tuple[float, float]] = {}
+    for rxn_id, value in zip(flux_data.exch_rxn_ids, flux_data.exch_fluxes[cond_idx]):
+        if np.isnan(value):
+            continue
+        if abs(value) == 1000.0:
+            bounds[rxn_id] = (-1000.0, 0.0) if value < 0 else (0.0, 1000.0)
+            continue
+        t = float(per_flux.get(rxn_id, tol))
+        lo, hi = sorted((value * (1 - t), value * (1 + t)))
+        bounds[rxn_id] = (lo - abs_tol, hi + abs_tol)
+    return bounds
+
+
+def _tune_to_condition(
+    model: "EcModel", flux_data: "FluxData", cond_idx: int, target_growth: float,
+    tol: float, abs_tol: float, per_flux: Mapping[str, float], fold_change: float,
+    max_iterations: int, usage_rxn_ids: list[str], ignore_usage_ids: set[str],
+    ignore_rxn_ids: set[str], light: bool, bio_rxn_id: Optional[str], verbose: bool,
+) -> tuple[list[int], str]:
+    """Raise kcats until the model meets growth and the measured fluxes of a condition."""
+    if not bio_rxn_id:
+        raise ValueError("A condition needs the biomass reaction (bio_rxn).")
+    if POOL_EXCHANGE_ID not in model.reactions:
+        raise ValueError(
+            f"The model has no {POOL_EXCHANGE_ID} reaction, which the tuning to "
+            "a condition needs."
+        )
+    bounds = _condition_bounds(flux_data, cond_idx, tol, abs_tol, per_flux)
+    missing = [r for r in bounds if r not in model.reactions]
+    if missing:
+        raise ValueError(
+            f"{len(missing)} exchange reaction ID(s) of the condition are not in "
+            f"the model (examples: {missing[:5]})"
+        )
+    pool_met = model.metabolites.get_by_id(POOL_ID)
+    pool_exchange = model.reactions.get_by_id(POOL_EXCHANGE_ID)
+    bio_rxn = model.reactions.get_by_id(bio_rxn_id)
+    tuned: list[int] = []
+    last_pool = float("nan")
+
+    def _condition():
+        for rxn_id, (lo, hi) in bounds.items():
+            model.reactions.get_by_id(rxn_id).bounds = (lo, hi)
+        bio_rxn.lower_bound = target_growth
+
+    for iteration in range(1, max_iterations + 1):
+        with model:
+            _condition()
+            model.objective = bio_rxn_id
+            model.slim_optimize(error_value=float("nan"))
+            feasible = model.solver.status == "optimal"
+        if feasible:
+            if verbose:
+                logger.info("sensitivity_tuning: the condition is met after %d "
+                            "iteration(s)", iteration)
+            return tuned, "reached"
+
+        with model:
+            _condition()
+            pool_exchange.upper_bound = 1000.0
+            model.objective = {pool_exchange: 1.0}
+            model.objective_direction = "min"
+            sol = optimize_model(model)
+            optimal = sol.status == "optimal"
+        if not optimal:
+            logger.warning(
+                "sensitivity_tuning: the condition is infeasible even without the "
+                "protein pool limit (status %s), so no kcat can fix it; check the "
+                "measured fluxes against the model.", sol.status,
+            )
+            return tuned, "unfixable"
+        pool_used = float(sol.objective_value)
+        if not np.isnan(last_pool) and pool_used >= last_pool - 1e-9:
+            logger.warning(
+                "sensitivity_tuning: the protein needed for the condition did not "
+                "fall from %g; tuning stops.", pool_used,
+            )
+            return tuned, "stalled"
+        last_pool = pool_used
+        if verbose:
+            logger.info("sensitivity_tuning: iteration %d, the condition needs %g "
+                        "of protein", iteration, pool_used)
+
+        if light:
+            rows = _light_step(model, sol, ignore_rxn_ids)
+            if rows is None:
+                logger.warning("sensitivity_tuning: no reaction draws on the "
+                               "protein pool; cannot continue tuning.")
+                return tuned, "no_candidate"
+            for i in rows:
+                _mark_tuned(model, i)
+                model.ec.kcat[i] = float(model.ec.kcat[i]) * fold_change
+            apply_kcat_constraints(model, update_rxns=[model.ec.rxns[rows[0]]])
+            if rows[0] not in tuned:
+                tuned.append(rows[0])
+            continue
+
+        best_id, best_draw = None, 0.0
+        for uid in usage_rxn_ids:
+            if uid in ignore_usage_ids:
+                continue
+            rxn = model.reactions.get_by_id(uid)
+            draw = float(sol.fluxes.get(uid, 0.0)) * abs(rxn.metabolites.get(pool_met, 1.0))
+            if draw > best_draw:
+                best_id, best_draw = uid, draw
+        if best_id is None:
+            logger.warning("sensitivity_tuning: no usage rxn carries flux; cannot "
+                           "continue tuning.")
+            return tuned, "no_candidate"
+        ec_idx = _bump_usage_enzyme(model, best_id, sol, fold_change)
+        if ec_idx is None:
+            return tuned, "no_candidate"
+        if ec_idx not in tuned:
+            tuned.append(ec_idx)
+    logger.warning(
+        "sensitivity_tuning: reached max_iterations (%d) without meeting the "
+        "condition; stopping.", max_iterations,
+    )
+    return tuned, "max_iterations"
+
+
+def _bump_usage_enzyme(
+    model: "EcModel", usage_id: str, sol, fold_change: float,
+) -> Optional[int]:
+    """Multiply the kcat of the reaction that draws most on the enzyme of
+    ``usage_id`` by ``fold_change``; the index into ``ec.rxns``, or ``None``
+    (with a warning) when there is no such reaction."""
+    best_usage_id = usage_id
+    # The enzyme metabolite the usage rxn produces.
+    enzyme_id = best_usage_id[len(USAGE_PREFIX):]
+    prot_met_id = f"{PROT_PREFIX}{enzyme_id}"
+    try:
+        prot_met = model.metabolites.get_by_id(prot_met_id)
+    except KeyError:
+        logger.warning(
+            "sensitivity_tuning: %s not found in model; skipping.",
+            prot_met_id,
+        )
+        return None
+
+    # Find the catalysed rxn consuming the most of this protein.
+    # Consumption: S[prot, rxn] < 0 with positive flux -> negative product.
+    # The rxn with the most-negative S[prot] * flux is selected.
+    target_rxn = None
+    target_value = 0.0
+    for rxn in prot_met.reactions:
+        if rxn.id == best_usage_id:
+            continue
+        coeff = rxn.metabolites[prot_met]
+        flux = float(sol.fluxes.get(rxn.id, 0.0))
+        value = coeff * flux
+        if value < target_value:
+            target_value = value
+            target_rxn = rxn
+
+    if target_rxn is None:
+        logger.warning(
+            "sensitivity_tuning: no catalysed reaction consuming %s; "
+            "cannot tune.", prot_met_id,
+        )
+        return None
+
+    # Find the ec entry for this catalysed reaction.
+    if target_rxn.id not in model.ec.rxns:
+        logger.warning(
+            "sensitivity_tuning: rxn %s consumes %s but is not in "
+            "model.ec.rxns; cannot tune.",
+            target_rxn.id, prot_met_id,
+        )
+        return None
+    ec_idx = model.ec.rxns.index(target_rxn.id)
+
+    kcat_before = float(model.ec.kcat[ec_idx])
+    _mark_tuned(model, ec_idx)
+    model.ec.kcat[ec_idx] = kcat_before * fold_change
+    apply_kcat_constraints(model, update_rxns=[target_rxn.id])
+    return ec_idx
 
 
 def _mark_tuned(model: "EcModel", ec_idx: int) -> None:

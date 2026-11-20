@@ -319,3 +319,157 @@ def test_docstrings_name_the_standard_and_advanced_tuning():
 
     assert "standard kcat tuning" in sensitivity_tuning.__doc__
     assert "advanced kcat tuning" in cmaes_kcat_tuning.__doc__
+
+
+# --------------------------------------------------------------------------- #
+# Tuning to a measured condition (growth and exchange fluxes)
+# --------------------------------------------------------------------------- #
+
+def _build_two_branches(
+    adapter: ModelAdapter, *, mw_f: float = 200.0, uptake: float = 1000.0,
+) -> EcModel:
+    """A -> biomass through enzyme E, and A -> P (secreted) through enzyme F.
+
+    Both draw on a 1 mg/gDW pool, with kcat 1 and a coefficient of
+    ``mw / 3600`` mg/mmol per unit flux.
+    """
+    from geckopy.databases.flux_data import FluxData  # noqa: F401  (import check)
+
+    model = EcModel("toy2", adapter=adapter)
+    mets = {n: cobra.Metabolite(n, compartment="c") for n in
+            ("A_e", "A_c", "P_c", "P_e", "prot_pool", "prot_E", "prot_F", "bio_met")}
+    model.add_metabolites(list(mets.values()))
+
+    def rxn(rid, stoich, lb, ub):
+        r = cobra.Reaction(rid)
+        r.add_metabolites({mets[k]: v for k, v in stoich.items()})
+        r.bounds = (lb, ub)
+        return r
+
+    mw_e = 100.0
+    model.add_reactions([
+        rxn("EX_A", {"A_e": -1.0}, -uptake, 0.0),
+        rxn("TR_A", {"A_e": -1.0, "A_c": 1.0}, 0.0, 1000.0),
+        rxn("R", {"A_c": -1.0, "prot_E": -mw_e / 3600.0, "bio_met": 1.0}, 0.0, 1000.0),
+        rxn("R2", {"A_c": -1.0, "prot_F": -mw_f / 3600.0, "P_c": 1.0}, 0.0, 1000.0),
+        rxn("TR_P", {"P_c": -1.0, "P_e": 1.0}, 0.0, 1000.0),
+        rxn("EX_P", {"P_e": -1.0}, 0.0, 1000.0),
+        rxn("biomass", {"bio_met": -1.0}, 0.0, 1000.0),
+        rxn("prot_pool_exchange", {"prot_pool": 1.0}, 0.0, 1.0),
+        rxn("usage_prot_E", {"prot_pool": -1.0, "prot_E": 1.0}, 0.0, 1000.0),
+        rxn("usage_prot_F", {"prot_pool": -1.0, "prot_F": 1.0}, 0.0, 1000.0),
+    ])
+    model.objective = "biomass"
+    model.ec = EcData(
+        rxns=["R", "R2"], kcat=np.array([1.0, 1.0]), source=["initial", "initial"],
+        notes=["", ""], eccodes=["", ""], genes=["g_E", "g_F"],
+        enzymes=["E", "F"], mw=np.array([mw_e, mw_f]), sequence=["", ""],
+        concs=np.array([np.nan, np.nan]),
+        rxn_enz_mat=sparse.csr_matrix(np.eye(2)),
+    )
+    return model
+
+
+def _condition(growth, p_flux, name="c1"):
+    from geckopy.databases.flux_data import FluxData
+    return FluxData(
+        conds=[name], p_tot=np.array([np.nan]), gr_rate=np.array([growth]),
+        exch_fluxes=np.array([[p_flux]]), exch_mets=["P"], exch_rxn_ids=["EX_P"],
+    )
+
+
+def test_growth_only_target_ignores_the_secreted_flux(tmp_path):
+    """Growth 20 is reachable (the maximum is 36), so the growth-only
+    tuning changes nothing, although growth 20 with P at 20 is not."""
+    model = _build_two_branches(_adapter(tmp_path))
+    result = sensitivity_tuning(model, desired_growth_rate=20.0)
+    assert result.rxns == []
+    assert result.status == "reached"
+
+
+def test_condition_raises_the_kcat_of_the_enzyme_that_draws_most(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    result = sensitivity_tuning(
+        model, flux_data=_condition(20.0, 20.0), fold_change=10.0)
+    # F has the larger molecular weight, so it draws most of the pool.
+    assert result.rxns == ["R2"]
+    assert model.ec.kcat.tolist() == [1.0, 10.0]
+    assert result.status == "reached"
+    with model:
+        model.reactions.EX_P.bounds = (18.0, 22.0)
+        model.reactions.biomass.lower_bound = 20.0
+        assert model.slim_optimize(error_value=float("nan")) >= 20.0 - 1e-6
+
+
+def test_condition_by_name_and_growth_override(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    flux = _condition(1.0, 20.0, name="chemostat")
+    result = sensitivity_tuning(
+        model, flux_data=flux, condition="chemostat", desired_growth_rate=20.0)
+    assert result.rxns == ["R2"]
+
+
+def test_a_measured_flux_that_needs_no_tuning_leaves_the_kcats(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    result = sensitivity_tuning(model, flux_data=_condition(10.0, 10.0))
+    assert result.rxns == [] and result.status == "reached"
+
+
+def test_tolerance_widens_what_counts_as_met(tmp_path):
+    # Growth 20 with P 17.5: the pool needs 20*0.0278 + 17.5*0.0556 = 1.53.
+    # With P within 40% (down to 12) the condition is met at 12 and 20: 1.22,
+    # still over the pool, so the kcat of F is raised either way; at 60% (7)
+    # growth 20 and P 7 need 0.94 and nothing changes.
+    flux = _condition(20.0, 17.5)
+    tight = _build_two_branches(_adapter(tmp_path))
+    assert sensitivity_tuning(tight, flux_data=flux, flux_tolerance=0.1).rxns == ["R2"]
+    loose = _build_two_branches(_adapter(tmp_path))
+    result = sensitivity_tuning(loose, flux_data=flux, flux_tolerance=0.6)
+    assert result.rxns == []
+
+
+def test_per_flux_tolerance_overrides_the_default(tmp_path):
+    flux = _condition(20.0, 17.5)
+    model = _build_two_branches(_adapter(tmp_path))
+    result = sensitivity_tuning(
+        model, flux_data=flux, flux_tolerance=0.01, flux_tolerances={"EX_P": 0.6})
+    assert result.rxns == []
+
+
+def test_a_condition_no_kcat_can_meet_is_reported_unfixable(tmp_path):
+    """Growth 20 needs 20 mmol/gDW/h of A, and the uptake is limited to 10."""
+    model = _build_two_branches(_adapter(tmp_path), uptake=10.0)
+    before = model.ec.kcat.copy()
+    result = sensitivity_tuning(model, flux_data=_condition(20.0, 0.0))
+    assert result.status == "unfixable"
+    assert result.rxns == []
+    assert np.array_equal(model.ec.kcat, before)
+
+
+def test_the_condition_does_not_stay_applied_to_the_model(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    sensitivity_tuning(model, flux_data=_condition(20.0, 20.0))
+    assert model.reactions.EX_P.bounds == (0.0, 1000.0)
+    assert model.reactions.biomass.bounds == (0.0, 1000.0)
+    assert model.reactions.prot_pool_exchange.bounds == (0.0, 1.0)
+
+
+def test_unknown_condition_name_raises(tmp_path):
+    model = _build_two_branches(_adapter(tmp_path))
+    with pytest.raises(ValueError, match="not found"):
+        sensitivity_tuning(model, flux_data=_condition(20.0, 20.0), condition="x")
+
+
+def test_exchange_missing_from_the_model_raises(tmp_path):
+    from geckopy.databases.flux_data import FluxData
+    model = _build_two_branches(_adapter(tmp_path))
+    flux = FluxData(
+        conds=["c"], p_tot=np.array([np.nan]), gr_rate=np.array([20.0]),
+        exch_fluxes=np.array([[1.0]]), exch_mets=["Q"], exch_rxn_ids=["EX_Q"])
+    with pytest.raises(ValueError, match="not in the model"):
+        sensitivity_tuning(model, flux_data=flux)
+
+
+def test_status_is_reported_without_a_condition(tmp_path):
+    model = _build_toy(_adapter(tmp_path, gr_exp=300.0))
+    assert sensitivity_tuning(model, fold_change=10.0).status == "reached"

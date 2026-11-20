@@ -16,6 +16,23 @@ Three functions, normally called in this order:
 - :func:`cmaes_kcat_tuning` -- the tuning run. Screens and selects
   automatically when no mask is given.
 
+What the tuning is scored against
+---------------------------------
+The kcats are judged by the *distance* between the model and measured
+growth rates and exchange fluxes, as defined in
+:mod:`raven_toolbox.experiments`: the carbon-weighted RMSE (Cmmol/gDW/h)
+of the *flux conditions* of ``fluxData.tsv`` (uptake of the carbon source
+limited to the measured rate; growth rate and measured exchange fluxes
+compared) and of the *maximum-growth conditions* of ``maxGrowth.tsv``
+(uptake unlimited; only the maximal growth rate compared), combined with
+``params.max_growth_weight``. ``zeroFlux.tsv`` lists reactions that carry
+no flux. A condition with weight 0 in the ``weight`` column is left out.
+All three files are read from the ``data`` folder of the model adapter
+by :func:`~raven_toolbox.experiments.load_experiment_data`, or passed as an
+:class:`~raven_toolbox.experiments.ExperimentData` (``experiment_data``).
+The "RMSE" and "plain fit" of the functions below are this distance
+before the ``prior_penalty_weight`` term.
+
 Parallel scoring (``n_proc``)
 ------------------------------
 Each generation's new candidates are scored independently of each
@@ -118,7 +135,9 @@ class EvotuneResult:
         Source-group name per tunable row (from
         ``priors.classify_kcat_sources``).
     rmse_trace
-        Best-so-far plain RMSE, per generation. Always the plain RMSE,
+        Best-so-far distance between model and measurements (the
+        carbon-weighted RMSE of :mod:`raven_toolbox.experiments`), per
+        generation. Always without the ``prior_penalty_weight`` term,
         so runs stay comparable across penalties and against MATLAB
         even when the search used a penalised objective.
     objective_trace
@@ -283,6 +302,33 @@ def screen_kcat_leverage(
     construction and simply sorts to the bottom, which is a more
     direct test than a separately computed static reachability mask.
 
+    Parameters
+    ----------
+    model
+        EcModel with a populated ``ec.kcat``.
+    adapter, params
+        The model adapter and its :class:`~geckopy.adapter.params.EvotuneParams`
+        (``adapter.params.evotune`` when ``params`` is not given).
+    experiment_data
+        The measured conditions, as an
+        :class:`~raven_toolbox.experiments.ExperimentData`. ``None`` reads
+        ``fluxData.tsv``, ``maxGrowth.tsv`` and ``zeroFlux.tsv`` from the
+        ``data`` folder of the adapter. See :mod:`raven_toolbox.experiments`
+        for the layout of the files and the definition of the distance.
+    bio_rxn
+        ID of the biomass reaction. ``None`` takes ``adapter.params.bio_rxn``.
+    make_anaerobic, change_protein_biomass
+        Functions that set up an anaerobic condition and a protein content
+        for a condition; see :func:`raven_toolbox.experiments.simulate_conditions`.
+    tunable_mask
+        Boolean mask over ``model.ec.rxns`` that restricts which kcats are
+        probed. ``None`` probes every kcat.
+    fold
+        Factor by which a tie-group is multiplied and divided.
+    n_proc
+        Number of worker processes. ``None`` takes
+        ``cobra.Configuration().processes``.
+
     Returns
     -------
     pandas.DataFrame
@@ -423,9 +469,11 @@ def cmaes_kcat_tuning(
 ) -> EvotuneResult:
     """Tune kcats against experimental data with CMA-ES.
 
-    This is the advanced kcat tuning: it fits kcats to maximum growth rates
-    and exchange fluxes, measured in one or more conditions (see
-    :func:`load_experiment_data`).
+    This is the advanced kcat tuning: it fits kcats to growth rates and
+    exchange fluxes measured in one or more conditions, and minimises the
+    distance between model and measurements (see
+    :mod:`raven_toolbox.experiments`; the files are read by
+    :func:`~raven_toolbox.experiments.load_experiment_data`).
     :func:`~geckopy.kcat_tuning.sensitivity_tuning` is the standard tuning,
     which needs one maximum growth rate.
 
@@ -438,6 +486,17 @@ def cmaes_kcat_tuning(
 
     Parameters
     ----------
+    adapter, params
+        The model adapter and its :class:`~geckopy.adapter.params.EvotuneParams`
+        (``adapter.params.evotune`` when ``params`` is not given).
+    experiment_data
+        The measured conditions, as an
+        :class:`~raven_toolbox.experiments.ExperimentData`. ``None`` reads
+        ``fluxData.tsv``, ``maxGrowth.tsv`` and ``zeroFlux.tsv`` from the
+        ``data`` folder of the adapter. See :mod:`raven_toolbox.experiments`
+        for the layout of the files and the definition of the distance.
+    bio_rxn
+        ID of the biomass reaction. ``None`` takes ``adapter.params.bio_rxn``.
     model
         EcModel with a populated ``ec.kcat``. Mutated in place: on
         return, tunable rows hold the best kcat vector CMA-ES found,
@@ -479,7 +538,8 @@ def cmaes_kcat_tuning(
         selected tunable set, tied groups included (their members share
         one value in ``new_kcat``). ``rmse_trace``/``objective_trace``
         record the best-so-far plain RMSE and optimised objective per
-        generation.
+        generation (the distance of the flux and maximum-growth conditions,
+        without and with the ``prior_penalty_weight`` term).
 
     Raises
     ------

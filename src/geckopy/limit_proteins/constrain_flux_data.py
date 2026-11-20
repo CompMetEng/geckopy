@@ -29,14 +29,20 @@ def apply_flux_data_constraints(
     bio_rxn: Optional[str] = None,
     c_source: Optional[str] = None,
 ) -> None:
-    """Constrain the model's exchange fluxes from a ``FluxData`` measurement.
+    """Constrain an EcModel to one measured flux condition.
 
-    Sets the biomass reaction bounds to the measured growth rate and
-    each exchange reaction in ``flux_data.exch_rxn_ids`` to its
-    measured flux for the chosen condition. Also zeros out the
-    adapter's preferred carbon source so the data determines the choice.
-    See :func:`raven_toolbox.experiments.apply_flux_data_constraints` for
-    the bounds each setting gives.
+    Use it to reproduce one measured condition before an analysis, for
+    example a flux variability analysis or a proteomics integration. The
+    biomass reaction is bounded by the measured growth rate and each
+    exchange reaction in ``flux_data.exch_rxn_ids`` by its measured flux in
+    the chosen condition (``fluxData.tsv``, see
+    :func:`~raven_toolbox.experiments.load_flux_data`). The adapter's
+    preferred carbon source is blocked first, so that the data alone
+    decide which carbon source is used. The bounds that each setting of
+    ``loose_strict_flux`` gives are listed in
+    :func:`raven_toolbox.experiments.apply_flux_data_constraints`, which
+    does the work; this function only takes the biomass reaction and the
+    carbon source from the model adapter.
 
     Parameters
     ----------

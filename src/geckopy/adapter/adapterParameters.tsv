@@ -20,9 +20,9 @@ spontaneous.name_contains	spontaneous.name_contains		Reactions whose name contai
 spontaneous.file	spontaneous.file		TSV of spontaneous reactions, relative to the project folder: reaction identifiers, optionally a 0/1 column
 evotune.sigma0_log_default	evotune.sigma0logDefault	0.5	Prior standard deviation of the natural log of the kcat, for kcats that match no source group
 evotune.source_groups	evotune.kcatSources		Trust tiers, one table per group with sources (ec.source origins, or prefixes ending in *, such as okp_*) and sigma0_log (standard deviation of the natural log of the kcat; the sd of a combined kcat is log10). Default groups: custom 0.1, brenda 0.2, ec_tree 0.3, combined 0.4
-evotune.rmse_threshold	evotune.rmseThreshold	0.2	Stop when the best RMSE reaches this
+evotune.rmse_threshold	evotune.rmseThreshold	0.2	Stop when the best distance to the measurements reaches this
 evotune.max_generations	evotune.maxGenerations	150	Maximum number of CMA-ES generations
-evotune.max_growth_weight	evotune.maxGrowthWeight	1.0	Weight of the maximum-growth RMSE against the flux RMSE
+evotune.max_growth_weight	evotune.maxGrowthWeight	1.0	Weight of the distance of the maximum-growth conditions against that of the flux conditions
 evotune.prior_penalty_weight	evotune.priorPenaltyWeight	0.03	Weight of the prior term in the search objective
 evotune.tie_isozymes	evotune.tieIsozymes	true	Give isozyme copies of one reaction a single kcat
 okp.handle_long_sequences	okp.handleLongSequences	"truncate"	How OpenKineticsPredictor handles sequences that are too long

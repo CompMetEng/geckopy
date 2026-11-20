@@ -1,4 +1,5 @@
 """Tests for sensitivity_tuning."""
+import importlib
 from pathlib import Path
 
 import cobra
@@ -319,3 +320,54 @@ def test_docstrings_name_the_standard_and_advanced_tuning():
 
     assert "standard kcat tuning" in sensitivity_tuning.__doc__
     assert "advanced kcat tuning" in cmaes_kcat_tuning.__doc__
+
+
+# --------------------------------------------------------------------------- #
+# Ties
+# --------------------------------------------------------------------------- #
+
+class _Solution:
+    status = "optimal"
+
+    def __init__(self, objective_value, fluxes):
+        self.objective_value = objective_value
+        self.fluxes = fluxes
+
+
+@pytest.mark.parametrize("first", ["R", "R2"])
+def test_a_tie_between_reactions_of_an_enzyme_goes_to_the_first_in_the_model(tmp_path, monkeypatch, first):
+    """R and R2 consume the same amount of prot_E: the first one in the model is tuned."""
+    adapter = _adapter(tmp_path, gr_exp=50.0)
+    model = _build_toy(adapter)
+    r2 = cobra.Reaction("R2")
+    r2.add_metabolites({
+        model.metabolites.get_by_id("A_c"): -1.0,
+        model.metabolites.get_by_id("prot_E"): model.reactions.get_by_id("R").metabolites[model.metabolites.get_by_id("prot_E")],
+        model.metabolites.get_by_id("bio_met"): 1.0,
+    })
+    r2.bounds = (0.0, 1000.0)
+    model.add_reactions([r2])
+    if first == "R2":
+        r = model.reactions.get_by_id("R")
+        model.remove_reactions([r])
+        model.add_reactions([r])
+    model.ec.rxns = ["R", "R2"]
+    model.ec.kcat = np.array([1.0, 1.0])
+    model.ec.source = ["initial", "initial"]
+    model.ec.notes = ["", ""]
+    model.ec.eccodes = ["", ""]
+    model.ec.rxn_enz_mat = sparse.csr_matrix([[1.0], [1.0]])
+    consumption = {"usage_prot_E": 2.0, "R": 1.0, "R2": 1.0}
+    answers = iter([_Solution(1.0, consumption), _Solution(100.0, consumption)])
+    monkeypatch.setattr(importlib.import_module("geckopy.kcat_tuning.sensitivity_tuning"), "optimize_model", lambda m: next(answers))
+    result = sensitivity_tuning(model, fold_change=10.0, verbose=False)
+    assert list(result.rxns) == [first]
+
+
+def test_first_tied_takes_the_first_value_within_the_tolerance():
+    from geckopy.kcat_tuning.sensitivity_tuning import _first_tied
+
+    assert _first_tied([1.0, 3.0, 3.0 - 1e-12, 2.0], largest=True) == 1
+    assert _first_tied([3.0 - 1e-12, 3.0, 1.0], largest=True) == 0
+    assert _first_tied([-1.0, -3.0, -3.0, -2.0], largest=False) == 1
+    assert _first_tied([-2.0, -3.0], largest=False) == 1

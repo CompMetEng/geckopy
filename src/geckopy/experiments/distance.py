@@ -1,6 +1,6 @@
-"""Carbon- and condition-weighted RMSE distance for evotune kcat tuning.
+"""Carbon- and condition-weighted RMSE distance between a model and the data.
 
-:mod:`.simulate` does the FBA half; this module is pure numpy (plus one
+:mod:`.conditions` does the FBA half; this module is pure numpy (plus one
 small model-reading helper for the carbon weights) so the RMSE math is
 directly testable against hand-computed expected values, no
 ``EcModel``/FBA involved.
@@ -21,12 +21,12 @@ from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 
-from .simulate import ConditionSimResult
+from .conditions import ConditionSimResult
 
 if TYPE_CHECKING:
-    from ...ec_model.ec_model import EcModel
-    from .data import EvotuneData
-    from ...databases.flux_data import FluxData
+    from ..ec_model.ec_model import EcModel
+    from .data import ExperimentData
+    from ..databases.flux_data import FluxData
 
 #: MATLAB's hardcoded assumption of the biomass reaction's carbon
 #: content, in Cmmol/gDCW, used to put growth-rate deviations on the
@@ -102,15 +102,15 @@ def dataset_rmse(
     Parameters
     ----------
     flux_data
-        The dataset being scored (``evotune_data.flux_data`` or
-        ``evotune_data.max_grate``).
+        The dataset being scored (``experiment_data.flux_data`` or
+        ``experiment_data.max_growth``).
     sims
-        One :class:`~.simulate.ConditionSimResult` per
+        One :class:`~.conditions.ConditionSimResult` per
         ``flux_data.conds`` row, e.g. from
-        :func:`~.simulate.simulate_evotune_dataset`.
+        :func:`~.conditions.simulate_conditions`.
     constrain
         Must match the value passed to
-        :func:`~.simulate.simulate_evotune_dataset` for these
+        :func:`~.conditions.simulate_conditions` for these
         ``sims``: True includes carbon-weighted exchange-flux terms
         (flux data), False scores growth alone (max-growth data).
     excarbon
@@ -127,7 +127,7 @@ def dataset_rmse(
     Returns
     -------
     rmse : float
-        Weighted (by ``flux_data.evotune_rmse_weight``, if present)
+        Weighted (by ``flux_data.weight``, if present)
         mean of the per-condition RMSEs.
     rmse_list : numpy.ndarray
         The per-condition RMSEs (post-penalty, pre-weighting), shape
@@ -174,16 +174,16 @@ def dataset_rmse(
         rmse_list[i] = float(np.sqrt(np.mean(diff ** 2)))
 
     weighted = rmse_list
-    if flux_data.evotune_rmse_weight is not None:
-        weighted = rmse_list * flux_data.evotune_rmse_weight
+    if flux_data.weight is not None:
+        weighted = rmse_list * flux_data.weight
     return float(np.mean(weighted)), rmse_list
 
 
-def evotune_distance(
-    evotune_data: "EvotuneData",
+def experiment_distance(
+    experiment_data: "ExperimentData",
     *,
     flux_sims: list[ConditionSimResult] | None,
-    max_grate_sims: list[ConditionSimResult] | None,
+    max_growth_sims: list[ConditionSimResult] | None,
     excarbon: dict[str, float],
     bio_rxn_id: str,
     penalty: float = INFEASIBLE_PENALTY,
@@ -191,9 +191,9 @@ def evotune_distance(
 ) -> tuple[float, dict[str, np.ndarray]]:
     """Combine both datasets' RMSE into one score.
 
-    ``flux_sims`` must be given (non-``None``) iff ``evotune_data.flux_data``
-    is not ``None``, and likewise for ``max_grate_sims`` /
-    ``evotune_data.max_grate``. A dataset absent from ``evotune_data`` doesn't
+    ``flux_sims`` must be given (non-``None``) iff ``experiment_data.flux_data``
+    is not ``None``, and likewise for ``max_growth_sims`` /
+    ``experiment_data.max_growth``. A dataset absent from ``experiment_data`` doesn't
     contribute to the combined RMSE (MATLAB: a missing dataset's
     ``rmse_*`` stays ``[]`` and drops out of ``validIdx``).
 
@@ -201,7 +201,7 @@ def evotune_distance(
     ----------
     max_growth_weight
         Relative weight of the max-growth dataset against the flux
-        dataset, giving ``(rmse_flux + w * rmse_max_grate) / (w + 1)``.
+        dataset, giving ``(rmse_flux + w * rmse_max_growth) / (w + 1)``.
         At 2 the eight max-growth conditions have twice the weight of
         the 33 flux conditions, which is the intended emphasis here:
         the max-growth set is where the carbon-source diversity lives,
@@ -215,17 +215,17 @@ def evotune_distance(
         if neither dataset is present.
     detail : dict[str, numpy.ndarray]
         Per-condition RMSE arrays, keyed ``"flux_data"`` /
-        ``"max_grate"`` for whichever datasets were scored.
+        ``"max_growth"`` for whichever datasets were scored.
     """
     parts: list[float] = []
     weights: list[float] = []
     detail: dict[str, np.ndarray] = {}
 
-    if evotune_data.flux_data is not None:
+    if experiment_data.flux_data is not None:
         if flux_sims is None:
-            raise ValueError("evotune_data.flux_data is set but flux_sims is None.")
+            raise ValueError("experiment_data.flux_data is set but flux_sims is None.")
         rmse, per_cond = dataset_rmse(
-            evotune_data.flux_data, flux_sims,
+            experiment_data.flux_data, flux_sims,
             constrain=True, excarbon=excarbon, bio_rxn_id=bio_rxn_id,
             penalty=penalty,
         )
@@ -233,17 +233,17 @@ def evotune_distance(
         weights.append(1.0)
         detail["flux_data"] = per_cond
 
-    if evotune_data.max_grate is not None:
-        if max_grate_sims is None:
-            raise ValueError("evotune_data.max_grate is set but max_grate_sims is None.")
+    if experiment_data.max_growth is not None:
+        if max_growth_sims is None:
+            raise ValueError("experiment_data.max_growth is set but max_growth_sims is None.")
         rmse, per_cond = dataset_rmse(
-            evotune_data.max_grate, max_grate_sims,
+            experiment_data.max_growth, max_growth_sims,
             constrain=False, excarbon=excarbon, bio_rxn_id=bio_rxn_id,
             penalty=penalty,
         )
         parts.append(rmse)
         weights.append(float(max_growth_weight))
-        detail["max_grate"] = per_cond
+        detail["max_growth"] = per_cond
 
     if parts:
         rmse = float(np.dot(parts, weights) / np.sum(weights))

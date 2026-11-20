@@ -1,12 +1,13 @@
-"""Load experimental data for evotune (CMA-ES) kcat tuning.
+"""Load the measured growth rates and fluxes of the conditions.
 
-The flux and max-growth files, ``evotuneFluxData.tsv`` and
-``evotuneMaxGrowth.tsv``, share the column layout
-``Condition Ptot grRate <met> (<rxn>) ... evotuneRMSEweight source`` with
-regular flux data, so both reuse
-:func:`~geckopy.databases.flux_data.load_flux_data` unchanged; only
-``evotuneZeroExch.tsv`` (a single ``Rxns`` id column) needs a loader of
-its own.
+The flux and max-growth files, ``fluxData.tsv`` and ``maxGrowth.tsv``,
+share the column layout
+``Condition Ptot grRate <met> (<rxn>) ... weight source``, so both use
+:func:`~geckopy.databases.flux_data.load_flux_data`; only ``zeroFlux.tsv``
+(a single ``Rxns`` id column) needs a loader of its own. The functions that
+constrain a model with one condition read the same ``fluxData.tsv``; the
+kcat tuning uses every condition in it, where a ``weight`` of 0 leaves a
+condition out of the tuning.
 
 All three files are optional: a missing file yields ``None`` (or an empty
 list for ``zero_flux``), never an exception.
@@ -17,46 +18,46 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from ...databases.flux_data import FluxData, load_flux_data
+from ..databases.flux_data import FluxData, load_flux_data
 
 if TYPE_CHECKING:
-    from ...adapter import ModelAdapter
+    from ..adapter import ModelAdapter
 
-_FLUX_DATA_FILENAME = "evotuneFluxData.tsv"
-_MAX_GROWTH_FILENAME = "evotuneMaxGrowth.tsv"
-_ZERO_EXCH_FILENAME = "evotuneZeroExch.tsv"
+_FLUX_DATA_FILENAME = "fluxData.tsv"
+_MAX_GROWTH_FILENAME = "maxGrowth.tsv"
+_ZERO_EXCH_FILENAME = "zeroFlux.tsv"
 
 
 @dataclass
-class EvotuneData:
-    """Experimental data used by evotune kcat tuning.
+class ExperimentData:
+    """Measured conditions, as the tuning functions use them.
 
     Attributes
     ----------
     flux_data
         Per-condition growth/exchange-flux measurements, from
-        ``evotuneFluxData.tsv``. ``None`` if that file isn't present.
-    max_grate
+        ``fluxData.tsv``. ``None`` if that file isn't present.
+    max_growth
         Per-condition maximum-growth-rate measurements (one active
         carbon source per condition, at ``-1000`` i.e. unconstrained),
-        from ``evotuneMaxGrowth.tsv``. ``None`` if that file isn't
+        from ``maxGrowth.tsv``. ``None`` if that file isn't
         present.
     zero_flux
         Reaction IDs assumed to carry zero flux, from
-        ``evotuneZeroExch.tsv``. Empty if that file isn't present.
+        ``zeroFlux.tsv``. Empty if that file isn't present.
     """
 
     flux_data: Optional[FluxData] = None
-    max_grate: Optional[FluxData] = None
+    max_growth: Optional[FluxData] = None
     zero_flux: list[str] = field(default_factory=list)
 
 
-def load_evotune_data(adapter: "ModelAdapter") -> EvotuneData:
-    """Load the three evotune-kcat-tuning experimental data files.
+def load_experiment_data(adapter: "ModelAdapter") -> ExperimentData:
+    """Load the three experimental data files.
 
     Each file is optional and resolved as
     ``<adapter.params.path>/data/<filename>``; a missing file yields
-    ``None`` (``flux_data``/``max_grate``) or an empty list
+    ``None`` (``flux_data``/``max_growth``) or an empty list
     (``zero_flux``) rather than raising.
 
     Parameters
@@ -67,12 +68,12 @@ def load_evotune_data(adapter: "ModelAdapter") -> EvotuneData:
 
     Returns
     -------
-    EvotuneData
+    ExperimentData
     """
     data_dir = Path(adapter.params.path) / "data"
-    return EvotuneData(
+    return ExperimentData(
         flux_data=_load_optional_flux_data(data_dir / _FLUX_DATA_FILENAME),
-        max_grate=_load_optional_flux_data(data_dir / _MAX_GROWTH_FILENAME),
+        max_growth=_load_optional_flux_data(data_dir / _MAX_GROWTH_FILENAME),
         zero_flux=_load_zero_exch(data_dir / _ZERO_EXCH_FILENAME),
     )
 
@@ -84,7 +85,7 @@ def _load_optional_flux_data(path: Path) -> Optional[FluxData]:
 
 
 def _load_zero_exch(path: Path) -> list[str]:
-    """Parse ``evotuneZeroExch.tsv``: a single ``Rxns`` header, then
+    """Parse ``zeroFlux.tsv``: a single ``Rxns`` header, then
     one reaction ID per line."""
     if not path.is_file():
         return []

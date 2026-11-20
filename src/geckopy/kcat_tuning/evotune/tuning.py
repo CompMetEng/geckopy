@@ -71,11 +71,11 @@ from cobra.util import ProcessPool
 from ...ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ...gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 from ..corrections import Correction, corrections as build_corrections
-from .data import EvotuneData, load_evotune_data
-from .distance import evotune_distance, compute_excarbon
+from ...experiments.data import ExperimentData, load_experiment_data
+from ...experiments.distance import experiment_distance, compute_excarbon
 from .parsimony import fold_change, n_changed
 from .priors import build_sigma0_log, classify_kcat_sources, warn_unlabelled
-from .simulate import simulate_evotune_dataset
+from ...experiments.conditions import simulate_conditions
 from .tying import isozyme_tie_map
 
 with warnings.catch_warnings():
@@ -159,7 +159,7 @@ class EvotuneResult:
         )
 
 
-def _resolve_context(model, adapter, params, evotune_data, bio_rxn):
+def _resolve_context(model, adapter, params, experiment_data, bio_rxn):
     """Resolve every optional input against ``model``'s adapter, or
     raise if it can't be and none was given explicitly."""
     if adapter is None:
@@ -171,22 +171,22 @@ def _resolve_context(model, adapter, params, evotune_data, bio_rxn):
                 "adapter.params.evotune from."
             )
         params = adapter.params.evotune
-    if evotune_data is None:
+    if experiment_data is None:
         if adapter is None:
             raise ValueError(
-                "evotune_data not given and model has no adapter to load it from."
+                "experiment_data not given and model has no adapter to load it from."
             )
-        evotune_data = load_evotune_data(adapter)
-    if evotune_data.flux_data is None and evotune_data.max_grate is None:
+        experiment_data = load_experiment_data(adapter)
+    if experiment_data.flux_data is None and experiment_data.max_growth is None:
         raise ValueError(
-            "evotune_data has neither flux_data nor max_grate -- nothing to "
+            "experiment_data has neither flux_data nor max_growth -- nothing to "
             "tune against."
         )
     if bio_rxn is None:
         if adapter is None:
             raise ValueError("bio_rxn not given and model has no adapter.")
         bio_rxn = adapter.params.bio_rxn
-    return params, evotune_data, bio_rxn
+    return params, experiment_data, bio_rxn
 
 
 #: Termination criteria of ``cma`` that a flat objective triggers.
@@ -194,7 +194,7 @@ _FLAT_STOPS = frozenset({"tolfun", "tolfunhist", "tolflatfitness"})
 
 
 def _tunable_context(
-    model, params, evotune_data, bio_rxn, tunable_mask,
+    model, params, experiment_data, bio_rxn, tunable_mask,
 ):
     """The tunable subset plus everything derived from it: tie groups,
     trust weights, and the excarbon table. Shared by every function in
@@ -224,10 +224,10 @@ def _tunable_context(
     sigma0_log = build_sigma0_log(groups, params)
 
     excarbon_rxn_ids: set[str] = {bio_rxn}
-    for data in (evotune_data.flux_data, evotune_data.max_grate):
+    for data in (experiment_data.flux_data, experiment_data.max_growth):
         if data is not None:
             excarbon_rxn_ids.update(data.exch_rxn_ids)
-    excarbon_rxn_ids.update(evotune_data.zero_flux)
+    excarbon_rxn_ids.update(experiment_data.zero_flux)
     excarbon = compute_excarbon(model, excarbon_rxn_ids, bio_rxn_id=bio_rxn)
 
     tie_map = (
@@ -243,7 +243,7 @@ def screen_kcat_leverage(
     *,
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
-    evotune_data: Optional[EvotuneData] = None,
+    experiment_data: Optional[ExperimentData] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -290,11 +290,11 @@ def screen_kcat_leverage(
         :func:`select_tunable_mask` needs to expand a row back into a
         mask; drop it before showing the table to a person.
     """
-    params, evotune_data, bio_rxn = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn)
+    params, experiment_data, bio_rxn = _resolve_context(
+        model, adapter, params, experiment_data, bio_rxn)
     (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
      tie_map) = _tunable_context(
-        model, params, evotune_data, bio_rxn, tunable_mask)
+        model, params, experiment_data, bio_rxn, tunable_mask)
 
     reps = np.flatnonzero(tie_map == np.arange(len(tie_map)))
     members_of = {int(r): np.flatnonzero(tie_map == r) for r in reps}
@@ -316,7 +316,7 @@ def screen_kcat_leverage(
     if n_proc == 1:
         rmses = [
             _score_kcat_vector(
-                model, tunable_idx, ec_rxn_ids_tunable, evotune_data, excarbon,
+                model, tunable_idx, ec_rxn_ids_tunable, experiment_data, excarbon,
                 bio_rxn, v, make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
                 max_growth_weight=params.max_growth_weight,
@@ -326,7 +326,7 @@ def screen_kcat_leverage(
     else:
         with ProcessPool(
             n_proc, initializer=_init_worker,
-            initargs=(model, tunable_idx, ec_rxn_ids_tunable, evotune_data,
+            initargs=(model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
                      excarbon, bio_rxn, make_anaerobic, change_protein_biomass,
                      params.max_growth_weight, 0.0, None, None),
         ) as pool:
@@ -403,7 +403,7 @@ def cmaes_kcat_tuning(
     *,
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
-    evotune_data: Optional[EvotuneData] = None,
+    experiment_data: Optional[ExperimentData] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -419,7 +419,7 @@ def cmaes_kcat_tuning(
 
     This is the advanced kcat tuning: it fits kcats to maximum growth rates
     and exchange fluxes, measured in one or more conditions (see
-    :func:`load_evotune_data`).
+    :func:`load_experiment_data`).
     :func:`~geckopy.kcat_tuning.sensitivity_tuning` is the standard tuning,
     which needs one maximum growth rate.
 
@@ -460,7 +460,7 @@ def cmaes_kcat_tuning(
     verbose
         Whether per-generation progress is logged at INFO.
     make_anaerobic, change_protein_biomass
-        Forwarded to ``simulate.simulate_evotune_dataset`` -- see its
+        Forwarded to ``simulate.simulate_conditions`` -- see its
         docstring; geckopy has no generic organism-agnostic
         implementation of these yet. See the module docstring's
         "Parallel scoring" section for a picklability caveat when
@@ -482,13 +482,13 @@ def cmaes_kcat_tuning(
         parameters remain after masking and tying -- too little for
         CMA-ES to search over.
     """
-    params, evotune_data, bio_rxn = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn)
+    params, experiment_data, bio_rxn = _resolve_context(
+        model, adapter, params, experiment_data, bio_rxn)
 
     if tunable_mask is None:
         if screen is None:
             screen = screen_kcat_leverage(
-                model, adapter=adapter, params=params, evotune_data=evotune_data,
+                model, adapter=adapter, params=params, experiment_data=experiment_data,
                 bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
@@ -499,7 +499,7 @@ def cmaes_kcat_tuning(
 
     (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
      tie_map) = _tunable_context(
-        model, params, evotune_data, bio_rxn, tunable_mask)
+        model, params, experiment_data, bio_rxn, tunable_mask)
 
     reps = np.flatnonzero(tie_map == np.arange(len(tie_map)))
     if len(reps) < 2:
@@ -542,7 +542,7 @@ def cmaes_kcat_tuning(
         nullcontext(None) if n_proc == 1 else
         ProcessPool(
             n_proc, initializer=_init_worker,
-            initargs=(model, tunable_idx, ec_rxn_ids_tunable, evotune_data,
+            initargs=(model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
                      excarbon, bio_rxn, make_anaerobic, change_protein_biomass,
                      params.max_growth_weight, params.prior_penalty_weight,
                      kcat0, sigma0_log),
@@ -553,7 +553,7 @@ def cmaes_kcat_tuning(
         if pool is None:
             return np.array([
                 _score_kcat_vector(
-                    model, tunable_idx, ec_rxn_ids_tunable, evotune_data,
+                    model, tunable_idx, ec_rxn_ids_tunable, experiment_data,
                     excarbon, bio_rxn, kcat_matrix[:, j],
                     make_anaerobic=make_anaerobic,
                     change_protein_biomass=change_protein_biomass,
@@ -629,7 +629,7 @@ def tune_prior_penalty_weight(
     *,
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
-    evotune_data: Optional[EvotuneData] = None,
+    experiment_data: Optional[ExperimentData] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -700,13 +700,13 @@ def tune_prior_penalty_weight(
         ``median_fold_spread`` and ``max_fold_spread`` (among movers,
         the largest fold-change between what the two seeds landed on).
     """
-    params, evotune_data, bio_rxn = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn)
+    params, experiment_data, bio_rxn = _resolve_context(
+        model, adapter, params, experiment_data, bio_rxn)
 
     if tunable_mask is None:
         if screen is None:
             screen = screen_kcat_leverage(
-                model, adapter=adapter, params=params, evotune_data=evotune_data,
+                model, adapter=adapter, params=params, experiment_data=experiment_data,
                 bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic,
                 change_protein_biomass=change_protein_biomass,
@@ -733,7 +733,7 @@ def tune_prior_penalty_weight(
             for seed in seeds:
                 _reset()
                 result = cmaes_kcat_tuning(
-                    model, adapter=adapter, params=lam_params, evotune_data=evotune_data,
+                    model, adapter=adapter, params=lam_params, experiment_data=experiment_data,
                     bio_rxn=bio_rxn,
                     make_anaerobic=make_anaerobic,
                     change_protein_biomass=change_protein_biomass,
@@ -844,7 +844,7 @@ def _score_kcat_vector(
     model: "EcModel",
     tunable_idx: np.ndarray,
     ec_rxn_ids_tunable: list[str],
-    evotune_data: EvotuneData,
+    experiment_data: ExperimentData,
     excarbon: dict[str, float],
     bio_rxn_id: str,
     kcat_vec: np.ndarray,
@@ -874,25 +874,25 @@ def _score_kcat_vector(
     _reset_solver_basis(model)
 
     flux_sims = None
-    if evotune_data.flux_data is not None:
-        flux_sims = simulate_evotune_dataset(
-            model, evotune_data.flux_data,
-            constrain=True, zero_flux_rxns=evotune_data.zero_flux,
+    if experiment_data.flux_data is not None:
+        flux_sims = simulate_conditions(
+            model, experiment_data.flux_data,
+            constrain=True, zero_flux_rxns=experiment_data.zero_flux,
             bio_rxn_id=bio_rxn_id,
             make_anaerobic=make_anaerobic,
             change_protein_biomass=change_protein_biomass,
         )
-    max_grate_sims = None
-    if evotune_data.max_grate is not None:
-        max_grate_sims = simulate_evotune_dataset(
-            model, evotune_data.max_grate,
+    max_growth_sims = None
+    if experiment_data.max_growth is not None:
+        max_growth_sims = simulate_conditions(
+            model, experiment_data.max_growth,
             constrain=False, zero_flux_rxns=[],
             bio_rxn_id=bio_rxn_id,
             make_anaerobic=make_anaerobic,
             change_protein_biomass=change_protein_biomass,
         )
-    rmse, _ = evotune_distance(
-        evotune_data, flux_sims=flux_sims, max_grate_sims=max_grate_sims,
+    rmse, _ = experiment_distance(
+        experiment_data, flux_sims=flux_sims, max_growth_sims=max_growth_sims,
         excarbon=excarbon, bio_rxn_id=bio_rxn_id,
         max_growth_weight=max_growth_weight,
     )
@@ -914,7 +914,7 @@ def _score_kcat_vector(
 _WORKER_MODEL: Optional["EcModel"] = None
 _WORKER_TUNABLE_IDX: Optional[np.ndarray] = None
 _WORKER_EC_RXN_IDS_TUNABLE: Optional[list[str]] = None
-_WORKER_EVOTUNE_DATA: Optional[EvotuneData] = None
+_WORKER_EXPERIMENT_DATA: Optional[ExperimentData] = None
 _WORKER_EXCARBON: Optional[dict[str, float]] = None
 _WORKER_BIO_RXN: Optional[str] = None
 _WORKER_MAKE_ANAEROBIC = None
@@ -929,7 +929,7 @@ def _init_worker(
     model: "EcModel",
     tunable_idx: np.ndarray,
     ec_rxn_ids_tunable: list[str],
-    evotune_data: EvotuneData,
+    experiment_data: ExperimentData,
     excarbon: dict[str, float],
     bio_rxn_id: str,
     make_anaerobic,
@@ -943,14 +943,14 @@ def _init_worker(
     (deserialised by ``ProcessPool``, not by us) and everything else
     needed to score a candidate."""
     global _WORKER_MODEL, _WORKER_TUNABLE_IDX, _WORKER_EC_RXN_IDS_TUNABLE
-    global _WORKER_EVOTUNE_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN
+    global _WORKER_EXPERIMENT_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN
     global _WORKER_MAKE_ANAEROBIC, _WORKER_CHANGE_PROTEIN_BIOMASS
     global _WORKER_MAX_GROWTH_WEIGHT, _WORKER_PRIOR_PENALTY_WEIGHT
     global _WORKER_KCAT0, _WORKER_SIGMA0_LOG
     _WORKER_MODEL = model
     _WORKER_TUNABLE_IDX = tunable_idx
     _WORKER_EC_RXN_IDS_TUNABLE = ec_rxn_ids_tunable
-    _WORKER_EVOTUNE_DATA = evotune_data
+    _WORKER_EXPERIMENT_DATA = experiment_data
     _WORKER_EXCARBON = excarbon
     _WORKER_BIO_RXN = bio_rxn_id
     _WORKER_MAKE_ANAEROBIC = make_anaerobic
@@ -965,7 +965,7 @@ def _score_worker(kcat_vec: np.ndarray) -> tuple[float, float]:
     assert _WORKER_MODEL is not None, "_score_worker called before _init_worker"
     return _score_kcat_vector(
         _WORKER_MODEL, _WORKER_TUNABLE_IDX, _WORKER_EC_RXN_IDS_TUNABLE,
-        _WORKER_EVOTUNE_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN, kcat_vec,
+        _WORKER_EXPERIMENT_DATA, _WORKER_EXCARBON, _WORKER_BIO_RXN, kcat_vec,
         make_anaerobic=_WORKER_MAKE_ANAEROBIC,
         change_protein_biomass=_WORKER_CHANGE_PROTEIN_BIOMASS,
         max_growth_weight=_WORKER_MAX_GROWTH_WEIGHT,

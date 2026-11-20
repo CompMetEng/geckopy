@@ -39,10 +39,10 @@ class FluxData:
     exch_rxn_ids
         Exchange reaction IDs in the model, matching the columns of
         ``exch_fluxes`` and ``exch_mets``.
-    evotune_rmse_weight
-        Optional per-condition weights for the evotune-kcat-tuning
-        RMSE term. ``None`` if the source file did not have the
-        ``evotuneRMSEweight`` column.
+    weight
+        Optional per-condition weights of the kcat-tuning
+        RMSE term (0 leaves the condition out). ``None`` if the source file did not have the
+        ``weight`` column.
     source
         Optional per-condition free-text describing where the data
         came from. ``None`` if the source file did not have a
@@ -61,7 +61,7 @@ class FluxData:
     )
     exch_mets: list[str] = field(default_factory=list)
     exch_rxn_ids: list[str] = field(default_factory=list)
-    evotune_rmse_weight: Optional[np.ndarray] = None
+    weight: Optional[np.ndarray] = None
     source: Optional[list[str]] = None
 
 
@@ -76,7 +76,7 @@ def load_flux_data(path: str | Path) -> FluxData:
 
     Optional extra columns (in any position):
 
-    * ``evotuneRMSEweight`` (float): weights for evotune kcat tuning.
+    * ``weight`` (float): weight of the condition in the kcat tuning.
     * ``source`` (str): free-text describing the data origin.
 
     An exchange column header has the form ``<met> (<rxn>)``, split at
@@ -85,7 +85,7 @@ def load_flux_data(path: str | Path) -> FluxData:
     ``EX_a(e)``).
 
     Both columns are dropped from the matrix and surfaced on the
-    returned ``FluxData`` as ``evotune_rmse_weight`` and ``source``.
+    returned ``FluxData`` as ``weight`` and ``source``.
 
     Ported from GECKO MATLAB:
     src/io/loadFluxData.m.
@@ -136,7 +136,11 @@ def load_flux_data(path: str | Path) -> FluxData:
 
     # Pull out optional columns first; collect indices to drop.
     optional_indices: list[int] = []
-    tuning_idx = _index_of(header, "evotuneRMSEweight")
+    if _index_of(header, "evotuneRMSEweight") is not None:
+        raise ValueError(
+            f"{path}: the column 'evotuneRMSEweight' is now called 'weight'."
+        )
+    tuning_idx = _index_of(header, "weight")
     source_idx = _index_of(header, "source")
 
     tuning_weights: Optional[np.ndarray] = None
@@ -180,7 +184,7 @@ def load_flux_data(path: str | Path) -> FluxData:
         exch_fluxes=exch_fluxes,
         exch_mets=exch_mets,
         exch_rxn_ids=exch_rxn_ids,
-        evotune_rmse_weight=tuning_weights,
+        weight=tuning_weights,
         source=source_values,
     )
 

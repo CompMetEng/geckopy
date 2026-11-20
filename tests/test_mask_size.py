@@ -15,7 +15,7 @@ from geckopy import EcModel, ModelAdapter
 from geckopy.adapter.params import EvotuneParams, SourceGroupRule
 from geckopy.databases.flux_data import FluxData
 from geckopy.ec_model.ec_data import EcData
-from geckopy.kcat_tuning.evotune.data import EvotuneData
+from geckopy.experiments.data import ExperimentData
 from geckopy.kcat_tuning.evotune.mask_size import (
     MaskSizePoint,
     recommend_target_impact_share,
@@ -111,8 +111,8 @@ def _build_toy(adapter: ModelAdapter) -> EcModel:
     return model
 
 
-def _evotune_data() -> EvotuneData:
-    max_grate = FluxData(
+def _experiment_data() -> ExperimentData:
+    max_growth = FluxData(
         conds=["glucose", "ethanol"],
         p_tot=np.array([np.nan, np.nan]),
         gr_rate=np.array([_TRUE_GROWTH, _TRUE_GROWTH]),
@@ -120,7 +120,7 @@ def _evotune_data() -> EvotuneData:
         exch_mets=["glucose", "ethanol"],
         exch_rxn_ids=["EX_glc", "EX_eth"],
     )
-    return EvotuneData(flux_data=None, max_grate=max_grate, zero_flux=[])
+    return ExperimentData(flux_data=None, max_growth=max_growth, zero_flux=[])
 
 
 # --------------------------------------------------------------------------- #
@@ -131,11 +131,11 @@ def _evotune_data() -> EvotuneData:
 def test_sweep_reports_one_point_per_share_sorted(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    evotune_data = _evotune_data()
+    experiment_data = _experiment_data()
     params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     points = sweep_tunable_mask_size(
-        model, adapter=adapter, params=params, evotune_data=evotune_data,
+        model, adapter=adapter, params=params, experiment_data=experiment_data,
         target_impact_shares=[1.0, 0.7, 0.9], seeds=[0], n_proc=1, verbose=False,
     )
 
@@ -150,12 +150,12 @@ def test_sweep_reports_one_point_per_share_sorted(tmp_path):
 def test_sweep_does_not_mutate_input_model(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    evotune_data = _evotune_data()
+    experiment_data = _experiment_data()
     params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
     before = model.ec.kcat.copy()
 
     sweep_tunable_mask_size(
-        model, adapter=adapter, params=params, evotune_data=evotune_data,
+        model, adapter=adapter, params=params, experiment_data=experiment_data,
         target_impact_shares=[1.0], seeds=[0], n_proc=1, verbose=False,
     )
 
@@ -165,11 +165,11 @@ def test_sweep_does_not_mutate_input_model(tmp_path):
 def test_sweep_runs_every_seed_at_every_share(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    evotune_data = _evotune_data()
+    experiment_data = _experiment_data()
     params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     points = sweep_tunable_mask_size(
-        model, adapter=adapter, params=params, evotune_data=evotune_data,
+        model, adapter=adapter, params=params, experiment_data=experiment_data,
         target_impact_shares=[1.0], seeds=[0, 1, 2], n_proc=1, verbose=False,
     )
 
@@ -185,10 +185,10 @@ def test_sweep_runs_every_seed_at_every_share(tmp_path):
 def test_sweep_reuses_a_given_screen(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    evotune_data = _evotune_data()
+    experiment_data = _experiment_data()
     params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
     screen = screen_kcat_leverage(
-        model, adapter=adapter, evotune_data=evotune_data, n_proc=1,
+        model, adapter=adapter, experiment_data=experiment_data, n_proc=1,
     )
 
     # select_tunable_mask reads cum_leverage_share directly; dropping it
@@ -198,7 +198,7 @@ def test_sweep_reuses_a_given_screen(tmp_path):
     stripped = screen.drop(columns=["cum_leverage_share"])
     with pytest.raises(KeyError):
         sweep_tunable_mask_size(
-            model, adapter=adapter, params=params, evotune_data=evotune_data,
+            model, adapter=adapter, params=params, experiment_data=experiment_data,
             screen=stripped, target_impact_shares=[1.0], seeds=[0],
             n_proc=1, verbose=False,
         )
@@ -304,7 +304,7 @@ def test_sweep_uses_rmse_trace_minimum_not_last_entry(tmp_path, monkeypatch):
 
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)
-    evotune_data = _evotune_data()
+    experiment_data = _experiment_data()
     params = EvotuneParams(source_groups=GROUPS, max_generations=10, rmse_threshold=1e-6)
 
     # A later generation can improve the (prior-penalised) objective
@@ -326,7 +326,7 @@ def test_sweep_uses_rmse_trace_minimum_not_last_entry(tmp_path, monkeypatch):
     monkeypatch.setattr(mask_size_module, "cmaes_kcat_tuning", fake_cmaes_kcat_tuning)
 
     points = sweep_tunable_mask_size(
-        model, adapter=adapter, params=params, evotune_data=evotune_data,
+        model, adapter=adapter, params=params, experiment_data=experiment_data,
         target_impact_shares=[1.0], seeds=[0], n_proc=1, verbose=False,
     )
 

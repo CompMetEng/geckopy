@@ -1,8 +1,8 @@
-"""FBA simulation half of the evotune kcat tuning distance function.
+"""Simulate the measured conditions in a model.
 
-This module only does the FBA half: given an already kcat-constrained
+This module only does the FBA half of the distance: given an already kcat-constrained
 ``EcModel`` and one :class:`~geckopy.databases.flux_data.FluxData`
-dataset (either ``evotune_data.flux_data`` or ``evotune_data.max_grate``),
+dataset (either ``experiment_data.flux_data`` or ``experiment_data.max_growth``),
 simulate every condition and report growth + exchange fluxes.
 :mod:`.distance` turns those raw numbers into an RMSE against the
 matching experimental values -- kept separate so the RMSE math is
@@ -14,11 +14,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
 import numpy as np
-from ...solver_support import optimize_model
+from ..solver_support import optimize_model
 
 if TYPE_CHECKING:
-    from ...databases.flux_data import FluxData
-    from ...ec_model.ec_model import EcModel
+    from ..databases.flux_data import FluxData
+    from ..ec_model.ec_model import EcModel
 
 
 @dataclass
@@ -37,7 +37,7 @@ class ConditionSimResult:
     block_fluxes: dict[str, float] = field(default_factory=dict)
 
 
-def simulate_evotune_dataset(
+def simulate_conditions(
     model: "EcModel",
     flux_data: "FluxData",
     *,
@@ -59,8 +59,8 @@ def simulate_evotune_dataset(
        another row's simulation.
     2. For row ``i``, that row's own carbon-source reaction is
        unblocked: fixed at the measured uptake rate if ``constrain``
-       is True (``evotune_data.flux_data``), or fully opened to ``-1000``
-       if ``constrain`` is False (``evotune_data.max_grate`` -- "what's
+       is True (``experiment_data.flux_data``), or fully opened to ``-1000``
+       if ``constrain`` is False (``experiment_data.max_growth`` -- "what's
        the *best possible* growth on this carbon source", not "growth
        at this measured rate").
     3. Optional per-condition adjustments run if the corresponding
@@ -68,7 +68,7 @@ def simulate_evotune_dataset(
        column reads exactly 0, protein-content rescaling when
        ``Ptot`` is given and nonzero.
     4. Solve; record growth, plus (``constrain`` datasets only, since
-       ``max_grate`` has no exchange measurements to compare against)
+       ``max_growth`` has no exchange measurements to compare against)
        every non-NaN measured exchange's simulated flux and every
        ``zero_flux_rxns`` entry's simulated flux.
 
@@ -90,7 +90,7 @@ def simulate_evotune_dataset(
         for max-growth data (open uptake fully).
     zero_flux_rxns
         Reaction IDs assumed zero-flux in every condition
-        (``evotune_data.zero_flux``); the row's own carbon source is
+        (``experiment_data.zero_flux``); the row's own carbon source is
         skipped even if it's also listed here.
     bio_rxn_id
         The biomass reaction ID (``adapter.params.bio_rxn``).

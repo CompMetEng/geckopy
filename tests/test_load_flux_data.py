@@ -57,6 +57,28 @@ def test_no_exchange_columns_raises(tmp_path):
 # Basic happy path
 # --------------------------------------------------------------------------- #
 
+def test_old_weight_column_name_is_rejected(tmp_path):
+    f = tmp_path / "fluxData.tsv"
+    _write_tsv(f, [
+        ["Condition", "Ptot", "grRate", "glucose (r_1714)", "evotuneRMSEweight"],
+        ["c1", "0.5", "0.4", "-10", "1"],
+    ])
+    with pytest.raises(ValueError, match="now called 'weight'"):
+        load_flux_data(f)
+
+
+def test_weight_column_is_read_and_removed_from_the_fluxes(tmp_path):
+    f = tmp_path / "fluxData.tsv"
+    _write_tsv(f, [
+        ["Condition", "Ptot", "grRate", "glucose (r_1714)", "weight", "source"],
+        ["c1", "0.5", "0.4", "-10", "0", "x"],
+        ["c2", "0.5", "0.3", "-8", "2", "y"],
+    ])
+    data = load_flux_data(f)
+    assert data.weight.tolist() == [0.0, 2.0]
+    assert data.exch_rxn_ids == ["r_1714"]
+
+
 def test_basic_single_condition(tmp_path):
     p = tmp_path / "fd.tsv"
     _write_tsv(p, [
@@ -159,21 +181,21 @@ def test_no_optional_columns_yields_none(tmp_path):
         ["c1", "0.5", "0.4", "-10.0"],
     ])
     fd = load_flux_data(p)
-    assert fd.evotune_rmse_weight is None
+    assert fd.weight is None
     assert fd.source is None
 
 
-def test_evotune_rmse_weight_column_loaded(tmp_path):
+def test_weight_column_loaded(tmp_path):
     p = tmp_path / "fd.tsv"
     _write_tsv(p, [
         ["condition", "Ptot", "grRate",
-         "glc (EX_glc)", "evotuneRMSEweight"],
+         "glc (EX_glc)", "weight"],
         ["c1", "0.5", "0.4", "-10.0", "1.5"],
         ["c2", "0.6", "0.5", "-8.5", "0.7"],
     ])
     fd = load_flux_data(p)
-    assert fd.evotune_rmse_weight is not None
-    np.testing.assert_array_equal(fd.evotune_rmse_weight, [1.5, 0.7])
+    assert fd.weight is not None
+    np.testing.assert_array_equal(fd.weight, [1.5, 0.7])
     # Tuning-weight column dropped from exch_fluxes.
     assert fd.exch_fluxes.shape == (2, 1)
     assert fd.exch_rxn_ids == ["EX_glc"]
@@ -195,12 +217,12 @@ def test_both_optional_columns(tmp_path):
     p = tmp_path / "fd.tsv"
     _write_tsv(p, [
         ["condition", "Ptot", "grRate",
-         "glc (EX_glc)", "evotuneRMSEweight", "source"],
+         "glc (EX_glc)", "weight", "source"],
         ["c1", "0.5", "0.4", "-10.0", "1.5", "PMID:12345"],
     ])
     fd = load_flux_data(p)
-    assert fd.evotune_rmse_weight is not None
-    np.testing.assert_array_equal(fd.evotune_rmse_weight, [1.5])
+    assert fd.weight is not None
+    np.testing.assert_array_equal(fd.weight, [1.5])
     assert fd.source == ["PMID:12345"]
     assert fd.exch_fluxes.shape == (1, 1)
 
@@ -211,13 +233,13 @@ def test_optional_columns_in_arbitrary_position(tmp_path):
     p = tmp_path / "fd.tsv"
     _write_tsv(p, [
         ["condition", "Ptot", "grRate",
-         "source", "glc (EX_glc)", "evotuneRMSEweight"],
+         "source", "glc (EX_glc)", "weight"],
         ["c1", "0.5", "0.4", "PMID:1", "-10.0", "1.5"],
     ])
     fd = load_flux_data(p)
     assert fd.source == ["PMID:1"]
-    assert fd.evotune_rmse_weight is not None
-    np.testing.assert_array_equal(fd.evotune_rmse_weight, [1.5])
+    assert fd.weight is not None
+    np.testing.assert_array_equal(fd.weight, [1.5])
     np.testing.assert_array_equal(fd.exch_fluxes, [[-10.0]])
     assert fd.exch_rxn_ids == ["EX_glc"]
 

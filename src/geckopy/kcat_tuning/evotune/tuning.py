@@ -373,10 +373,25 @@ def select_tunable_mask(
     screen: pd.DataFrame,
     *,
     target_impact_share: float = 0.9,
+    min_leverage: Optional[float] = None,
+    sigma_ref: float = 0.3,
 ) -> np.ndarray:
     """Build a ``tunable_mask`` from a :func:`screen_kcat_leverage` report.
 
-    Keeps the fewest highest-ranked groups whose combined leverage
+    With ``min_leverage`` given, keeps every group whose trust-weighted
+    leverage reaches it, and ``target_impact_share`` is ignored. The
+    weighted leverage is the screen's ``rank`` (leverage times
+    ``sigma0_log``) divided by ``sigma_ref``, so a kcat of a source with
+    ``sigma0_log == sigma_ref`` is kept when its plain leverage reaches
+    ``min_leverage``, and a more trusted source needs proportionally
+    more. Unlike the share, this cutoff is absolute: it does not grow
+    with the number of kcats that carry a small leverage each, which on
+    a large model can make the share-based set many times larger than
+    the set that the data constrain. Its value depends on the units of
+    the distance and on ``sigma_ref``, so it has to be chosen per model
+    (see :func:`~.settings_search.search_tuning_settings`).
+
+    Otherwise keeps the fewest highest-ranked groups whose combined leverage
     reaches ``target_impact_share`` of the total -- a relative cutoff,
     so the same ``target_impact_share`` selects a comparable quality of
     parameter set on any model, rather than an absolute leverage value
@@ -390,6 +405,11 @@ def select_tunable_mask(
     """
     mask = np.zeros(len(model.ec.rxns), dtype=bool)
     if screen.empty:
+        return mask
+    if min_leverage is not None:
+        keep = screen["rank"] / sigma_ref >= min_leverage
+        for positions in screen.loc[keep, "_positions"]:
+            mask[list(positions)] = True
         return mask
     prev_cum = screen["cum_leverage_share"].shift(1, fill_value=0.0)
     keep = prev_cum < target_impact_share
@@ -410,6 +430,7 @@ def cmaes_kcat_tuning(
     tunable_mask: Optional[np.ndarray] = None,
     screen: Optional[pd.DataFrame] = None,
     target_impact_share: float = 0.9,
+    min_leverage: Optional[float] = None,
     popsize: Optional[int] = None,
     n_proc: Optional[int] = None,
     seed: Optional[int] = None,
@@ -438,11 +459,12 @@ def cmaes_kcat_tuning(
         with kcat constraints already applied. The ``ec.source`` of
         every row whose kcat changed gets the tuning method ``cmaes``,
         with the kcat before the first tuning as ``prior``.
-    tunable_mask, screen, target_impact_share
+    tunable_mask, screen, target_impact_share, min_leverage
         Control which kcats are searched over, in order of precedence.
         Pass ``tunable_mask`` to fix the set yourself. Otherwise, a
         mask is built by :func:`select_tunable_mask` at
-        ``target_impact_share``, from ``screen`` if given (so a
+        ``min_leverage`` if given (with ``sigma_ref`` taken from
+        ``params.sigma0_log_default``), else at ``target_impact_share``, from ``screen`` if given (so a
         previously computed :func:`screen_kcat_leverage` report need
         not be recomputed) or from a fresh screen otherwise.
     popsize
@@ -495,7 +517,8 @@ def cmaes_kcat_tuning(
                 n_proc=n_proc,
             )
         tunable_mask = select_tunable_mask(
-            model, screen, target_impact_share=target_impact_share)
+            model, screen, target_impact_share=target_impact_share,
+            min_leverage=min_leverage, sigma_ref=params.sigma0_log_default)
 
     (tunable_idx, ec_rxn_ids_tunable, kcat0, groups, sigma0_log, excarbon,
      tie_map) = _tunable_context(

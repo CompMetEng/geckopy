@@ -10,6 +10,14 @@ from .mask_size import (
     recommend_target_impact_share,
     sweep_tunable_mask_size,
 )
+from .settings_search import (
+    SettingsRun,
+    candidate_grid,
+    recommend_tuning_settings,
+    run_tuning_settings,
+    search_tuning_settings,
+    summarise_runs,
+)
 from .parsimony import best_parsimonious, n_changed, parsimony_frontier
 from .priors import (
     UNLABELLED_GROUP,
@@ -30,6 +38,12 @@ __all__ = [
     "UNLABELLED_GROUP",
     "EvotuneResult",
     "MaskSizePoint",
+    "SettingsRun",
+    "candidate_grid",
+    "recommend_tuning_settings",
+    "run_tuning_settings",
+    "search_tuning_settings",
+    "summarise_runs",
     "best_parsimonious",
     "build_sigma0_log",
     "classify_kcat_source",

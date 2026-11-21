@@ -54,6 +54,7 @@ _TUNING_METHOD = "sensitivity"
 # Growth is considered stalled when an iteration improves it by no more
 # than this (absolute, 1/h). Using a tolerance instead of exact equality
 # avoids spinning on sub-numerical-noise increases.
+_TIE_TOL = 1e-9
 _GROWTH_STALL_TOL = 1e-9
 
 
@@ -303,17 +304,15 @@ def sensitivity_tuning(
                 tuned_ec_indices.append(ec_rows[0])
             continue
 
-        # Pick usage rxn with max flux (= most produced enzyme),
-        # excluding any in prot_to_ignore.
+        # Pick the usage rxn with the largest flux (the most produced enzyme),
+        # excluding any in prot_to_ignore. Ties go to the first rxn of the model.
+        usage_ids = [uid for uid in usage_rxn_ids if uid not in ignore_usage_ids]
+        usage_fluxes = [float(sol.fluxes.get(uid, 0.0)) for uid in usage_ids]
         best_usage_id: Optional[str] = None
         best_usage_flux = -np.inf
-        for uid in usage_rxn_ids:
-            if uid in ignore_usage_ids:
-                continue
-            f = float(sol.fluxes.get(uid, 0.0))
-            if f > best_usage_flux:
-                best_usage_flux = f
-                best_usage_id = uid
+        if usage_ids:
+            k = _first_tied(usage_fluxes, largest=True)
+            best_usage_id, best_usage_flux = usage_ids[k], usage_fluxes[k]
 
         if best_usage_id is None or best_usage_flux <= 0:
             logger.warning(
@@ -337,17 +336,13 @@ def sensitivity_tuning(
         # Find the catalysed rxn consuming the most of this protein.
         # Consumption: S[prot, rxn] < 0 with positive flux -> negative product.
         # The rxn with the most-negative S[prot] * flux is selected.
+        # Ties go to the first rxn of the model.
+        position = {r.id: i for i, r in enumerate(model.reactions)}
+        consumers = sorted((r for r in prot_met.reactions if r.id != best_usage_id), key=lambda r: position[r.id])
+        values = [r.metabolites[prot_met] * float(sol.fluxes.get(r.id, 0.0)) for r in consumers]
         target_rxn = None
-        target_value = 0.0
-        for rxn in prot_met.reactions:
-            if rxn.id == best_usage_id:
-                continue
-            coeff = rxn.metabolites[prot_met]
-            flux = float(sol.fluxes.get(rxn.id, 0.0))
-            value = coeff * flux
-            if value < target_value:
-                target_value = value
-                target_rxn = rxn
+        if values and min(values) < 0:
+            target_rxn = consumers[_first_tied(values, largest=False)]
 
         if target_rxn is None:
             logger.warning(
@@ -389,6 +384,16 @@ def sensitivity_tuning(
         except Exception as err:  # the tuning is done; the evidence is extra
             logger.warning("The evidence of the tuned kcats could not be read: %s", err)
     return result
+
+
+def _first_tied(values: list[float], *, largest: bool) -> int:
+    """Index of the first value that ties with the extreme value, that is,
+    that differs from it by less than a relative ``_TIE_TOL``."""
+    arr = np.asarray(values, dtype=float)
+    best = arr.max() if largest else arr.min()
+    tol = _TIE_TOL * max(1.0, abs(best))
+    hits = np.flatnonzero(arr >= best - tol if largest else arr <= best + tol)
+    return int(hits[0])
 
 
 def _mark_tuned(model: "EcModel", ec_idx: int) -> None:
@@ -446,17 +451,11 @@ def _light_step(
     """The ec rows of the reaction with the most flux through the protein
     pool (gecko-light), or ``None`` when no reaction draws on it."""
     pool = model.metabolites.get_by_id(POOL_ID)
-    best_id: Optional[str] = None
-    best_value = 0.0
-    for rxn in model.reactions:
-        if rxn.id in ignore_rxn_ids or pool not in rxn.metabolites:
-            continue
-        value = rxn.metabolites[pool] * float(sol.fluxes.get(rxn.id, 0.0))
-        if value < best_value:
-            best_value = value
-            best_id = rxn.id
-    if best_id is None:
+    candidates = [r for r in model.reactions if r.id not in ignore_rxn_ids and pool in r.metabolites]
+    values = [r.metabolites[pool] * float(sol.fluxes.get(r.id, 0.0)) for r in candidates]
+    if not values or min(values) >= 0:
         return None
+    best_id = candidates[_first_tied(values, largest=False)].id
     rows = [
         i for i, ec_id in enumerate(model.ec.rxns)
         if split_light_rxn_id(ec_id)[1] == best_id

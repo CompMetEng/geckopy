@@ -506,6 +506,26 @@ def test_cmaes_tuning_runs_all_generations_on_a_flat_objective(tmp_path, monkeyp
     assert result.n_generations == 6
 
 
+def test_scoring_maximises_growth_whatever_the_model_objective(tmp_path, recwarn):
+    adapter = _adapter(tmp_path)
+    experiment_data = _experiment_data()
+    reference = screen_kcat_leverage(
+        _build_toy(adapter), adapter=adapter, experiment_data=experiment_data, n_proc=1,
+    )
+
+    model = _build_toy(adapter)
+    model.objective = "usage_prot_Eglc"
+    screen = screen_kcat_leverage(
+        model, adapter=adapter, experiment_data=experiment_data, n_proc=1,
+    )
+
+    pd.testing.assert_frame_equal(screen, reference)
+    assert not [w for w in recwarn.list if "growth reaction" in str(w.message)]
+    # The objective of the model that is passed in is left as it was.
+    assert "usage_prot_Eglc" in str(model.objective.expression)
+    assert "biomass" not in str(model.objective.expression)
+
+
 def test_screen_warns_when_the_model_has_no_formulas(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_toy(adapter)

@@ -960,30 +960,36 @@ def _score_kcat_vector(
         apply_kcat_constraints(model, update_rxns=ec_rxn_ids_tunable)
     _reset_solver_basis(model)
 
-    flux_sims = None
-    if experiment_data.flux_data is not None:
-        flux_sims = simulate_conditions(
-            model, experiment_data.flux_data,
-            constrain=True, zero_flux_rxns=experiment_data.zero_flux,
-            bio_rxn_id=bio_rxn_id,
-            make_anaerobic=make_anaerobic,
-            change_protein_biomass=change_protein_biomass,
-            optimize=optimize_model,
+    # The conditions are simulated by maximising growth: the growth reaction is the
+    # objective while scoring, whatever objective the model has. The objective of the
+    # model is restored afterwards.
+    with model:
+        model.objective = bio_rxn_id
+        model.objective_direction = "max"
+        flux_sims = None
+        if experiment_data.flux_data is not None:
+            flux_sims = simulate_conditions(
+                model, experiment_data.flux_data,
+                constrain=True, zero_flux_rxns=experiment_data.zero_flux,
+                bio_rxn_id=bio_rxn_id,
+                make_anaerobic=make_anaerobic,
+                change_protein_biomass=change_protein_biomass,
+                optimize=optimize_model,
+            )
+        max_growth_sims = None
+        if experiment_data.max_growth is not None:
+            max_growth_sims = simulate_conditions(
+                model, experiment_data.max_growth,
+                constrain=False, zero_flux_rxns=[],
+                bio_rxn_id=bio_rxn_id,
+                make_anaerobic=make_anaerobic,
+                change_protein_biomass=change_protein_biomass,
+                optimize=optimize_model,
+            )
+        rmse, _ = experiment_distance(
+            experiment_data, flux_sims=flux_sims, max_growth_sims=max_growth_sims,
+            carbon_weights=carbon_weights, max_growth_weight=max_growth_weight,
         )
-    max_growth_sims = None
-    if experiment_data.max_growth is not None:
-        max_growth_sims = simulate_conditions(
-            model, experiment_data.max_growth,
-            constrain=False, zero_flux_rxns=[],
-            bio_rxn_id=bio_rxn_id,
-            make_anaerobic=make_anaerobic,
-            change_protein_biomass=change_protein_biomass,
-            optimize=optimize_model,
-        )
-    rmse, _ = experiment_distance(
-        experiment_data, flux_sims=flux_sims, max_growth_sims=max_growth_sims,
-        carbon_weights=carbon_weights, max_growth_weight=max_growth_weight,
-    )
     # The search may run on a penalised objective, but the plain RMSE
     # is always recorded alongside it so a run stays comparable to
     # MATLAB's and to runs at other penalties.

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from cobra.manipulation import remove_genes
 
-from ..solver_support import edit_on_fast_solver
+from raven_toolbox.utils.solver import edit_on_fast_solver
 from ..ec_model.constants import (
     POOL_EXCHANGE_ID,
     PROT_PREFIX,

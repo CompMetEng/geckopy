@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from ...adapter import ModelAdapter
     from ...adapter.params import EvotuneParams
     from ...ec_model.ec_model import EcModel
-    from .data import EvotuneData
+    from raven_toolbox.experiments import ExperimentData
 
 
 @dataclass(frozen=True)
@@ -94,7 +94,7 @@ def sweep_tunable_mask_size(
     *,
     adapter: Optional["ModelAdapter"] = None,
     params: Optional["EvotuneParams"] = None,
-    evotune_data: Optional["EvotuneData"] = None,
+    experiment_data: Optional["ExperimentData"] = None,
     bio_rxn: Optional[str] = None,
     make_anaerobic: Optional[Callable[["EcModel"], None]] = None,
     change_protein_biomass: Optional[Callable[["EcModel", float], None]] = None,
@@ -156,7 +156,7 @@ def sweep_tunable_mask_size(
     screen
         A precomputed :func:`~.tuning.screen_kcat_leverage` report.
         Computed once, fresh, if not given.
-    adapter, params, evotune_data, bio_rxn, make_anaerobic,
+    adapter, params, experiment_data, bio_rxn, make_anaerobic,
     change_protein_biomass, n_proc, verbose
         Forwarded to :func:`~.tuning.screen_kcat_leverage` and
         :func:`~.tuning.cmaes_kcat_tuning`; see their docstrings.
@@ -166,12 +166,12 @@ def sweep_tunable_mask_size(
     list of :class:`MaskSizePoint`, one per share, sorted by
     ``target_impact_share`` ascending.
     """
-    params, evotune_data, bio_rxn = _resolve_context(
-        model, adapter, params, evotune_data, bio_rxn)
+    params, experiment_data, bio_rxn = _resolve_context(
+        model, adapter, params, experiment_data, bio_rxn)
 
     if screen is None:
         screen = screen_kcat_leverage(
-            model, adapter=adapter, params=params, evotune_data=evotune_data,
+            model, adapter=adapter, params=params, experiment_data=experiment_data,
             bio_rxn=bio_rxn,
             make_anaerobic=make_anaerobic, change_protein_biomass=change_protein_biomass,
             n_proc=n_proc,
@@ -185,7 +185,7 @@ def sweep_tunable_mask_size(
         for seed in seeds:
             run_model = model.copy()
             result = cmaes_kcat_tuning(
-                run_model, adapter=adapter, params=params, evotune_data=evotune_data,
+                run_model, adapter=adapter, params=params, experiment_data=experiment_data,
                 bio_rxn=bio_rxn,
                 make_anaerobic=make_anaerobic, change_protein_biomass=change_protein_biomass,
                 tunable_mask=mask, n_proc=n_proc, seed=seed, verbose=False,

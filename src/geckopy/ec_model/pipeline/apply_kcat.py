@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ..ec_model import EcModel
 
 
-from ...solver_support import edit_on_fast_solver
+from raven_toolbox.utils.solver import edit_on_fast_solver
 from ..constants import POOL_ID, PROT_PREFIX
 from .populate_ec import split_light_rxn_id
 

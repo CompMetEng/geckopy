@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from ...databases.pubchem import met_smiles as read_met_smiles
+from raven_toolbox.annotation import met_smiles as read_met_smiles
 
 if TYPE_CHECKING:
     from ...ec_model.ec_model import EcModel

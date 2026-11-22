@@ -24,7 +24,7 @@ import cobra
 from raven_toolbox.io import read_yaml_model
 from raven_toolbox.utils.solver import set_raven_tolerance
 
-from ..solver_support import fast_solver_while_building, switch_to_scipy
+from raven_toolbox.utils.solver import fast_solver_while_building, switch_to_scipy
 
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter

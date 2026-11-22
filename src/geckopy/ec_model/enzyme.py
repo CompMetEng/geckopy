@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Iterator
 
 import cobra
 
-from ..solver_support import constraint_shadow_prices
+from raven_toolbox.utils.solver import constraint_shadow_prices
 from .constants import PROT_PREFIX, USAGE_PREFIX
 from .pipeline.populate_ec import split_light_rxn_id
 

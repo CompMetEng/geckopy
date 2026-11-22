@@ -31,7 +31,7 @@ from raven_toolbox.utils.sort import sort_identifiers
 
 from ..databases import UniprotDB, load_kegg_tsv
 from ..databases.uniprot_loader import _load_project_uniprot
-from ..solver_support import repair_scipy_problem, switch_to_scipy
+from raven_toolbox.utils.solver import repair_scipy_problem, switch_to_scipy
 from .ec_model import EcModel
 from .pipeline import (
     add_protein_pool_exchange_reaction,
@@ -216,7 +216,7 @@ def make_ec_model(
     model = model.copy()
     # On the scipy solver the pipeline runs on glpk and the result is converted at the end:
     # optlang grows the scipy matrix densely, so the thousands of edits of a genome-scale
-    # build take hours there (see geckopy.solver_support).
+    # build take hours there (see raven_toolbox.utils.solver).
     on_scipy = repair_scipy_problem(model)
     if on_scipy:
         try:

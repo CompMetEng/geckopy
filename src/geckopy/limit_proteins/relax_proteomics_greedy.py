@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
-from ..solver_support import constraint_shadow_prices
+from raven_toolbox.utils.solver import constraint_shadow_prices
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel

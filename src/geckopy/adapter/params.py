@@ -216,7 +216,10 @@ class EvotuneParams(BaseModel):
 
     rmse_threshold: float = Field(
         default=0.2,
-        description="Stop once the best RMSE reaches this; negative never stops early.",
+        description=(
+            "Stop once the best distance to the measurements (the RMSE of "
+            "raven_toolbox.experiments) reaches this; negative never stops early."
+        ),
     )
     max_generations: int = Field(
         default=150, description="Hard cap on CMA-ES generations.",
@@ -225,10 +228,10 @@ class EvotuneParams(BaseModel):
     max_growth_weight: float = Field(
         default=1.0,
         description=(
-            "Weight on the max-growth RMSE against the flux RMSE: "
-            "(rmse_flux + w * rmse_max_growth) / (w + 1). At 2 the "
-            "max-growth conditions count double. Same weighting as "
-            "MATLAB's maxGrowthWeight."
+            "Weight of the distance of the maximum-growth conditions against "
+            "that of the flux conditions: (d_flux + w * d_max_growth) / (w + 1). "
+            "At 2 the maximum-growth conditions count twice as much. Same "
+            "weighting as MATLAB's maxGrowthWeight."
         ),
     )
 

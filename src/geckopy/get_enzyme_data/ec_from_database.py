@@ -2,7 +2,7 @@
 protein database.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/getECfromDatabase.m.
+src/get_enzyme_data/getECfromDatabase.m.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def fill_eccodes_from_database(
     up in a UniProt database.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/getECfromDatabase.m.
+    src/get_enzyme_data/getECfromDatabase.m.
 
     For each entry of ``model.ec.rxns`` selected by ``ec_rxns``:
 
@@ -286,31 +286,3 @@ def _format_conflict_message(
             f"proteins {', '.join(protein_ids)}"
         )
     return "\n".join(lines)
-
-
-def get_ec_from_database(
-    model: "EcModel",
-    uniprot_db: "UniprotDB",
-    *,
-    kegg_db: Optional["KeggDB"] = None,
-    ec_rxns: Optional[Iterable[str]] = None,
-    action: Literal["display", "ignore"] = "display",
-) -> None:
-    """Deprecated alias for :func:`fill_eccodes_from_database`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``fill_eccodes_from_database``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_ec_from_database is deprecated; use "
-        "fill_eccodes_from_database instead. The old name will be "
-        "removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return fill_eccodes_from_database(
-        model, uniprot_db, kegg_db=kegg_db, ec_rxns=ec_rxns, action=action,
-    )

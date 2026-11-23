@@ -1,7 +1,9 @@
 """Read a DLKcat predictions TSV into a kcat_list DataFrame.
 
+``kcats_from_dlkcat(..., via="file")`` reads it.
+
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/readDLKcatOutput.m.
+src/gather_kcats/readDLKcatOutput.m.
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ _OUTPUT_COLUMNS = [
 ]
 
 
-def read_dlkcat_output(
+def _read_dlkcat_output(
     model: "EcModel",
     file_path: str | Path,
     *,
@@ -39,10 +41,10 @@ def read_dlkcat_output(
     """Parse DLKcat's output TSV into a kcat_list DataFrame.
 
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/readDLKcatOutput.m.
+    src/gather_kcats/readDLKcatOutput.m.
 
     The input file is the 6-column TSV that DLKcat writes (see
-    ``run_dlkcat``), with one header line and columns
+    ``kcats_from_dlkcat`` with ``via="docker"``), with one header line and columns
     ``rxn_id, gene, substrate, smiles, sequence, kcat``. Rows whose
     kcat column is not a finite number (``"NA"``, ``"None"``, empty,
     ``"inf"``, ``"1.2.3"``) are dropped before the reactions are validated
@@ -112,7 +114,7 @@ def read_dlkcat_output(
     if not valid_mask.any():
         raise ValueError(
             f"{file_path} contains no numeric kcat values. Did you forget "
-            f"to run run_dlkcat() first?"
+            f"to run DLKcat first?"
         )
 
     model_met_names_lower = {m.name.lower() for m in model.metabolites}
@@ -167,12 +169,12 @@ def read_dlkcat_output(
     unknown_subs_dropped = int(unknown_subs_mask.sum())
     if non_numeric_dropped or unknown_subs_dropped:
         logger.info(
-            "read_dlkcat_output: read %d row(s) from %s; dropped %d row(s) "
+            "DLKcat output: read %d row(s) from %s; dropped %d row(s) "
             "with non-numeric kcat, %d row(s) with an unrecognized "
             "substrate (a row failing both is counted in each).",
             n, file_path, non_numeric_dropped, unknown_subs_dropped,
         )
     else:
-        logger.info("read_dlkcat_output: read %d row(s) from %s.", n, file_path)
+        logger.info("DLKcat output: read %d row(s) from %s.", n, file_path)
 
     return out

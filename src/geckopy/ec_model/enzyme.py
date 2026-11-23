@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Iterator
 
 import cobra
 
-from ..solver_support import constraint_shadow_prices
+from raven_toolbox.utils.solver import constraint_shadow_prices
 from .constants import PROT_PREFIX, USAGE_PREFIX
 from .pipeline.populate_ec import split_light_rxn_id
 
@@ -199,7 +199,7 @@ class Enzyme:
         ``rxn_enz_mat[:, self.index]``, intersected with reactions
         still present in the cobra model.
 
-        For gecko-light models, each ec row carries a ``###_`` prefix
+        For gecko-light models, each ec row has a ``###_`` prefix
         identifying its isozyme; the prefix is stripped before the cobra
         lookup so two isozyme rows of the same cobra reaction return a
         single ``cobra.Reaction``.

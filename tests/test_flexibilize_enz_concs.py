@@ -297,3 +297,12 @@ def test_infeasible_start_returns_empty_result_when_gurobi_presolves_it(tmp_path
     model.solver.problem.Params.Presolve = 2
     model.reactions.get_by_id("R_AB").lower_bound = 50.0
     assert flexibilize_enz_concs(model).uniprot_ids == []
+
+
+def test_a_missing_gr_exp_is_an_error_naming_the_file_key(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text(
+        'conv_gem = "dummy.xml"\norg_name = "test"\nbio_rxn = "biomass"\n'
+    )
+    model = _build_toy(ModelAdapter.from_folder(tmp_path))
+    with pytest.raises(ValueError, match="gr_exp is not set in model_adapter.toml"):
+        flexibilize_enz_concs(model)

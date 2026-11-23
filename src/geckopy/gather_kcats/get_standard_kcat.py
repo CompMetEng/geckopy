@@ -2,7 +2,7 @@
 without enzyme assignments.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/getStandardKcat.m.
+src/gather_kcats/getStandardKcat.m.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from scipy import sparse
 
 from ..ec_model.constants import POOL_ID
 from ..ec_model.pipeline.protein_pool import _resolve_enzyme_compartment_id
+from .kcat_source_format import format_kcat_source, is_standard_source
 
 if TYPE_CHECKING:
     from ..databases import UniprotDB
@@ -40,8 +41,11 @@ def assign_standard_kcat(
     """Add a "standard" pseudoenzyme to ``model`` and assign it to
     reactions without enzyme constraints.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/getStandardKcat.m.
+    src/gather_kcats/getStandardKcat.m.
 
     A standard MW (median of all proteins in ``uniprot_db``) and a
     standard kcat (median of all non-zero, non-NaN ``model.ec.kcat``
@@ -54,7 +58,8 @@ def assign_standard_kcat(
     A reaction with an empty subsystem has none.
 
     The function is idempotent: previous "standard" entries
-    (identified by ``model.ec.source == "standard"``) are stripped
+    (rows whose ``model.ec.source`` has the origin ``standard`` and no
+    tuning status) are stripped
     before re-applying.
 
     Filtering: exchange (a reaction without a substrate or without a
@@ -163,7 +168,7 @@ def _first_subsystem(rxn: cobra.Reaction) -> str:
     """Return the first subsystem token (split on `;`) or empty string.
 
     Tolerates both string (MATLAB-style ``;``-joined) and list
-    (cobra-py YAML round-trip) representations of ``rxn.subsystem``.
+    (cobra-py YAML written and read back) representations of ``rxn.subsystem``.
     """
     sub = rxn.subsystem
     if not sub:
@@ -300,7 +305,7 @@ def _load_custom_pseudo_rxns(adapter) -> set[str]:
 
 
 def _remove_previous_standard(model: "EcModel") -> None:
-    """Strip out entries marked source='standard' from a prior run."""
+    """Strip out the entries of a prior run whose source marks the standard kcat."""
     n = model.ec.n_rxns
     if n == 0:
         return
@@ -317,7 +322,7 @@ def _remove_previous_standard(model: "EcModel") -> None:
     rows_to_remove: list[int] = []
     rows_to_reset: list[int] = []
     for i in range(n):
-        if model.ec.source[i] != "standard":
+        if not is_standard_source(model.ec.source[i]):
             continue
         if std_col is not None and rxn_enz_dense[i, std_col] > 0:
             rows_to_remove.append(i)
@@ -417,7 +422,7 @@ def _assign_standard_kcat_to_missing(
     model.ec.kcat = np.concatenate(
         [model.ec.kcat, np.array(kcats_to_add, dtype=float)]
     )
-    model.ec.source = list(model.ec.source) + ["standard"] * n_new
+    model.ec.source = list(model.ec.source) + [format_kcat_source(_STANDARD_NAME)] * n_new
     model.ec.notes = list(model.ec.notes) + [""] * n_new
     model.ec.eccodes = list(model.ec.eccodes) + [""] * n_new
 
@@ -444,32 +449,5 @@ def _fill_zero_kcats(model: "EcModel", standard_kcat: float) -> list[str]:
     model.ec.kcat[unset_mask] = standard_kcat
     indices = np.where(unset_mask)[0]
     for i in indices:
-        model.ec.source[int(i)] = "standard"
+        model.ec.source[int(i)] = format_kcat_source(_STANDARD_NAME)
     return [model.ec.rxns[int(i)] for i in indices]
-
-
-def get_standard_kcat(
-    model: "EcModel",
-    uniprot_db: "UniprotDB",
-    *,
-    threshold: int = 10,
-    fill_zero_kcat: bool = True,
-) -> None:
-    """Deprecated alias for :func:`assign_standard_kcat`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``assign_standard_kcat``.
-    """
-    import warnings
-
-    warnings.warn(
-        "get_standard_kcat is deprecated; use assign_standard_kcat "
-        "instead. The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return assign_standard_kcat(
-        model, uniprot_db,
-        threshold=threshold, fill_zero_kcat=fill_zero_kcat,
-    )

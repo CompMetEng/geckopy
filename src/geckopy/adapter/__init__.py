@@ -6,7 +6,8 @@ from .params import (
     ModelParameters,
     UniprotParams,
 )
-from .resolve import resolve_adapter, resolve_param
+from .resolve import resolve_adapter, resolve_gr_exp, resolve_param
+from .show import format_adapter_params, show_adapter_params
 
 __all__ = [
     "ComplexParams",
@@ -14,6 +15,9 @@ __all__ = [
     "ModelAdapter",
     "ModelParameters",
     "UniprotParams",
+    "format_adapter_params",
     "resolve_adapter",
+    "resolve_gr_exp",
     "resolve_param",
+    "show_adapter_params",
 ]

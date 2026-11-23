@@ -4,7 +4,7 @@ An ``EcModel`` *is* a cobra model (it subclasses ``cobra.Model``),
 so everything you know how to do with cobra still works: solve
 FBAs, edit reactions, inspect metabolites, etc.
 
-It carries two extra attributes on top of cobra:
+It has two extra attributes on top of cobra:
 
 - ``ec``: an ``EcData`` holding the enzyme-related arrays (kcats,
   enzyme MW, the reaction-enzyme coupling matrix, ...).
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import cobra
 
-from ..solver_support import is_scipy_interface, repair_scipy_problem, switch_to_scipy
+from raven_toolbox.utils.solver import is_scipy_interface, repair_scipy_problem, switch_to_scipy
 from .ec_data import EcData
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ class EcModel(cobra.Model):
     @property
     def solver(self):
         """The optlang model. With the scipy interface, reading it also repairs the
-        problem's variable index map (see :mod:`geckopy.solver_support`), so values read
+        problem's variable index map (see :mod:`raven_toolbox.utils.solver`), so values read
         after any removal of variables come from the right columns."""
         repair_scipy_problem(self)
         return cobra.Model.solver.fget(self)
@@ -83,7 +83,7 @@ class EcModel(cobra.Model):
     @solver.setter
     def solver(self, value) -> None:
         """Set the solver. Moving a model to the scipy interface goes through
-        :func:`geckopy.solver_support.switch_to_scipy`: optlang's clone grows the dense
+        :func:`raven_toolbox.utils.solver.switch_to_scipy`: optlang's clone grows the dense
         coefficient matrix row by row, which takes hours for a genome-scale model."""
         if not self._contexts and is_scipy_interface(value) and not is_scipy_interface(self.problem):
             switch_to_scipy(self)
@@ -114,7 +114,7 @@ class EcModel(cobra.Model):
         """Copy the model, including an independent ``ec`` substructure.
 
         ``cobra.Model.copy`` rebuilds the reactions, metabolites and genes
-        but carries every other attribute over **by reference**, so without
+        but copies every other attribute **by reference**, so without
         this override ``model.copy().ec`` would be the same ``EcData``
         object as ``model.ec``: writing a kcat on the copy would silently
         change the original. For the same reason the copy's ``enzymes``

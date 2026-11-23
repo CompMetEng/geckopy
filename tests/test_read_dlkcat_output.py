@@ -1,4 +1,4 @@
-"""Tests for read_dlkcat_output."""
+"""Tests for the DLKcat output reader."""
 from pathlib import Path
 
 import cobra
@@ -9,7 +9,7 @@ from scipy import sparse
 
 from geckopy.ec_model import EcModel
 from geckopy.ec_model.ec_data import EcData
-from geckopy.gather_kcats import read_dlkcat_output
+from geckopy.gather_kcats.read_dlkcat_output import _read_dlkcat_output
 
 
 # --------------------------------------------------------------------------- #
@@ -59,7 +59,7 @@ def _write_dlkcat_output(tmp_path: Path, rows: list[tuple]) -> Path:
 def test_missing_file_raises(tmp_path):
     model = _ec_model(["r1"], ["alpha"])
     with pytest.raises(FileNotFoundError, match="DLKcat output file"):
-        read_dlkcat_output(model, tmp_path / "missing.tsv")
+        _read_dlkcat_output(model, tmp_path / "missing.tsv")
 
 
 def test_all_na_kcats_raises(tmp_path):
@@ -69,7 +69,7 @@ def test_all_na_kcats_raises(tmp_path):
         ("r1", "g1", "alpha", "CC", "MASEQ", "NA"),
     ])
     with pytest.raises(ValueError, match="no numeric kcat values"):
-        read_dlkcat_output(model, p)
+        _read_dlkcat_output(model, p)
 
 
 def test_empty_kcats_raises(tmp_path):
@@ -78,7 +78,7 @@ def test_empty_kcats_raises(tmp_path):
         ("r1", "g1", "alpha", "CC", "MASEQ", ""),
     ])
     with pytest.raises(ValueError, match="no numeric kcat values"):
-        read_dlkcat_output(model, p)
+        _read_dlkcat_output(model, p)
 
 
 # --------------------------------------------------------------------------- #
@@ -90,7 +90,7 @@ def test_single_row_basic_parse(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "alpha", "CC", "MASEQ", "5.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert len(df) == 1
     row = df.iloc[0]
     assert row["rxn_id"] == "r1"
@@ -110,7 +110,7 @@ def test_multi_row_parse(tmp_path):
         ("r2", "g2", "beta", "CN", "M2", "7.5"),
         ("r3", "g3", "gamma", "CO", "M3", "9.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert len(df) == 3
     assert list(df["rxn_id"]) == ["r1", "r2", "r3"]
     assert list(df["kcat"]) == [5.0, 7.5, 9.0]
@@ -121,7 +121,7 @@ def test_substrates_and_genes_are_single_element_lists(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "alpha", "CC", "MASEQ", "5.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert isinstance(df.iloc[0]["substrates"], list)
     assert isinstance(df.iloc[0]["genes"], list)
     assert len(df.iloc[0]["substrates"]) == 1
@@ -135,7 +135,7 @@ def test_schema_matches_fuzzy_output(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "alpha", "CC", "MASEQ", "5.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert list(df.columns) == [
         "rxn_id", "source", "eccode", "substrates", "genes", "kcat",
         "wildcard_level", "origin",
@@ -155,7 +155,7 @@ def test_mixed_valid_and_na_kept_only_valid(tmp_path, caplog):
         ("r3", "g3", "gamma", "CO", "M3", "9.0"),
     ])
     with caplog.at_level(logging.INFO):
-        df = read_dlkcat_output(model, p)
+        df = _read_dlkcat_output(model, p)
     assert len(df) == 2
     assert list(df["rxn_id"]) == ["r1", "r3"]
     assert "dropped 1" in caplog.text
@@ -170,7 +170,7 @@ def test_substrate_match_is_case_insensitive(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "ALPHA", "CC", "MASEQ", "5.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert len(df) == 1
     # The output preserves the file's casing for the substrate.
     assert df.iloc[0]["substrates"] == ["ALPHA"]
@@ -183,7 +183,7 @@ def test_unknown_substrate_dropped_with_warning(tmp_path, caplog):
         ("r1", "g1", "completely_unknown", "CC", "M", "5.0"),
     ])
     with caplog.at_level(logging.WARNING):
-        df = read_dlkcat_output(model, p)
+        df = _read_dlkcat_output(model, p)
     # The single row's substrate is unknown, so it is skipped, not aborted.
     assert len(df) == 0
     assert "substrate name" in caplog.text
@@ -197,7 +197,7 @@ def test_unknown_substrates_listed_in_warning(tmp_path, caplog):
         ("r1", "g1", "phantom", "CC", "M", "5.0"),
     ])
     with caplog.at_level(logging.WARNING):
-        df = read_dlkcat_output(model, p)
+        df = _read_dlkcat_output(model, p)
     assert len(df) == 0
     assert "ghost" in caplog.text
     assert "phantom" in caplog.text
@@ -209,7 +209,7 @@ def test_strict_raises_on_unknown_substrate(tmp_path):
         ("r1", "g1", "completely_unknown", "CC", "M", "5.0"),
     ])
     with pytest.raises(ValueError, match="substrate"):
-        read_dlkcat_output(model, p, strict=True)
+        _read_dlkcat_output(model, p, strict=True)
 
 
 def test_strict_raises_before_dropping_any_rows(tmp_path):
@@ -221,7 +221,7 @@ def test_strict_raises_before_dropping_any_rows(tmp_path):
         ("r2", "g2", "completely_unknown", "CN", "M", "7.0"),
     ])
     with pytest.raises(ValueError, match="substrate"):
-        read_dlkcat_output(model, p, strict=True)
+        _read_dlkcat_output(model, p, strict=True)
 
 
 def test_strict_false_is_the_default(tmp_path):
@@ -229,7 +229,7 @@ def test_strict_false_is_the_default(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "completely_unknown", "CC", "M", "5.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert len(df) == 0
 
 
@@ -238,7 +238,7 @@ def test_strict_true_does_not_affect_a_clean_file(tmp_path):
     p = _write_dlkcat_output(tmp_path, [
         ("r1", "g1", "alpha", "CC", "M", "5.0"),
     ])
-    df = read_dlkcat_output(model, p, strict=True)
+    df = _read_dlkcat_output(model, p, strict=True)
     assert len(df) == 1
 
 
@@ -253,7 +253,7 @@ def test_drop_counts_reported_separately(tmp_path, caplog):
         ("r3", "g3", "unknown_thing", "CO", "M3", "9.0"),
     ])
     with caplog.at_level(logging.INFO):
-        df = read_dlkcat_output(model, p)
+        df = _read_dlkcat_output(model, p)
     assert len(df) == 1
     assert "1 row(s) with non-numeric kcat" in caplog.text
     assert "1 row(s) with an unrecognized substrate" in caplog.text
@@ -269,7 +269,7 @@ def test_unknown_reaction_raises(tmp_path):
         ("r_nonexistent", "g1", "alpha", "CC", "M", "5.0"),
     ])
     with pytest.raises(ValueError, match="reaction ID"):
-        read_dlkcat_output(model, p)
+        _read_dlkcat_output(model, p)
 
 
 def test_reaction_match_is_case_sensitive(tmp_path):
@@ -279,7 +279,7 @@ def test_reaction_match_is_case_sensitive(tmp_path):
         ("R1", "g1", "alpha", "CC", "M", "5.0"),
     ])
     with pytest.raises(ValueError, match="reaction ID"):
-        read_dlkcat_output(model, p)
+        _read_dlkcat_output(model, p)
 
 
 # --------------------------------------------------------------------------- #
@@ -294,7 +294,7 @@ def test_unknown_substrate_does_not_drop_good_rows(tmp_path):
         ("r1", "g1", "alpha", "CC", "M", "5.0"),
         ("r1", "g1", "unknown_thing", "CN", "M", "7.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     assert len(df) == 1
     assert list(df["rxn_id"]) == ["r1"]
     assert df.iloc[0]["kcat"] == 5.0
@@ -305,7 +305,7 @@ def test_unknown_substrate_does_not_drop_good_rows(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_output_can_feed_apply_kcat_list(tmp_path):
-    """End-to-end: read_dlkcat_output -> apply_kcat_list flow."""
+    """End-to-end: the DLKcat output reader -> apply_kcat_list flow."""
     from geckopy.gather_kcats import apply_kcat_list
 
     model = _ec_model(["r1", "r2"], ["alpha", "beta"])
@@ -313,7 +313,7 @@ def test_output_can_feed_apply_kcat_list(tmp_path):
         ("r1", "g1", "alpha", "CC", "M", "5.0"),
         ("r2", "g2", "beta", "CN", "M", "7.0"),
     ])
-    df = read_dlkcat_output(model, p)
+    df = _read_dlkcat_output(model, p)
     updated = apply_kcat_list(model, df)
     assert sorted(updated) == ["r1", "r2"]
     # apply_kcat_list lowercases the source token (no fuzzy metadata).

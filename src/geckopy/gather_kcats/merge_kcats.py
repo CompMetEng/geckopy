@@ -4,15 +4,15 @@ Generalizes GECKO MATLAB's ``mergeDLKcatAndFuzzyKcats``: rather than two
 fixed inputs (DLKcat + fuzzy BRENDA), :func:`merge_kcats` accepts any
 number of kcat lists, each of which may itself mix several sources. An
 OpenKineticsPredictor result, for example, is a single list whose rows
-carry ``BRENDA``, ``Sabio-RK``, ``CataPro`` or ``UniProt`` in their
-``source`` column. A caller-supplied ``source_priority`` decides which
-source wins for each reaction.
+contain ``BRENDA``, ``Sabio-RK``, ``CataPro`` or ``UniProt`` in their
+``source`` column. A caller-supplied ``source_priority`` determines which
+source is kept for each reaction.
 
 Three generic tier tokens may appear in ``source_priority`` instead of a
 literal source name:
 
 - ``"database_exact"`` -- an exact experimental-database measurement: an
-  experimental-database row (``BRENDA`` / ``Sabio-RK``) that carries no
+  experimental-database row (``BRENDA`` / ``Sabio-RK``) that has no
   fuzzy metadata, i.e. a direct OKP hit with no EC wildcards. These are
   the most precise values and are usually ranked first.
 - ``"database_top"`` -- a high-confidence *fuzzy* BRENDA match with
@@ -23,15 +23,15 @@ literal source name:
 Anything else in ``source_priority`` is matched against the row's
 ``source`` after normalisation to lowercase ``snake_case`` (so
 ``"DLKcat"`` matches ``"dlkcat"`` and ``"Sabio-RK"`` matches
-``"sabio_rk"``). A row whose source carries the ``OKP-`` pipeline-stage
-tag (``parse_okp_output``'s output, e.g. ``"OKP-BRENDA"``) is matched
+``"sabio_rk"``). A row whose source contains the ``OKP-`` pipeline-stage
+tag (``_parse_okp_output``'s output, e.g. ``"OKP-BRENDA"``) is matched
 and tiered by its underlying source with the tag stripped -- an
 ``OKP-BRENDA`` row still routes to the database tiers like a bare
 ``BRENDA`` row would -- while the merged output keeps the original,
 tagged ``source`` string.
 
 Ported from / generalizes GECKO MATLAB:
-src/geckomat/gather_kcats/mergeDLKcatAndFuzzyKcats.m.
+src/deprecated/mergeDLKcatAndFuzzyKcats.m.
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ DATABASE_BOTTOM = "database_bottom"
 #: routed to the ``database_top`` / ``database_bottom`` tiers.
 _DEFAULT_DATABASE_SOURCES = ("brenda", "sabio_rk")
 
-#: Normalised prefix ``parse_okp_output`` tags a row's source with
+#: Normalised prefix ``_parse_okp_output`` tags a row's source with
 #: (``"OKP-BRENDA"`` normalises to ``"okp_brenda"``) to mark it as
 #: having come through the OpenKineticsPredictor pipeline stage.
 _OKP_PREFIX = "okp_"
@@ -101,13 +101,16 @@ def merge_kcats(
 ) -> pd.DataFrame:
     """Merge any number of kcat lists, keeping the best source per reaction.
 
+    Low-level: ``collect_kcats`` runs this function; call it directly only
+    to merge kcat lists by hand.
+
     All input lists are concatenated and each row is assigned a tier
     (see the module docstring). For every reaction the highest-priority
-    tier present wins, and **all** rows of that tier for that reaction
+    tier present is kept, and **all** rows of that tier for that reaction
     are kept; rows of lower-priority tiers for the same reaction are
     dropped.
 
-    Rows whose ``kcat`` is non-positive or missing carry no usable
+    Rows whose ``kcat`` is non-positive or missing have no usable
     turnover number and are dropped first. This also removes the
     ``kcat == 0`` / ``origin == NA`` rows that ``fuzzy_kcat_matching``
     emits for unmatched reactions, so a leftover NA-metadata

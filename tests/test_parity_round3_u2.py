@@ -1,5 +1,5 @@
 """An empty update list in apply_kcat_constraints, and a quoted reaction list in
-apply_custom_kcats, as in GECKO."""
+the reader of a GECKO 3 customKcats.tsv, as in GECKO."""
 import copy
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from geckopy import EcModel, ModelAdapter, make_ec_model
+from geckopy.upgrade import _apply_custom_kcats
 from geckopy.ec_model.pipeline import (
-    apply_custom_kcats,
     apply_kcat_constraints,
     set_kcat_for_reactions,
 )
@@ -122,7 +122,7 @@ def test_quoted_reaction_list_matches_the_listed_reactions(tmp_path):
     tsv = tmp_path / "customKcats.tsv"
     tsv.write_text(HEADER + '\t\t\t50\t"R3,R5"\tquoted\t1\n')
 
-    apply_custom_kcats(model, path=tsv, apply=False)
+    _apply_custom_kcats(model, path=tsv, apply=False)
 
     for rxn in ("R3", "R5"):
         assert model.ec.kcat[model.ec.rxns.index(rxn)] == 50.0
@@ -134,7 +134,7 @@ def test_unquoted_and_single_reaction_lists_are_unchanged(tmp_path):
     tsv = tmp_path / "customKcats.tsv"
     tsv.write_text(HEADER + "\t\t\t50\tR3,R5\tplain\t1\n")
 
-    apply_custom_kcats(model, path=tsv, apply=False)
+    _apply_custom_kcats(model, path=tsv, apply=False)
 
     assert model.ec.kcat[model.ec.rxns.index("R3")] == 50.0
     assert model.ec.kcat[model.ec.rxns.index("R5")] == 50.0

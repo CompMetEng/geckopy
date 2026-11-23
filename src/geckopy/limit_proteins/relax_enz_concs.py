@@ -7,7 +7,7 @@ is ranked and on the order in which they are found; on a large model
 with noisy proteomics, small changes to that ranking can change the
 result. ``relax_enz_concs`` asks the question once instead: what is the
 smallest set of fold increases of the measured caps (and, if necessary,
-of the protein pool) that lets the model reach the target growth rate?
+of the protein pool) that allows the model to reach the target growth rate?
 
 Every measured enzyme's cap becomes ``usage <= conc * (1 + x)`` and the
 sum of the ``x`` is minimised under ``growth >= exp_growth``. The protein
@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import POOL_EXCHANGE_ID, USAGE_PREFIX
 from .flexibilize_enz_concs import (
     FlexEnzResult,
@@ -60,7 +60,7 @@ def relax_enz_concs(
         ``ec.concs`` itself is left unchanged, as in
         ``flexibilize_enz_concs``.
     exp_growth
-        Target growth rate. Defaults to ``params.gr_exp``.
+        Target growth rate. Defaults to ``params.gr_exp``; raises ``ValueError`` when neither is set.
     bio_rxn
         Biomass reaction id. Defaults to ``params.bio_rxn``.
     per_complex
@@ -95,15 +95,11 @@ def relax_enz_concs(
     """
     from optlang.symbolics import add
 
-    from ..adapter import resolve_param
+    from ..adapter import resolve_gr_exp, resolve_param
 
     if weight not in ("relative", "absolute"):
         raise ValueError(f"weight must be 'relative' or 'absolute', not {weight!r}")
-    if exp_growth is None:
-        exp_growth = resolve_param(model, None, "gr_exp", purpose="relax_enz_concs needs `exp_growth`")
-        if exp_growth is None:
-            raise ValueError("exp_growth not provided and params.gr_exp is unset.")
-    exp_growth = float(exp_growth)
+    exp_growth = resolve_gr_exp(model, exp_growth, purpose="relax_enz_concs needs `exp_growth`")
     bio = model.reactions.get_by_id(
         resolve_param(model, bio_rxn, "bio_rxn", purpose="relax_enz_concs needs the biomass reaction id")
     )

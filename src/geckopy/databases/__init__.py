@@ -8,14 +8,15 @@ from .complex_portal_loader import (
     load_complex_portal_json,
 )
 from .dlkcat_ignore_lists import DLKcatIgnoreLists, load_dlkcat_ignore_lists
-from .flux_data import FluxData, load_flux_data
+from raven_toolbox.annotation import met_smiles
+from raven_toolbox.experiments import FluxData, load_flux_data
+from raven_toolbox.utils.protein import calculate_mw
 from .kegg_download import download_kegg
 from .kegg_loader import KeggDB, load_kegg_tsv
-from .mw import calculate_mw
 from .pax_db_loader import ProtData, load_pax_db
 from .phyl_dist import PhylDist, download_phyl_dist, load_phyl_dist
 from .prot_data_loader import load_prot_data
-from .pubchem import find_met_smiles, met_smiles
+from .smiles import find_met_smiles
 from .uniprot_download import download_uniprot
 from .uniprot_loader import UniprotDB, load_uniprot_tsv
 

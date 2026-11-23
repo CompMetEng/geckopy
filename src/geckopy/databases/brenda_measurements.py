@@ -1,6 +1,6 @@
 """Load the BRENDA measurement table: one row per wild-type kcat measurement.
 
-``measurements.tsv`` sits next to ``kcat.tsv``, ``sa.tsv`` and ``mw.tsv`` in
+``measurements.tsv`` is next to ``kcat.tsv``, ``sa.tsv`` and ``mw.tsv`` in
 the BRENDA folder (see ``ModelAdapter.get_brenda_db_folder``). It holds the
 wild-type BRENDA kcats with an EC number after the outlier screen, with the
 substrate, organism, UniProt accession and sequence id of each measurement.

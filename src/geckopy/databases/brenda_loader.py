@@ -1,7 +1,7 @@
 """Parse BRENDA TSV dumps into kcat and SA-derived-kcat tables.
 
 Ported from GECKO MATLAB:
-src/geckomat/get_enzyme_data/loadBRENDAdata.m.
+src/download_databases/loadBRENDAdata.m.
 
 Three tab-delimited files are read from the BRENDA folder:
 
@@ -19,7 +19,7 @@ kcat and SA have seven tab-delimited columns: EC number, substrate
 (``*`` for SA), organism, value-max, value-median, n (number of raw
 measurements aggregated), references (semicolon-joined PMIDs or
 ``*``). MW has six columns (single value, no aggregation choice). A
-``#`` header line carries the BRENDA release version; the line after
+``#`` header line contains the BRENDA release version; the line after
 it is the TSV column header (also skipped).
 """
 from __future__ import annotations
@@ -78,9 +78,7 @@ class BrendaData:
             return self.kcat_median
         if aggregation == "max":
             return self.kcat_max
-        raise ValueError(
-            f"aggregation must be 'max' or 'median', got {aggregation!r}"
-        )
+        raise ValueError("aggregation must be max or median")
 
     def sa_for(self, aggregation: Literal["max", "median"]) -> pd.DataFrame:
         """Return the SA-derived-kcat view for the requested aggregation."""
@@ -88,9 +86,7 @@ class BrendaData:
             return self.sa_median
         if aggregation == "max":
             return self.sa_max
-        raise ValueError(
-            f"aggregation must be 'max' or 'median', got {aggregation!r}"
-        )
+        raise ValueError("aggregation must be max or median")
 
 
 def load_brenda_data(
@@ -99,7 +95,7 @@ def load_brenda_data(
     """Load BRENDA kcat, SA, and MW dumps from a folder.
 
     Ported from GECKO MATLAB:
-    src/geckomat/get_enzyme_data/loadBRENDAdata.m.
+    src/download_databases/loadBRENDAdata.m.
 
     Reads ``kcat.tsv``, ``sa.tsv``, ``mw.tsv`` from ``folder``, splits
     the kcat and SA wide tables into per-aggregation views, applies the
@@ -118,8 +114,8 @@ def load_brenda_data(
     Both kcat and SA are loaded as separate max and median views over
     the raw measurements aggregated per (ec, substrate, organism)
     triple, so a project can opt into median aggregation via
-    ``adapter.params.kcat_aggregate_brenda`` without regenerating the
-    snapshot. See ``docs/kcat_aggregation.md`` for the rationale.
+    ``[kcat_sources.brenda] aggregation`` without regenerating the
+    snapshot. See https://gecko-docs.readthedocs.io/en/latest/guide/kcat-sources.html for the rationale.
 
     Malformed lines (wrong number of fields, non-numeric value column)
     are skipped with a ``logger.warning``; the rest of the file is
@@ -345,7 +341,7 @@ def _sa_view_from_wide(wide: pd.DataFrame, value_col: str) -> pd.DataFrame:
 
 
 def _join_sa_with_mw(sa: pd.DataFrame, mw: pd.DataFrame) -> pd.DataFrame:
-    """Join SA + MW on (EC, organism) case-insensitive, first MW match wins.
+    """Join SA + MW on (EC, organism) case-insensitive, the first MW match is kept.
 
     For each SA row, find the first MW row with the same EC and
     organism (case-insensitive). If found, emit a row with the

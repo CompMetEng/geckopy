@@ -1,6 +1,6 @@
 """Parse uniprot.tsv into a UniprotDB struct.
 
-Ported from GECKO MATLAB: src/geckomat/get_enzyme_data/loadDatabases.m
+Ported from GECKO MATLAB: src/download_databases/loadDatabases.m
 (the UniProt-parsing branch; the download branch is deferred to a
 separate future module).
 
@@ -15,16 +15,20 @@ matching MATLAB's dispEM-based hard failure.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
+# Separates the gene names in a Gene Names cell.
+_GENE_SEPARATOR = re.compile(r"[;\s]+")
+
 
 @dataclass
 class UniprotDB:
     """Parsed uniprot.tsv. Arrays are aligned: row i in every field
-    describes the same database entry (or gene-name row when split).
+    describes one gene name of a database entry.
 
     ``mw`` is in Da, matching the Mass column of the TSV verbatim.
     """
@@ -55,11 +59,10 @@ class UniprotDB:
 def load_uniprot_tsv(
     path: str | Path,
     *,
-    split_gene_cells: bool = False,
     uniprot_id: str | int | None = None,
     id_type: str = "taxonomy_id",
     gene_id_field: str = "gene_oln",
-    reviewed: bool = True,
+    reviewed: bool = False,
     auto_download: bool = True,
 ) -> UniprotDB:
     """Parse a uniprot.tsv file into a UniprotDB.
@@ -72,15 +75,6 @@ def load_uniprot_tsv(
     path
         Path to uniprot.tsv. May not exist if ``uniprot_id`` triggers
         an auto-download.
-    split_gene_cells
-        If True, rows whose Gene Names cell contains whitespace-separated
-        multiple names are expanded into one row per gene name. All other
-        fields (Entry, EC, MW, sequence) are duplicated across the
-        expanded rows. This matters for organisms where the UniProt
-        ``gene_oln`` field returns multiple space-separated ORF names
-        per entry: with the default of False, the cell is stored
-        verbatim (including any embedded whitespace), so an exact-match
-        lookup against a single ORF name silently misses those genes.
     uniprot_id
         UniProt-side identifier (e.g. NCBI taxonomy ID). Required
         for auto-download; otherwise unused.
@@ -91,8 +85,9 @@ def load_uniprot_tsv(
         UniProt field that becomes the Gene Names column. Default
         ``"gene_oln"``.
     reviewed
-        If True (default), restrict the auto-download query to
-        reviewed (Swiss-Prot) entries.
+        If True, restrict the auto-download query to reviewed
+        (Swiss-Prot) entries. Default False, as the adapter default
+        ``uniprot.reviewed``.
     auto_download
         If True (default) and ``path`` is missing, trigger
         ``download_uniprot`` before parsing. Set to False to keep
@@ -142,7 +137,7 @@ def load_uniprot_tsv(
     mw_da: list[float] = []
     sequences: list[str] = []
     # One Entry per source row (before gene-cell splitting), so duplicate
-    # detection sees each row exactly once regardless of how many genes it
+    # detection counts each row exactly once regardless of how many genes it
     # expands to.
     source_row_ids: list[str] = []
 
@@ -164,10 +159,9 @@ def load_uniprot_tsv(
         except ValueError:
             mass_da = float("nan")
 
-        if split_gene_cells and gene_cell.strip():
-            gene_names = gene_cell.split()
-        else:
-            gene_names = [gene_cell]
+        gene_names = [name for name in _GENE_SEPARATOR.split(gene_cell) if name]
+        if not gene_names:
+            gene_names = [""]
 
         source_row_ids.append(entry)
         for gene_name in gene_names:
@@ -185,6 +179,26 @@ def load_uniprot_tsv(
         eccodes=eccodes,
         mw=np.array(mw_da, dtype=float),
         sequences=sequences,
+    )
+
+
+def _load_project_uniprot(adapter) -> UniprotDB:
+    """``data/uniprot.tsv`` of the adapter's project, downloaded with its ``[uniprot]``
+    settings when missing, as GECKO's ``loadDatabases`` does.
+
+    Raises ``FileNotFoundError`` when the file is missing and ``[uniprot] id`` is
+    empty, as ``loadDatabases`` raises ``loadDatabases:noUniprotID``.
+    """
+    path = Path(adapter.params.path) / "data" / "uniprot.tsv"
+    uniprot = adapter.params.uniprot
+    if not path.is_file() and not uniprot.id:
+        raise FileNotFoundError(
+            f"{path} does not exist and [uniprot] id in model_adapter.toml is empty. Set the "
+            "UniProt taxonomy or proteome identifier of the organism, or provide the file."
+        )
+    return load_uniprot_tsv(
+        path, uniprot_id=uniprot.id, id_type=uniprot.type,
+        gene_id_field=uniprot.gene_id_field, reviewed=uniprot.reviewed,
     )
 
 

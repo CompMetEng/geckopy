@@ -25,16 +25,17 @@ def test_template_includes_nested_sections():
     assert "[evotune]" in text
 
 
-def test_template_renders_dict_valued_evotune_fields():
-    """The evotune section carries per-source tables, not just scalars."""
+def test_template_renders_source_groups_as_tables():
+    """The evotune section lists the default groups as one table each."""
     text = generate_template_toml()
     uncommented = "\n".join(
-        line.lstrip("# ") for line in text.splitlines()
-        if line.lstrip("# ").startswith(("sigma0_log_source", "source_groups"))
+        line[2:] for line in text.splitlines()
+        if line.startswith("# [evotune.source_groups.") or line.startswith("# sources =") or line.startswith("# sigma0_log =")
     )
-    parsed = tomllib.loads(uncommented)
-    assert parsed["sigma0_log_source"]["brenda"] == 0.2
-    assert parsed["source_groups"]["brenda"]["sources"] == ["brenda"]
+    parsed = tomllib.loads(uncommented)["evotune"]["source_groups"]
+    assert parsed["brenda"] == {"sources": ["brenda"], "sigma0_log": 0.2}
+    assert list(parsed) == ["custom", "brenda", "ec_tree", "combined"]
+    assert "sigma0_log_source" not in text and "match_okp" not in text
 
 
 def test_template_includes_field_descriptions_as_comments():
@@ -51,6 +52,7 @@ def test_cli_init_creates_folder_structure(tmp_path):
     assert (target / "data").is_dir()
     assert (target / "models").is_dir()
     assert (target / "output").is_dir()
+    assert (target / ".gitignore").read_text().strip() == "data/okpApiKey.txt"
 
 
 def test_cli_init_refuses_nonempty_folder(tmp_path, capsys):
@@ -87,7 +89,9 @@ def test_cli_init_produces_loadable_adapter_after_filling_required(tmp_path):
     assert adapter.params.org_name == "Testus testus"
     # Defaults kick in for fields the user did not uncomment.
     assert adapter.params.sigma == 0.5
-    assert adapter.params.kegg.id == "sce"
+    # The organism identifiers are written empty, with an example in the comment.
+    assert adapter.params.kegg.id == "" and adapter.params.uniprot.id == ""
+    assert '\nid = ""\n' in toml_text and '"UP000002311" (proteome)' in toml_text
 
 
 def test_cli_init_stub_adapter_py_is_commented_out(tmp_path):
@@ -153,11 +157,11 @@ def test_cli_uniprot_download_invokes_function(tmp_path, monkeypatch, capsys):
     assert calls["args"][0] == "559292"
     assert calls["args"][2] == "taxonomy_id"
     assert calls["args"][3] == "gene_oln"
-    assert calls["args"][4] is True
+    assert calls["args"][4] is False
     assert out.exists()
 
 
-def test_cli_uniprot_download_include_unreviewed(tmp_path, monkeypatch):
+def test_cli_uniprot_download_reviewed_only(tmp_path, monkeypatch):
     calls = {}
 
     def fake_download(uid, path, *, id_type, gene_id_field, reviewed):
@@ -170,9 +174,9 @@ def test_cli_uniprot_download_include_unreviewed(tmp_path, monkeypatch):
     )
     main([
         "uniprot-download", "559292", str(tmp_path / "u.tsv"),
-        "--include-unreviewed",
+        "--reviewed-only",
     ])
-    assert calls["reviewed"] is False
+    assert calls["reviewed"] is True
 
 
 def test_cli_kegg_download_invokes_function(tmp_path, monkeypatch, capsys):
@@ -192,3 +196,10 @@ def test_cli_kegg_download_invokes_function(tmp_path, monkeypatch, capsys):
     assert calls["args"][0] == "sce"
     assert calls["args"][2] == "kegg"
     assert out.exists()
+
+
+def test_template_lists_the_kcat_source_keys_after_the_sections():
+    text = generate_template_toml()
+    assert text.index("# [kcat_sources.brenda]") > text.index("# [evotune.source_groups.combined]")
+    for key in ("aggregation", "force_wildcard_level", "min_identity", "coverage", "method"):
+        assert f"# {key} = " in text

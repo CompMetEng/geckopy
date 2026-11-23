@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # Output filenames per kind. Plain ``<kind>.tsv``; the historical
-# ``max_<kind>.tsv`` name would be wrong now that the same row carries
+# ``max_<kind>.tsv`` name would be wrong now that the same row has
 # both max and median.
 _OUTPUT_FILES: dict[Kind, tuple[str, str]] = {
     "kcat": ("kcat.tsv", "kcat in 1/s"),
@@ -55,7 +55,7 @@ _COLUMN_HEADERS: dict[Kind, tuple[str, ...]] = {
     "mw":   _MW_HEADERS,
 }
 
-# kcat and SA carry both max and median per triple; MW is single-valued.
+# kcat and SA have both max and median per triple; MW is single-valued.
 _DUAL_AGG_KINDS: tuple[Kind, ...] = ("kcat", "sa")
 
 
@@ -144,5 +144,5 @@ def aggregate_and_write(
 
 def _fmt_value(v: float) -> str:
     # Python ``str(float)`` always includes a decimal point or exponent,
-    # so ``598.0`` and ``2.5`` round-trip identically.
+    # so ``598.0`` and ``2.5`` are written and read back identically.
     return str(v)

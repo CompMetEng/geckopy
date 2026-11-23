@@ -12,7 +12,7 @@ There are two ways a caller might supply one:
 ``model.adapter``-or-raise" pattern that 30+ functions duplicated
 inline, with inconsistent error messages.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/ModelAdapterManager.m.
+Ported from GECKO MATLAB: src/model_adapter/ModelAdapterManager.m.
 """
 from __future__ import annotations
 
@@ -107,3 +107,27 @@ def resolve_param(
         return explicit
     resolved = resolve_adapter(model, adapter, purpose=purpose)
     return getattr(resolved.params, attr)
+
+
+def resolve_gr_exp(
+    model,
+    explicit=None,
+    *,
+    adapter: Optional["ModelAdapter"] = None,
+    purpose: str = "this function",
+) -> float:
+    """Return an explicit growth rate, else ``adapter.params.gr_exp``.
+
+    Raises
+    ------
+    ValueError
+        If ``explicit`` is ``None`` and the adapter has no ``gr_exp``:
+        ``gr_exp is not set in model_adapter.toml``. ``resolve_adapter``
+        raises if there is no adapter either.
+    """
+    if explicit is not None:
+        return float(explicit)
+    gr_exp = resolve_adapter(model, adapter, purpose=purpose).params.gr_exp
+    if gr_exp is None:
+        raise ValueError("gr_exp is not set in model_adapter.toml")
+    return float(gr_exp)

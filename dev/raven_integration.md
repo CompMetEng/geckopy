@@ -27,11 +27,11 @@ operate on the populated struct.
 
 raven-toolbox's `read_yaml_model` and `write_yaml_model`:
 
-- handle the cobra-shaped portion (metabolites / reactions / genes / compartments / annotations);
+- read and write the cobra-shaped portion (metabolites / reactions / genes / compartments / annotations);
 - on read, parse the `ec-rxns` / `ec-enzymes` / `gecko_light` top-level sections into a typed `EcData` (`raven_toolbox.io.ec_data`) and attach it as `model.ec`;
 - on write, serialise `model.ec` back to the same top-level sections when present;
 - normalise three legacy MATLAB GECKO quirks transparently: top-level `smiles` → `annotation['smiles']`, reverse-direction `usage_prot_*` / `prot_pool_exchange` flipped to forward, bare-`-` document root merged into one mapping;
-- preserve other unknown top-level keys opaquely via `model.notes['_yaml_sections']` for round-trip.
+- preserve other unknown top-level keys opaquely via `model.notes['_yaml_sections']` so that they are written back unchanged.
 
 geckopy's `save_ec_model` / `load_ec_model` are thin wrappers that
 add three application-level concerns on top:

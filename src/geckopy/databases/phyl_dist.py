@@ -4,7 +4,7 @@ Used by fuzzy_kcat_matching to find the evolutionarily closest organism
 when an exact match is not available in BRENDA.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/fuzzyKcatMatching.m (the inline `KEGG_struct` helper).
+src/gather_kcats/fuzzyKcatMatching.m (the inline `KEGG_struct` helper).
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class PhylDist:
         ``dist_matrix[i, j]`` is the distance between ``names[i]``
         and ``names[j]``.
     name_to_index
-        Lowercased name -> index in ``names``. First occurrence wins
+        Lowercased name -> index in ``names``. First occurrence is kept
         for duplicate names (matching MATLAB ``find(..., 1)``).
     genus_to_indices
         Lowercased genus (first whitespace-delimited word of the
@@ -77,7 +77,7 @@ def load_phyl_dist(path: str | Path) -> PhylDist:
       -> all matching indices.
 
     Ported from GECKO MATLAB (inline ``KEGG_struct`` helper in
-    src/geckomat/gather_kcats/fuzzyKcatMatching.m).
+    src/gather_kcats/fuzzyKcatMatching.m).
 
     Parameters
     ----------
@@ -148,7 +148,7 @@ def download_phyl_dist(
 ) -> Path:
     """Download the KEGG phylogenetic distance file distributed with RAVEN.
 
-    ``fuzzy_kcat_matching`` uses it to pick the evolutionarily closest
+    ``fuzzy_kcat_matching`` uses it to select the evolutionarily closest
     organism when BRENDA has no entry for the model's own organism.
     The file covers all KEGG organisms (~5 MB). It is written to a
     temporary file next to ``out_path`` and only moved into place once

@@ -1,12 +1,12 @@
 """Command-line interface for geckopy.
 
 The `init` subcommand ports GECKO MATLAB's project-scaffolding logic
-(`src/geckomat/utilities/startGECKOproject.m`): create the project
+(`src/deprecated/startGECKOproject.m`): create the project
 folder tree and write out a template adapter. The `brenda-refresh`,
 `uniprot-download`, and `kegg-download` subcommands are new tooling
 with no MATLAB equivalent.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/startGECKOproject.m
+Ported from GECKO MATLAB: src/deprecated/startGECKOproject.m
 (the `init` subcommand only).
 """
 from __future__ import annotations
@@ -63,6 +63,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     toml_text = generate_template_toml(project_name=folder.name)
     (folder / "model_adapter.toml").write_text(toml_text)
     (folder / "adapter.py").write_text(ADAPTER_PY_STUB)
+    # Keep the OpenKineticsPredictor API key out of version control.
+    (folder / ".gitignore").write_text("data/okpApiKey.txt\n")
 
     print(f"Created ecModel project at {folder}")
     print(
@@ -141,6 +143,14 @@ def cmd_upgrade(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_adapter_show(args: argparse.Namespace) -> int:
+    """Print every parameter of the project's adapter, with its value and origin."""
+    from .adapter import ModelAdapter, show_adapter_params
+
+    show_adapter_params(ModelAdapter.from_folder(args.folder))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="geckopy", description="Command-line interface for geckopy."
@@ -193,8 +203,9 @@ def main(argv: list[str] | None = None) -> int:
         help="UniProt field for the Gene Names column (default: gene_oln)",
     )
     uniprot_parser.add_argument(
-        "--include-unreviewed", action="store_true",
-        help="Include unreviewed (TrEMBL) entries (default: reviewed only)",
+        "--reviewed-only", action="store_true",
+        help="Keep reviewed (Swiss-Prot) entries only (default: reviewed and "
+        "unreviewed, as the adapter default uniprot.reviewed = false)",
     )
     uniprot_parser.set_defaults(func=cmd_uniprot_download)
 
@@ -224,6 +235,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     upgrade_parser.set_defaults(func=cmd_upgrade)
 
+    adapter_parser = sub.add_parser("adapter", help="Inspect the model adapter of a project")
+    adapter_sub = adapter_parser.add_subparsers(dest="adapter_command", required=True)
+    show_parser = adapter_sub.add_parser(
+        "show",
+        help="Print every parameter of model_adapter.toml with its value and origin (file, preset or default)",
+    )
+    show_parser.add_argument("folder", nargs="?", default=".", help="Project folder (default: the current folder)")
+    show_parser.set_defaults(func=cmd_adapter_show)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
@@ -234,7 +254,7 @@ def cmd_uniprot_download(args: argparse.Namespace) -> int:
         args.uniprot_id, out,
         id_type=args.id_type,
         gene_id_field=args.gene_id_field,
-        reviewed=not args.include_unreviewed,
+        reviewed=args.reviewed_only,
     )
     print(f"Wrote {out}")
     return 0

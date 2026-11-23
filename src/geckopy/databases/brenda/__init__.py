@@ -1,6 +1,6 @@
 """Refresh the BRENDA-derived kcat / sa / mw TSVs from the BRENDA bulk JSON.
 
-See ``docs/internal/brenda_refresh_plan.md`` for the design.
+See ``dev/brenda_refresh_plan.md`` for the design.
 """
 from __future__ import annotations
 

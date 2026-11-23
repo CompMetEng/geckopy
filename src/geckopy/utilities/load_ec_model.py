@@ -41,7 +41,7 @@ geckopy keeps three application-level concerns:
 geckopy has no global default adapter: pass one explicitly, or use an
 absolute filename.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/loadEcModel.m.
+Ported from GECKO MATLAB: src/io/loadEcModel.m.
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from raven_toolbox.io import EcData, read_yaml_model
 
 from ..ec_model.ec_model import EcModel
-from ..solver_support import fast_solver_while_building, switch_to_scipy
+from raven_toolbox.utils.solver import fast_solver_while_building, switch_to_scipy
 from ..upgrade import upgrade_ec_model
 
 if TYPE_CHECKING:

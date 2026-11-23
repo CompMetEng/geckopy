@@ -1,7 +1,7 @@
 """Parse ComplexPortal.json into a list of ComplexPortalEntry.
 
 Ported from GECKO MATLAB:
-src/geckomat/change_model/applyComplexData.m (the JSON-loading branch).
+src/change_model/applyComplexData.m (the JSON-loading branch).
 The download branch is deferred to a future module.
 """
 from __future__ import annotations
@@ -99,7 +99,7 @@ def _as_list(value):
     """Wrap a scalar in a single-element list; pass lists through.
 
     ComplexPortal exports collapse single-element arrays to scalars
-    (matching MATLAB's `jsonencode` round-trip behaviour); this
+    (matching the behaviour of MATLAB's `jsonencode` when the file is written and read back); this
     normalises them back to lists.
     """
     if isinstance(value, list):

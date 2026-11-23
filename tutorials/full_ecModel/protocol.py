@@ -32,7 +32,6 @@ from geckopy import (
     kcats_from_dlkcat,
     load_brenda_data,
     load_conventional_gem,
-    load_dlkcat_ignore_lists,
     load_ec_model,
     load_phyl_dist,
     load_uniprot_tsv,
@@ -40,7 +39,6 @@ from geckopy import (
     save_ec_model,
     set_kcat_for_reactions,
     set_prot_pool_size,
-    write_dlkcat_input,
 )
 from geckopy.databases import download_phyl_dist, load_kegg_tsv
 
@@ -86,7 +84,7 @@ print(f"ecModel: {len(ec_model.reactions)} reactions, "
 
 # %% [markdown]
 # **STEP 12-13** Annotate with complex data. The Complex Portal
-# JSON is shipped at `data/ComplexPortal.json`; the downloader
+# JSON is included at `data/ComplexPortal.json`; the downloader
 # `geckopy.databases.get_complex_data` would refresh it.
 
 # %%
@@ -149,28 +147,23 @@ print(f"Fuzzy BRENDA matches: {len(kcat_list_fuzzy)} rows, kept as data/kcats/br
 find_met_smiles(ec_model, cache_path=params.path / "data" / "smilesDB.tsv")
 
 # %% [markdown]
-# **STEP 23** Prepare DLKcat input file. The `data/DLKcat.tsv`
-# shipped here already has predicted kcat values; uncomment to
-# regenerate (this discards existing predictions).
+# **STEP 23-24** Predict kcats with DLKcat. `kcats_from_dlkcat` writes
+# the DLKcat input to `data/DLKcat.tsv` and runs DLKcat in Docker with
+# `via="docker"` (this replaces the predictions in that file), or
+# predicts with the DLKcat method of OpenKineticsPredictor with
+# `via="okp"` (needs an OKP API key). The `data/DLKcat.tsv` included
+# here already has predictions, so neither is run here:
 #
 # ```python
-# ignore_lists = load_dlkcat_ignore_lists(params.path / "data")
-# write_dlkcat_input(
-#     ec_model, params.path / "data" / "DLKcat.tsv",
-#     ignore_lists, overwrite=True,
-# )
+# kcats_from_dlkcat(ec_model, via="docker")
 # ```
-
-# %% [markdown]
-# **STEP 24** Run DLKcat. (External tool; not invoked here. The
-# shipped `data/DLKcat.tsv` already has output from a previous run.)
 
 # %% [markdown]
 # **STEP 25** Load DLKcat output from `data/DLKcat.tsv`, kept as
 # `data/kcats/dlkcat.tsv`.
 
 # %%
-kcat_list_dlkcat = kcats_from_dlkcat(ec_model)
+kcat_list_dlkcat, _ = kcats_from_dlkcat(ec_model, via="file")
 print(f"DLKcat predictions: {len(kcat_list_dlkcat)} rows")
 
 # %% [markdown]
@@ -212,11 +205,11 @@ print(kcat_decisions["stage"].value_counts().to_string())
 #
 # - `brenda_ec_tree` (the default): the organism's own BRENDA value, else
 #   the median of the EC number's measurements (`kcats_from_ec_tree`); the
-#   OpenKineticsPredictor (OKP) methods combined for reactions without an
-#   EC number.
-# - `ec_tree_okp`: the EC tree and the OKP methods combined for every
+#   OpenKineticsPredictor (OKP) predictions combined for reactions without
+#   an EC number.
+# - `ec_tree_okp`: the EC tree and the OKP predictions combined for every
 #   reaction, weighted by how reliable each is.
-# - `okp`: the OKP methods combined only, for when the model's EC numbers
+# - `okp`: the OKP predictions only, for when the model's EC numbers
 #   are not trusted.
 #
 # Custom kcats (`data/kcats/custom.tsv`) come first in every preset.
@@ -270,8 +263,7 @@ print(f"Tuned {len(tuning_result.rxns)} kcats; "
 # %% [markdown]
 # Besides step-wise sensitivity tuning, kcats can be fitted to
 # experimental growth rates and exchange fluxes with CMA-ES
-# (`geckopy.kcat_tuning.evotune`, installed with the `evotune` extra;
-# see docs/evotune_kcat_tuning.md):
+# (`geckopy.kcat_tuning.evotune`; see https://gecko-docs.readthedocs.io/en/latest/guide/evotune.html):
 #
 # ```python
 # from geckopy.kcat_tuning.evotune import (

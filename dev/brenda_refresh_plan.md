@@ -1,7 +1,7 @@
 # BRENDA database refresh plan
 
 > **Historical planning doc.** The implementation diverged in May 2026:
-> the snapshot now ships **both** max and median per (ec, substrate,
+> the snapshot now includes **both** max and median per (ec, substrate,
 > organism) triple in long-format `kcat.tsv` / `sa.tsv` (not just max
 > in `max_kcat.tsv` etc.). See [kcat_aggregation.md](kcat_aggregation.md)
 > for the current schema and rationale.
@@ -285,7 +285,7 @@ tests/
 
 - One-off: `geckopy brenda-refresh` -> three new TSVs in
   `src/geckopy/data/brenda/`.
-- Spot-check against the 2018 files: pick 5 well-studied ECs
+- Spot-check against the 2018 files: select 5 well-studied ECs
   (`1.1.1.1`, `2.7.1.40`, `3.4.21.1`, `4.2.1.1`, `1.11.1.6`),
   diff max-kcat per organism, sanity-check the order of magnitude.
 - Copy the three files into [GECKO/databases/](../../GECKO/databases/)
@@ -339,15 +339,15 @@ tests/
 
 ## Attribution
 
-The TSV header carries `CC BY 4.0`; add a one-paragraph
+The TSV header contains `CC BY 4.0`; add a one-paragraph
 attribution to [README.md](../README.md) crediting BRENDA
 (citation: Chang et al., Nucleic Acids Res., latest annual update)
 and linking to <https://www.brenda-enzymes.org>.
 
 ## Rollout
 
-1. Land this PR. Refresh once on commit, ship the new TSVs in the
-   geckopy repo, ship the one-line `loadBRENDAdata.m` patch upstream
+1. Land this PR. Refresh once on commit, include the new TSVs in the
+   geckopy repo, submit the one-line `loadBRENDAdata.m` patch upstream
    to GECKO.
 2. Future refreshes: re-run `geckopy brenda-refresh` when BRENDA
    publishes a new release (announcement on

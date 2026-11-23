@@ -24,7 +24,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-# Isozyme copies of a reaction carry this suffix; the text before it is
+# Isozyme copies of a reaction have this suffix; the text before it is
 # the reaction they share.
 ISOZYME_SUFFIX = "_EXP_"
 

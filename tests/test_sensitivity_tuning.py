@@ -1,4 +1,5 @@
 """Tests for sensitivity_tuning."""
+import importlib
 from pathlib import Path
 
 import cobra
@@ -151,47 +152,54 @@ def test_explicit_growth_rate_overrides_adapter(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# Notes annotation
+# Source annotation
 # --------------------------------------------------------------------------- #
 
-def test_notes_annotated_with_pre_tune_kcat(tmp_path):
+def test_source_gets_tuning_status_with_prior(tmp_path):
     adapter = _adapter(tmp_path, gr_exp=300.0)
     model = _build_toy(adapter, initial_kcat=1.0)
     sensitivity_tuning(model, fold_change=10.0)
-    note = model.ec.notes[0]
-    assert "preTuneKcat=" in note
-    assert "source:initial" in note
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
 
-def test_source_set_to_sensitivity_tuning(tmp_path):
+def test_notes_are_left_alone(tmp_path):
     adapter = _adapter(tmp_path, gr_exp=300.0)
-    model = _build_toy(adapter)
+    model = _build_toy(adapter, initial_kcat=1.0)
+    notes = list(model.ec.notes)
     sensitivity_tuning(model, fold_change=10.0)
-    assert model.ec.source[0] == "sensitivityTuning"
+    assert list(model.ec.notes) == notes
 
 
-def test_re_tuning_does_not_double_annotate(tmp_path):
-    """A second tuning pass on an already-tuned kcat should not
-    re-annotate (source is 'sensitivityTuning')."""
+def test_re_tuning_keeps_one_method_and_the_first_prior(tmp_path):
+    """A second tuning pass on a tuned kcat does not repeat the method and
+    keeps the kcat before the first tuning as prior."""
     adapter = _adapter(tmp_path, gr_exp=300.0)
     model = _build_toy(adapter, initial_kcat=1.0)
     sensitivity_tuning(model, fold_change=10.0)
-    note_after_first = model.ec.notes[0]
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
-    # Bump target to force more tuning.
     sensitivity_tuning(
         model, desired_growth_rate=3000.0, fold_change=10.0,
     )
-    note_after_second = model.ec.notes[0]
-
-    # Note should be unchanged (no second "preTuneKcat=" appended).
-    assert note_after_first == note_after_second
-    assert note_after_second.count("preTuneKcat=") == 1
+    assert model.ec.kcat[0] > 10.0
+    assert model.ec.source[0] == "initial | tuned=sensitivity (prior=1)"
 
 
 # --------------------------------------------------------------------------- #
 # prot_to_ignore
 # --------------------------------------------------------------------------- #
+
+def test_evidence_of_the_tuned_reactions(tmp_path):
+    adapter = _adapter(tmp_path, gr_exp=300.0)
+    model = _build_toy(adapter, initial_kcat=1.0)
+    off = sensitivity_tuning(model, verbose=False)
+    assert off.rxns and off.evidence is None
+    model = _build_toy(adapter, initial_kcat=1.0)
+    tuned = sensitivity_tuning(model, verbose=False, evidence=True)
+    assert list(tuned.evidence["ec_rxn"]) == tuned.rxns
+    assert tuned.evidence["kcat"].tolist() == tuned.new_kcat.tolist()
+    assert tuned.evidence["prior"].tolist() == tuned.old_kcat.tolist()
+
 
 def test_prot_to_ignore_excludes_enzyme(tmp_path):
     """If the only limiting enzyme is in `prot_to_ignore`, no tuning
@@ -304,3 +312,62 @@ def test_infeasible_start_raises_when_gurobi_presolves_it(tmp_path):
     model.reactions.get_by_id("biomass").lower_bound = 500.0
     with pytest.raises(ValueError, match="not optimal"):
         sensitivity_tuning(model)
+
+
+def test_docstrings_name_the_standard_and_advanced_tuning():
+    from geckopy.kcat_tuning import sensitivity_tuning
+    from geckopy.kcat_tuning.evotune import cmaes_kcat_tuning
+
+    assert "standard kcat tuning" in sensitivity_tuning.__doc__
+    assert "advanced kcat tuning" in cmaes_kcat_tuning.__doc__
+
+
+# --------------------------------------------------------------------------- #
+# Ties
+# --------------------------------------------------------------------------- #
+
+class _Solution:
+    status = "optimal"
+
+    def __init__(self, objective_value, fluxes):
+        self.objective_value = objective_value
+        self.fluxes = fluxes
+
+
+@pytest.mark.parametrize("first", ["R", "R2"])
+def test_a_tie_between_reactions_of_an_enzyme_goes_to_the_first_in_the_model(tmp_path, monkeypatch, first):
+    """R and R2 consume the same amount of prot_E: the first one in the model is tuned."""
+    adapter = _adapter(tmp_path, gr_exp=50.0)
+    model = _build_toy(adapter)
+    r2 = cobra.Reaction("R2")
+    r2.add_metabolites({
+        model.metabolites.get_by_id("A_c"): -1.0,
+        model.metabolites.get_by_id("prot_E"): model.reactions.get_by_id("R").metabolites[model.metabolites.get_by_id("prot_E")],
+        model.metabolites.get_by_id("bio_met"): 1.0,
+    })
+    r2.bounds = (0.0, 1000.0)
+    model.add_reactions([r2])
+    if first == "R2":
+        r = model.reactions.get_by_id("R")
+        model.remove_reactions([r])
+        model.add_reactions([r])
+    model.ec.rxns = ["R", "R2"]
+    model.ec.kcat = np.array([1.0, 1.0])
+    model.ec.source = ["initial", "initial"]
+    model.ec.notes = ["", ""]
+    model.ec.eccodes = ["", ""]
+    model.ec.rxn_enz_mat = sparse.csr_matrix([[1.0], [1.0]])
+    consumption = {"usage_prot_E": 2.0, "R": 1.0, "R2": 1.0}
+    answers = iter([_Solution(1.0, consumption), _Solution(100.0, consumption)])
+    monkeypatch.setattr(importlib.import_module("geckopy.kcat_tuning.sensitivity_tuning"), "optimize_model", lambda m: next(answers))
+    result = sensitivity_tuning(model, fold_change=10.0, verbose=False)
+    assert list(result.rxns) == [first]
+
+
+def test_first_tied_takes_the_first_value_within_the_tolerance():
+    from geckopy.kcat_tuning.sensitivity_tuning import _first_tied
+
+    assert _first_tied([1.0, 3.0, 3.0 - 1e-12, 2.0], largest=True) == 1
+    assert _first_tied([3.0 - 1e-12, 3.0, 1.0], largest=True) == 0
+    assert _first_tied([-1.0, -3.0, -3.0, -2.0], largest=False) == 1
+    assert _first_tied([-2.0, -3.0], largest=False) == 1

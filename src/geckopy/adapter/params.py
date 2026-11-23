@@ -2,13 +2,14 @@
 
 ``KeggParams``, ``UniprotParams``, ``ComplexParams``, and the core fields
 of ``ModelParameters`` mirror the ``obj.params.*`` fields set in GECKO
-MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings; ``OkpParams`` is a
-geckopy-only extension with no MATLAB equivalent.
+MATLAB's adapter template. ``EvotuneParams`` holds the evotune settings and
+``OkpParams`` the OpenKineticsPredictor request settings.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
+Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
+import math
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,7 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class KeggParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(default="sce", description="KEGG organism code")
+    id: str = Field(
+        default="",
+        description='KEGG organism code (e.g. "sce"); empty: KEGG is not used',
+    )
     gene_id: str = Field(
         default="kegg",
         description=(
@@ -35,8 +39,11 @@ class UniprotParams(BaseModel):
         description="Whether 'id' is a taxonomy ID or a proteome ID",
     )
     id: str = Field(
-        default="559292",
-        description="Taxonomy ID (e.g. '559292') or proteome ID, matching 'type'",
+        default="",
+        description=(
+            "Taxonomy ID (e.g. '559292') or proteome ID (e.g. 'UP000002311'), "
+            "matching 'type'; required unless data/uniprot.tsv is provided"
+        ),
     )
     gene_id_field: str = Field(
         default="gene_oln",
@@ -101,8 +108,8 @@ class MatlabParams(BaseModel):
 
 
 class KcatStageParams(BaseModel):
-    """One ``[[kcat_assignment.stage]]``: decides each reaction that is still
-    open, by the first listed source with a value (``select``) or by all
+    """One ``[[kcat_assignment.stage]]``: assigns a kcat to each reaction that is still
+    open, from the first listed source with a value (``select``) or from all
     listed sources with a value, weighted by their reliability
     (``combine``)."""
     model_config = ConfigDict(extra="forbid")
@@ -111,8 +118,8 @@ class KcatStageParams(BaseModel):
     sources: list[str] = Field(
         min_length=1,
         description=(
-            "Source file names (custom, ec_tree, dlkcat, okp_catapro, ...), the OKP "
-            "methods of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
+            "Source file names (custom, ec_tree, dlkcat, okp_unikp, ...), the OKP "
+            "method of [kcat_sources.okp] as okp, and for select the BRENDA tiers "
             "database_exact, database_top and database_bottom, which read brenda.tsv; "
             "for select the first listed wins."
         ),
@@ -154,24 +161,25 @@ class KcatAssignmentParams(BaseModel):
 class SourceGroupRule(BaseModel):
     """One trust-tier entry in ``EvotuneParams.source_groups``.
 
-    ``ec.source`` holds literal strings like ``"dlkcat"``, ``"brenda"``,
-    and -- for OpenKineticsPredictor kcats -- the raw predictor method
-    name (e.g. ``"CataPro"``), not a generic ``"okp"`` tag. A rule
-    matches a given ``ec.source`` value if it's listed in ``sources``,
-    or (when ``match_okp`` is True) if it equals the project's
-    configured OKP method (``OkpParams.method``).
+    ``ec.source`` holds the label of the source of a kcat, such as
+    ``"custom"``, ``"brenda"``, ``"ec_tree"``, ``"dlkcat"``, ``"combined"`` or
+    ``"okp_kinform_h"``. An entry of ``sources`` matches the origin of the
+    label or the whole label, in either case without regard to case. An entry
+    ending in ``*`` is a prefix pattern on the origin: ``"okp_*"`` covers
+    ``okp_eitlem_kinetics`` and ``okp_kinform_h``.
     """
     model_config = ConfigDict(extra="forbid")
 
     sources: list[str] = Field(
-        default_factory=list,
-        description="Literal ec.source strings belonging to this group.",
-    )
-    match_okp: bool = Field(
-        default=False,
         description=(
-            "Also match ec.source values equal to the project's "
-            "configured OpenKineticsPredictor method (OkpParams.method)."
+            "ec.source labels belonging to this group; an entry ending in * "
+            "is a prefix pattern."
+        ),
+    )
+    sigma0_log: float = Field(
+        description=(
+            "Prior standard deviation of the natural log of the kcat for this "
+            "group. Lower is more trusted, and narrows that group's proposal width."
         ),
     )
 
@@ -179,39 +187,39 @@ class SourceGroupRule(BaseModel):
 class EvotuneParams(BaseModel):
     """Hyperparameters for kcat tuning against experimental data.
 
-    Sources not matched by any ``source_groups`` entry fall back to the
-    ``*_default`` fields (matching MATLAB's ``noKcatSource`` behaviour:
-    ``sigma0logDefault`` etc. apply to every kcat first, then only ones
-    with a recognised source get overridden by their group's value).
+    A kcat whose source is in no ``source_groups`` entry takes
+    ``sigma0_log_default``.
     """
     model_config = ConfigDict(extra="forbid")
 
     sigma0_log_default: float = Field(
         default=0.5,
         description=(
-            "Prior standard deviation in log-space for kcats whose source "
-            "matches no source_groups entry."
+            "Prior standard deviation of the natural log of the kcat for kcats "
+            "whose source matches no source_groups entry."
         ),
     )
     source_groups: dict[str, SourceGroupRule] = Field(
         default_factory=lambda: {
-            "dlkcat": SourceGroupRule(sources=["dlkcat"]),
-            "brenda": SourceGroupRule(sources=["brenda"]),
-            "custom": SourceGroupRule(sources=["custom"]),
+            "custom": SourceGroupRule(sources=["custom"], sigma0_log=0.1),
+            "brenda": SourceGroupRule(sources=["brenda"], sigma0_log=0.2),
+            "ec_tree": SourceGroupRule(sources=["ec_tree"], sigma0_log=0.3),
+            "combined": SourceGroupRule(sources=["combined"], sigma0_log=0.4),
         },
-        description="Trust tiers: group name -> which ec.source values it covers.",
-    )
-    sigma0_log_source: dict[str, float] = Field(
-        default_factory=lambda: {"dlkcat": 0.4, "brenda": 0.2, "custom": 0.1},
         description=(
-            "Prior log-space standard deviation per group. Lower is more "
-            "trusted, and narrows that group's proposal width."
+            "Trust tiers: group name -> the ec.source labels it covers (an entry "
+            "ending in * is a prefix pattern, e.g. okp_*) and its sigma0_log, the "
+            "standard deviation of the natural log of the kcat. Groups given in "
+            "the TOML replace the defaults."
         ),
     )
 
     rmse_threshold: float = Field(
         default=0.2,
-        description="Stop once the best RMSE reaches this; negative never stops early.",
+        description=(
+            "Stop once the best distance to the measurements (the RMSE of "
+            "raven_toolbox.experiments) reaches this; negative never stops early."
+        ),
     )
     max_generations: int = Field(
         default=150, description="Hard cap on CMA-ES generations.",
@@ -220,10 +228,10 @@ class EvotuneParams(BaseModel):
     max_growth_weight: float = Field(
         default=1.0,
         description=(
-            "Weight on the max-growth RMSE against the flux RMSE: "
-            "(rmse_flux + w * rmse_max_growth) / (w + 1). At 2 the "
-            "max-growth conditions count double. Same weighting as "
-            "MATLAB's maxGrowthWeight."
+            "Weight of the distance of the maximum-growth conditions against "
+            "that of the flux conditions: (d_flux + w * d_max_growth) / (w + 1). "
+            "At 2 the maximum-growth conditions count twice as much. Same "
+            "weighting as MATLAB's maxGrowthWeight."
         ),
     )
 
@@ -262,24 +270,11 @@ class EvotuneParams(BaseModel):
         ),
     )
 
-    @model_validator(mode="after")
-    def _check_group_keys(self) -> "EvotuneParams":
-        """The per-source dicts must have exactly ``source_groups``'
-        keys, otherwise a downstream lookup silently falls back to a
-        default."""
-        group_names = set(self.source_groups)
-        for name in ("sigma0_log_source",):
-            keys = set(getattr(self, name))
-            if keys != group_names:
-                raise ValueError(
-                    f"EvotuneParams.{name} keys {sorted(keys)} must match "
-                    f"source_groups keys {sorted(group_names)}."
-                )
-        return self
-
 
 class OkpParams(BaseModel):
-    """OpenKineticsPredictor settings (used by submit/fetch_open_kinetics_predictor).
+    """OpenKineticsPredictor settings (used by kcats_from_okp).
+
+    The OKP method is set in ``[kcat_sources.okp] method``.
 
     The API key is intentionally NOT here (it is a secret): provide it as a
     function argument, the OKP_API_KEY environment variable, or the file
@@ -287,14 +282,6 @@ class OkpParams(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    method: str = Field(
-        default="CataPro",
-        description=(
-            "Predictor method: CataPro, CatPred, CatRange, DLKcat, EITLEM, "
-            "KinForm-H, KinForm-L, OmniESI, OmniESI-O2DENet, TurNup, UniKP "
-            "(see GET /api/v1/methods/)."
-        ),
-    )
     handle_long_sequences: str = Field(
         default="truncate",
         description="How OKP handles sequences exceeding a method's max length.",
@@ -327,7 +314,14 @@ class ModelParameters(BaseModel):
     sigma: float = Field(default=0.5, description="Average enzyme saturation factor")
     p_tot: float = Field(default=0.5, description="Total protein content [g/gDw]")
     f: float = Field(default=0.5, description="Fraction of enzymes in model [g/g]")
-    gr_exp: float = Field(default=0.41, description="Reference growth rate [1/h]")
+    gr_exp: Optional[float] = Field(
+        default=None,
+        description=(
+            "Growth rate the model should reach when not limited by nutrient "
+            "uptake [1/h]. Required by the functions that tune kcats or fit "
+            "sigma; there is no default."
+        ),
+    )
 
     c_source: str = Field(
         default="", description="Reaction ID for preferred carbon source exchange"
@@ -338,38 +332,6 @@ class ModelParameters(BaseModel):
     enzyme_comp: str = Field(
         default="cytoplasm",
         description="Compartment where protein pseudometabolites are placed",
-    )
-
-    # kcat-aggregation defaults applied when the matching function is called
-    # without an explicit aggregate/criteria argument. One field per function
-    # so each can keep its MATLAB-GECKO default while still being centrally
-    # overridable on the adapter. See docs/kcat_aggregation.md for the
-    # empirical rationale for offering `median` as an alternative to `max`.
-    kcat_aggregate_brenda: Literal["max", "median"] = Field(
-        default="max",
-        description=(
-            "Default aggregation for `fuzzy_kcat_matching` when no `aggregate` "
-            "is passed: collapse the BRENDA rows matched at one search level "
-            "to a single kcat. `max` matches MATLAB GECKO; `median` is more "
-            "robust to engineered-mutant/non-physiological-substrate tails."
-        ),
-    )
-    kcat_aggregate_candidates: Literal["max", "min", "median", "mean"] = Field(
-        default="max",
-        description=(
-            "Default aggregation for `apply_kcat_list` when no `criteria` is "
-            "passed: collapse multiple candidate kcats for the same reaction "
-            "(e.g. several EC tokens per reaction) to one. `max` matches "
-            "MATLAB GECKO."
-        ),
-    )
-    kcat_aggregate_isozymes: Literal["max", "median", "mean"] = Field(
-        default="mean",
-        description=(
-            "Default aggregation for `fill_kcats_from_isozymes` when no "
-            "`aggregate` is passed: combine known kcats across sibling "
-            "isozymes to fill a missing entry. `mean` matches MATLAB GECKO."
-        ),
     )
 
     kegg: KeggParams = Field(default_factory=KeggParams)
@@ -384,3 +346,101 @@ class ModelParameters(BaseModel):
         description="Settings per kcat source file, e.g. kcat_sources.brenda.aggregation.",
     )
     matlab: MatlabParams = Field(default_factory=MatlabParams)
+
+
+#: The keys of ``[kcat_sources.<name>]`` that the kcat source gathering reads
+#: (``update_kcat_sources``): the source name and its keys. A source file
+#: ``okp_<method>`` has no keys.
+KCAT_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
+    "brenda": ("aggregation", "force_wildcard_level"),
+    "ec_tree": ("k",),
+    "homologs": ("k", "min_identity", "coverage"),
+    "okp": ("method",),
+    "dlkcat": (),
+    "custom": (),
+}
+
+
+def _kcat_source_keys(name: str) -> Optional[tuple[str, ...]]:
+    """The allowed keys of ``[kcat_sources.<name>]``, or None for an unknown source."""
+    from ..gather_kcats.kcat_sources import OKP_METHODS, okp_file
+
+    if name in {okp_file(m) for m in OKP_METHODS}:
+        return ()
+    return KCAT_SOURCE_KEYS.get(name)
+
+
+def _check_table(cls: type[BaseModel], data: dict, prefix: str, file: Path | str) -> None:
+    for key, value in data.items():
+        dotted = f"{prefix}{key}"
+        field = cls.model_fields.get(key)
+        if field is None or (cls is ModelParameters and key == "path"):
+            raise ValueError(f"{file}: unknown key {dotted} in model_adapter.toml")
+        annotation = field.annotation
+        args = [a for a in get_args(annotation) if a is not type(None)]
+        if get_origin(annotation) is None and isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if isinstance(value, dict):
+                _check_table(annotation, value, dotted + ".", file)
+        elif get_origin(annotation) is list and args and issubclass(args[0], BaseModel):
+            for item in value if isinstance(value, list) else []:
+                if isinstance(item, dict):
+                    _check_table(args[0], item, dotted + ".", file)
+        elif get_origin(annotation) is dict and len(args) == 2 and isinstance(args[1], type) and issubclass(args[1], BaseModel):
+            for name, item in value.items() if isinstance(value, dict) else []:
+                if cls is EvotuneParams:
+                    _check_group(item, f"{dotted}.{name}", file)
+                if isinstance(item, dict):
+                    _check_table(args[1], item, f"{dotted}.{name}.", file)
+        elif cls is ModelParameters and key == "kcat_sources" and isinstance(value, dict):
+            for name, table in value.items():
+                allowed = _kcat_source_keys(name)
+                if allowed is None:
+                    raise ValueError(f"{file}: unknown key {dotted}.{name} in model_adapter.toml")
+                if not isinstance(table, dict):
+                    raise ValueError(f"{file}: {dotted}.{name} must be a table")
+                for k in table:
+                    if k not in allowed:
+                        raise ValueError(f"{file}: unknown key {dotted}.{name}.{k} in model_adapter.toml")
+                _check_source_values(name, table, file)
+
+
+def _check_source_values(name: str, table: dict, file: Path | str) -> None:
+    """The values of ``[kcat_sources.okp] method`` and ``[kcat_sources.brenda] aggregation``."""
+    if name == "okp" and "method" in table:
+        method = table["method"]
+        if not isinstance(method, str) and not (
+            isinstance(method, list) and method and all(isinstance(m, str) for m in method)
+        ):
+            raise ValueError(f"{file}: kcat_sources.okp.method must be a string")
+        from ..gather_kcats.kcat_sources import _okp_method_names
+
+        _okp_method_names(method)
+    if name == "brenda" and "aggregation" in table and table["aggregation"] not in ("max", "median"):
+        raise ValueError(f"{file}: kcat_sources.brenda.aggregation must be max or median")
+
+
+def _check_group(item: Any, dotted: str, file: Path | str) -> None:
+    """The shape of one ``[evotune.source_groups.<group>]`` table."""
+    if not isinstance(item, dict):
+        raise ValueError(f"{file}: {dotted} must be a table with sources and sigma0_log")
+    unknown = [k for k in item if k not in ("sources", "sigma0_log")]
+    if unknown:
+        raise ValueError(f"{file}: unknown key {dotted}.{unknown[0]} in model_adapter.toml")
+    if "sources" not in item or "sigma0_log" not in item:
+        raise ValueError(f"{file}: {dotted} needs both sources and sigma0_log")
+    sources, width = item["sources"], item["sigma0_log"]
+    if not isinstance(sources, list) or not sources or not all(isinstance(s, str) for s in sources):
+        raise ValueError(f"{file}: {dotted}.sources must be a non-empty list of strings")
+    if isinstance(width, bool) or not isinstance(width, (int, float)) or not math.isfinite(width) or not width > 0:
+        raise ValueError(f"{file}: {dotted}.sigma0_log must be a positive number")
+
+
+def check_adapter_keys(data: dict, file: Path | str) -> None:
+    """Raise ``ValueError`` for a key of model_adapter.toml that no parameter uses.
+
+    The message is ``<file>: unknown key <dotted.key> in model_adapter.toml``.
+    Every table is checked: the sections, ``evotune.source_groups.<group>``, the
+    ``kcat_assignment.stage`` entries and ``kcat_sources.<name>`` (see
+    :data:`KCAT_SOURCE_KEYS`). ``matlab.params`` is free-form.
+    """
+    _check_table(ModelParameters, data, "", file)

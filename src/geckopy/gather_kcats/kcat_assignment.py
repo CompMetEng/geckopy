@@ -1,6 +1,6 @@
 """Assign kcats from the kcat source files, as model_adapter.toml sets.
 
-``collect_kcats`` decides one kcat per reaction from the source files in
+``collect_kcats`` selects one kcat per reaction from the source files in
 ``data/kcats`` without changing the model; ``assign_kcats`` applies the
 decisions; ``update_kcat_sources`` gathers the source files the
 configuration needs. GECKO (MATLAB) has the same functions as
@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -19,11 +17,18 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 import pandas as pd
 
-from ..ec_model.pipeline.apply_custom_kcats import apply_custom_kcats
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.fill_kcats import fill_kcats_from_isozymes
 from .get_standard_kcat import assign_standard_kcat
-from .kcat_sources import load_kcat_source, read_kcat_source
+from .kcat_source_format import format_kcat_source, is_standard_source
+from .kcat_sources import (
+    DEFAULT_OKP_METHOD,
+    _okp_method_names,
+    load_kcat_source,
+    okp_file,
+    okp_method_of_file,
+    read_kcat_source,
+)
 from .kcats_from import _brenda_release, _measurements, kcats_from_brenda, kcats_from_dlkcat, kcats_from_ec_tree, kcats_from_okp
 from .merge_kcats import _strip_okp_prefix, merge_kcats, normalize_source
 from .select_kcat_value import apply_kcat_list
@@ -37,20 +42,6 @@ logger = logging.getLogger(__name__)
 
 PRESETS = ("brenda_ec_tree", "ec_tree_homologs", "ec_tree_okp", "okp", "gecko_median", "gecko_classic")
 _DATABASE_TOKENS = {"brenda", "sabio_rk"}
-OKP_METHODS = ("CataPro", "CatPred", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
-               "OmniESI", "OmniESI-O2DENet", "TurNup", "UniKP")
-#: OKP methods that read whole reactions (substrate set, and products for TurNup)
-#: instead of enzyme-substrate pairs; kcats_from_okp submits pairs only.
-REACTION_OKP_METHODS = ("CatPred", "TurNup")
-#: The OKP methods of the ``okp`` source group by default: those that read
-#: enzyme-substrate pairs and have combination parameters (CatRange predicts
-#: classes, and has none).
-DEFAULT_OKP_METHODS = tuple(m for m in OKP_METHODS if m != "CatRange" and m not in REACTION_OKP_METHODS)
-
-
-def okp_file(method: str) -> str:
-    """The source file name of an OKP method, e.g. ``okp_kinform_h``."""
-    return "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", method).lower().strip("_")
 
 
 @dataclass
@@ -100,7 +91,9 @@ def _preset_stages(preset: str) -> tuple[list[Stage], dict[str, dict[str, Any]]]
 def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
     """Read ``[kcat_assignment]`` and ``[kcat_sources]`` of the adapter.
 
-    Without a preset or stages the preset is ``brenda_ec_tree``.
+    Without a preset or stages the preset is ``brenda_ec_tree``. A
+    ``[kcat_sources.<name>]`` table overrides only the keys it sets of the
+    preset's settings for that source.
     """
     a = adapter.params.kcat_assignment
     if a.stage:
@@ -111,7 +104,8 @@ def kcat_assignment_config(adapter: "ModelAdapter") -> KcatAssignmentConfig:
     else:
         preset = a.preset or "brenda_ec_tree"
         stages, sources = _preset_stages(preset)
-    sources = {**sources, **{k: dict(v) for k, v in adapter.params.kcat_sources.items()}}
+    # A [kcat_sources.<name>] table overrides only the keys it sets.
+    sources = {**sources, **{k: {**sources.get(k, {}), **v} for k, v in adapter.params.kcat_sources.items()}}
     return KcatAssignmentConfig(preset=preset, isozymes=a.isozymes, standard=a.standard,
                                 stages=stages, sources=sources)
 
@@ -121,21 +115,32 @@ def _source_file(token: str) -> str:
     return "brenda" if token.startswith("database_") else token
 
 
-def okp_methods(config: KcatAssignmentConfig) -> list[str]:
-    """The OKP methods of the ``okp`` source group (``[kcat_sources.okp] methods``)."""
-    methods = config.sources.get("okp", {}).get("methods") or list(DEFAULT_OKP_METHODS)
-    unknown = [m for m in methods if m not in OKP_METHODS]
-    if unknown:
-        raise ValueError(f"Unknown OKP methods in [kcat_sources.okp] methods: {unknown}; "
-                         f"methods: {', '.join(OKP_METHODS)}.")
-    return list(methods)
+def _okp_names(config: KcatAssignmentConfig) -> list[str]:
+    """The OKP method of the ``okp`` source group, ``[kcat_sources.okp] method``."""
+    return _okp_method_names(config.sources.get("okp", {}).get("method") or DEFAULT_OKP_METHOD)
+
+
+def brenda_aggregation(adapter: "ModelAdapter") -> str:
+    """The BRENDA aggregation of the adapter: ``[kcat_sources.brenda] aggregation``.
+
+    As the kcat assignment config resolves it: the preset's value (median for
+    ``brenda_ec_tree`` and the other median presets, max for ``gecko_classic``)
+    unless the file sets it. ``max`` when neither the preset nor the file sets it
+    (the ``okp`` preset, or stages without a ``[kcat_sources.brenda]`` table).
+    """
+    return str(kcat_assignment_config(adapter).sources.get("brenda", {}).get("aggregation", "max"))
+
+
+def default_okp_method(adapter: "ModelAdapter") -> str:
+    """The OKP method used when none is given: ``[kcat_sources.okp] method``."""
+    return _okp_names(kcat_assignment_config(adapter))[0]
 
 
 def _expand(tokens: list[str], config: KcatAssignmentConfig) -> list[str]:
-    """Stage tokens with the ``okp`` group replaced by its methods' files."""
+    """Stage tokens with the ``okp`` group replaced by the file of its OKP method."""
     out: list[str] = []
     for t in tokens:
-        out.extend(okp_file(m) for m in okp_methods(config)) if t == "okp" else out.append(t)
+        out.extend(okp_file(m) for m in _okp_names(config)) if t == "okp" else out.append(t)
     return list(dict.fromkeys(out))
 
 
@@ -160,6 +165,14 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
     config = kcat_assignment_config(adapter)
     path = Path(adapter.params.path)
     kcat_dir = path / "data" / "kcats"
+    legacy = path / "data" / "customKcats.tsv"
+    # Checked before the model is changed, so an error leaves it as it was.
+    if (any("custom" in st.sources for st in config.stages)
+            and not (kcat_dir / "custom.tsv").is_file() and legacy.is_file()):
+        raise ValueError(
+            f"{legacy} is a GECKO 3 custom kcats file and {kcat_dir / 'custom.tsv'} does "
+            "not exist. Convert it with convert_custom_kcats (geckopy upgrade does this)."
+        )
     ec = model.ec
     n = len(ec.rxns)
     ec.kcat = np.zeros(n, dtype=float)
@@ -169,24 +182,19 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
     spread = np.full(n, np.nan)
     report: dict[str, Any] = {"preset": config.preset, "missing": [], "sources": {}}
     loaded: dict[str, Optional[pd.DataFrame]] = {}
-    legacy_custom = False
 
     sd = np.full(n, np.nan)
     params = None
 
     def load(name: str) -> Optional[pd.DataFrame]:
-        nonlocal legacy_custom
         if name not in loaded:
             file = kcat_dir / f"{name}.tsv"
             if file.is_file():
                 loaded[name], report["sources"][name] = load_kcat_source(model, file)
             else:
                 loaded[name] = None
-                if name == "custom" and (path / "data" / "customKcats.tsv").is_file():
-                    legacy_custom = True
-                else:
-                    report["missing"].append(name)
-                    logger.warning("No kcat source file %s; it is left out. update_kcat_sources gathers it.", file)
+                report["missing"].append(name)
+                logger.warning("No kcat source file %s; it is left out. update_kcat_sources gathers it.", file)
         return loaded[name]
 
     for s, st in enumerate(config.stages, start=1):
@@ -204,7 +212,7 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
                                                  combined["n"], combined["spread_log10"]):
                 i = index[rxn]
                 ec.kcat[i] = kcat
-                ec.source[i] = f"combined (sd={sdv:.2f}, n={nsrc})"
+                ec.source[i] = format_kcat_source("combined", {"sd": f"{sdv:.2f}", "n": int(nsrc)})
                 stage[i], candidates[i], spread[i], sd[i] = str(s), nsrc, spr, sdv
             continue
         lists: list[pd.DataFrame] = []
@@ -244,15 +252,9 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
             candidates[i] = len(values)
             spread[i] = np.log10(values.max()) - np.log10(values.min())
 
-    if legacy_custom:
-        before = ec.kcat.copy()
-        apply_custom_kcats(model, path=path / "data" / "customKcats.tsv")
-        changed = ec.kcat != before
-        for i in np.flatnonzero(changed):
-            stage[i], candidates[i], spread[i] = "custom", 1, 0.0
     if config.isozymes and not ec.gecko_light:
         before = ec.kcat == 0
-        fill_kcats_from_isozymes(model, apply=True)
+        fill_kcats_from_isozymes(model)
         for i in np.flatnonzero(before & (ec.kcat > 0)):
             stage[i] = "isozymes"
     if config.standard:
@@ -266,7 +268,7 @@ def _decide(model: "EcModel", adapter: "ModelAdapter", uniprot_db: Optional["Uni
         spread = np.concatenate([spread, np.full(extra, np.nan)])
         sd = np.concatenate([sd, np.full(extra, np.nan)])
         for i, src in enumerate(ec.source):
-            if src == "standard" and ec.kcat[i] > 0:
+            if is_standard_source(src) and ec.kcat[i] > 0:
                 stage[i] = "standard"
 
     decisions = pd.DataFrame({
@@ -299,7 +301,7 @@ def collect_kcats(
     :func:`assign_kcats` applies the decisions.
 
     The order is a preset or ``[[kcat_assignment.stage]]`` tables. A stage
-    decides the reactions that are still open:
+    assigns a kcat to the reactions that are still open:
 
     - ``select``: the first listed source with a value (see
       :func:`merge_kcats`). Sources are source file names and the BRENDA
@@ -310,22 +312,22 @@ def collect_kcats(
       :mod:`geckopy.gather_kcats.combine_kcats`); ``ec.source`` reads
       ``combined (sd=<log10 sd>, n=<sources>)``.
 
-    In both, ``okp`` stands for the OKP methods of ``[kcat_sources.okp]
-    methods`` (default: all methods with combination parameters).
+    In both, ``okp`` stands for the file of the OKP method of
+    ``[kcat_sources.okp] method`` (default: KinForm-H).
 
     The presets:
 
     - ``brenda_ec_tree`` (the default): custom kcats, the BRENDA median of
       measurements of the organism on the reaction's substrate (origin 1,
       without EC wildcards), the EC tree (:func:`kcats_from_ec_tree`); then
-      the OKP methods combined for the reactions left (without an EC number).
+      the OKP predictions for the reactions left (without an EC number).
     - ``ec_tree_homologs``: custom kcats, the organism's own BRENDA value;
       then the EC tree and homologs (:func:`kcats_from_homologs`) combined;
-      then the OKP methods combined.
+      then the OKP predictions.
     - ``ec_tree_okp``: custom kcats, the organism's own BRENDA value; then
-      the EC tree, homologs and the OKP methods combined; then the OKP
-      methods combined.
-    - ``okp``: custom kcats; then the OKP methods combined.
+      the EC tree, homologs and the OKP predictions combined; then the OKP
+      predictions.
+    - ``okp``: custom kcats; then the OKP predictions.
     - ``gecko_median``: custom kcats, the BRENDA median of matches without
       EC wildcards from the organism or other organisms, with or without the
       substrate (origin 1 to 4), DLKcat, then the other BRENDA matches (EC
@@ -336,18 +338,19 @@ def collect_kcats(
 
     Against measured kcats hidden from the search, the EC tree was closer
     than the BRENDA median at origins 2 and 4 and with EC wildcards and as
-    close at origins 1 and 3; the EC tree combined with the OKP methods was
-    slightly closer than the EC tree, and the OKP methods combined as close.
+    close at origins 1 and 3; the EC tree combined with OKP predictions was
+    slightly closer than the EC tree. The default OKP method is KinForm-H.
     In ecModels, values combined with predictions set high-turnover enzymes
     such as ATP synthase too low, which is why the default uses predictions
     only where there is no value from measurements. The BRENDA aggregation is
     ``[kcat_sources.brenda] aggregation`` (see :func:`update_kcat_sources`).
 
-    After the stages: custom kcats of ``data/customKcats.tsv`` when a stage
-    lists custom but there is no ``data/kcats/custom.tsv``; with
-    ``isozymes``, kcats from isozymes; with ``standard``, the standard kcat
-    for the rest. A source file a stage names that does not exist is
-    reported and left out.
+    After the stages: with ``isozymes``, kcats from isozymes; with
+    ``standard``, the standard kcat for the rest. A source file a stage names
+    that does not exist is reported and left out. A stage that lists custom
+    raises a ``ValueError`` when there is no ``data/kcats/custom.tsv`` but a
+    GECKO 3 ``data/customKcats.tsv``: :func:`~geckopy.upgrade.convert_custom_kcats`
+    converts it.
 
     Parameters
     ----------
@@ -364,9 +367,11 @@ def collect_kcats(
     -------
     (decisions, report, ec_model)
         ``decisions`` has one row per ``model.ec`` reaction: ``ec_rxn``,
-        ``stage`` (the stage number, ``custom``, ``isozymes``, ``standard``,
+        ``stage`` (the stage number, ``isozymes``, ``standard``,
         or empty without a kcat), ``source``, ``kcat``, ``candidates`` (values
-        the deciding source had) and ``spread_log10``. ``report`` has the
+        the deciding source had), ``spread_log10`` (their range, in log10
+        units) and ``sd_log10`` (the uncertainty of a combined kcat, a standard
+        deviation in log10 units; NaN for the other stages). ``report`` has the
         ``preset``, the ``missing`` source files and, per source file, its
         load report. ``ec_model`` is a copy of the model with the decided
         kcats, before ``apply_kcat_constraints``.
@@ -406,15 +411,6 @@ def assign_kcats(
     return decisions, report
 
 
-def _okp_method(name: str, wanted: dict[str, Any]) -> str:
-    if "method" in wanted:
-        return str(wanted["method"])
-    for m in OKP_METHODS:
-        if "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", m).lower() == name:
-            return m
-    raise ValueError(f'Set the OKP method of {name} in model_adapter.toml: [kcat_sources.{name}] method = "..."')
-
-
 def _same(a: Any, b: Any) -> bool:
     def norm(v: Any) -> Any:
         return v.lower() if isinstance(v, str) else (int(v) if isinstance(v, bool) else v)
@@ -436,9 +432,11 @@ def update_kcat_sources(
     :func:`kcats_from_okp`. A file is outdated when its header records other
     settings than ``[kcat_sources.<name>]`` asks for (presets set these for
     brenda and ec_tree) or, for brenda and ec_tree, another BRENDA release
-    than the BRENDA files in use. DLKcat reads
-    ``data/DLKcat.tsv`` if it exists and runs DLKcat (Docker) otherwise; OKP
-    submits or fetches a job and reports it as pending while it runs.
+    than the BRENDA files in use. DLKcat reads ``data/DLKcat.tsv`` if it
+    exists and otherwise predicts with the DLKcat method of
+    OpenKineticsPredictor (see :func:`kcats_from_dlkcat`); OKP and DLKcat
+    submit or fetch a job and report it as pending while it runs; they need
+    an OKP API key (DLKcat only without ``data/DLKcat.tsv``).
     ``custom.tsv`` and files it cannot gather are left as they are. Calling
     it again is safe.
 
@@ -499,12 +497,11 @@ def _gather(model: "EcModel", name: str, wanted: dict[str, Any], adapter: "Model
             kcats_from_homologs(model, adapter=adapter, **{k: wanted[k] for k in ("k", "min_identity", "coverage")
                                                           if k in wanted})
         elif name == "dlkcat":
-            run = not (Path(adapter.params.path) / "data" / "DLKcat.tsv").is_file()
-            if run and shutil.which("docker") is None:
-                return "failed", "DLKcat needs Docker to run"
-            kcats_from_dlkcat(model, run=run, adapter=adapter)
+            _, done = kcats_from_dlkcat(model, adapter=adapter)
+            if not done:
+                return "pending", "OKP job for DLKcat still running; call again later"
         else:
-            method = _okp_method(name, wanted)
+            method = okp_method_of_file(name)
             _, done = kcats_from_okp(model, method=method, save_as=name, adapter=adapter)
             if not done:
                 return "pending", f"OKP job for {method} still running; call again later"

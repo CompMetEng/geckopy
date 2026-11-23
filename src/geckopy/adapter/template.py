@@ -7,7 +7,7 @@ uncommented with a placeholder (for required fields), or commented out
 showing its default value (for optional fields). Field descriptions
 are emitted as TOML comments above each field.
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/adapterTemplate.m.
+Ported from GECKO MATLAB: src/deprecated/adapterTemplate.m.
 """
 from __future__ import annotations
 
@@ -24,6 +24,37 @@ _REQUIRED_PLACEHOLDERS = {
     "conv_gem": '"models/REPLACE_ME.xml"',
     "org_name": '"REPLACE_ME"',
 }
+# Keys written uncommented, with the comment of GECKO's adapterTemplate.toml.
+_SET_IN_TEMPLATE = {
+    ("kegg", "id"): [
+        "# KEGG organism code, from https://www.genome.jp/kegg/catalog/org_list.html,",
+        '# for example "sce" for Saccharomyces cerevisiae. Empty: KEGG is not used.',
+    ],
+    ("uniprot", "id"): [
+        '# "proteome" (https://www.uniprot.org/proteomes/) or "taxonomy"',
+        "# (https://www.uniprot.org/taxonomy), and the matching identifier, for",
+        '# example "559292" (taxonomy) or "UP000002311" (proteome) for',
+        "# Saccharomyces cerevisiae. Required unless data/uniprot.tsv is provided.",
+    ],
+}
+
+# Written last: [kcat_sources.<name>] tables follow every other section's keys.
+_KCAT_SOURCES_EXAMPLE = [
+    "# Settings per kcat source. A preset sets the keys it needs; a table here",
+    "# overrides only the keys it sets. The keys each source reads:",
+    "# [kcat_sources.brenda]",
+    '# aggregation = "median"    # "max" or "median"',
+    "# force_wildcard_level = 0",
+    "# [kcat_sources.ec_tree]",
+    "# k = 5",
+    "# [kcat_sources.homologs]",
+    "# k = 5",
+    "# min_identity = 0.4",
+    "# coverage = 0.8",
+    "# [kcat_sources.okp]",
+    '# method = "KinForm-H"   # the default method of kcats_from_okp',
+    "",
+]
 
 
 def _format_toml_value(value: Any) -> str | None:
@@ -101,7 +132,8 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     Every section of the schema is emitted, evotune kcat tuning
     hyperparameters included; optional fields are commented out at
     their defaults, so the template doubles as the reference for what
-    can be set.
+    can be set. The organism identifiers ``[kegg] id`` and ``[uniprot] id``
+    are written uncommented and empty, with an example in the comment.
 
     Parameters
     ----------
@@ -124,7 +156,7 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     sections: list[tuple[str, type[BaseModel]]] = []
 
     for name, field in ModelParameters.model_fields.items():
-        if name in _INJECTED_FIELDS:
+        if name in _INJECTED_FIELDS or name == "kcat_sources":
             continue
         if _is_nested_model(field.annotation):
             sections.append((name, field.annotation))
@@ -150,12 +182,28 @@ def generate_template_toml(*, project_name: str = "my-ecmodel") -> str:
     for name, model_cls in sections:
         lines.append(f"[{name}]")
         instance = model_cls()
+        tables: list[tuple[str, Any]] = []
         for sub_name, sub_field in model_cls.model_fields.items():
+            value = getattr(instance, sub_name)
+            if isinstance(value, dict) and value and all(isinstance(v, BaseModel) for v in value.values()):
+                tables.append((sub_name, sub_field))  # written last: sub-tables follow the section's keys
+                continue
+            if (name, sub_name) in _SET_IN_TEMPLATE:
+                value = _format_toml_value(getattr(instance, sub_name))
+                lines.extend([*_SET_IN_TEMPLATE[(name, sub_name)], f"{sub_name} = {value}", ""])
+                continue
             lines.extend(_emit_scalar(
                 sub_name, description=sub_field.description,
                 annotation=sub_field.annotation,
                 default_value=getattr(instance, sub_name),
                 required=False,
             ))
+        for sub_name, sub_field in tables:
+            lines.append(f"# {sub_field.description}")
+            for group, rule in getattr(instance, sub_name).items():
+                lines.append(f"# [{name}.{sub_name}.{group}]")
+                lines.extend(f"# {key} = {_format_toml_value(val)}" for key, val in rule.model_dump().items())
+                lines.append("")
 
+    lines.extend(_KCAT_SOURCES_EXAMPLE)
     return "\n".join(lines) + "\n"

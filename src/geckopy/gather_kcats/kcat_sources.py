@@ -40,6 +40,56 @@ _LIGHT_RE = re.compile(r"^\d+_")
 _NUMBER_RE = re.compile(r"^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$|^[-+]?Inf$")
 _META_RE = re.compile(r"^\s*#\s*([A-Za-z][A-Za-z0-9_]{0,62})\s*:\s?(.*)$", re.ASCII)
 
+#: The OKP methods that ``[kcat_sources.okp] method`` and ``kcats_from_okp`` accept.
+#: The reaction methods CatPred and TurNup are left out: they read whole reactions
+#: (substrate set, and products for TurNup), while ``kcats_from_okp`` submits
+#: enzyme-substrate pairs.
+OKP_METHODS = ("CataPro", "CatRange", "DLKcat", "EITLEM", "KinForm-H", "KinForm-L",
+               "OmniESI", "OmniESI-O2DENet", "UniKP")
+#: The OKP method of the ``okp`` source group by default; a project sets another in
+#: ``[kcat_sources.okp] method`` (one that has combination parameters: not
+#: CatRange, which predicts classes).
+DEFAULT_OKP_METHOD = "KinForm-H"
+
+
+def okp_file(method: str) -> str:
+    """The source file name of an OKP method, e.g. ``okp_kinform_h``.
+
+    ``okp_`` and the method in lower case, with each run of characters other
+    than letters and digits as ``_`` and no ``_`` at either end.
+    """
+    return "okp_" + re.sub(r"[^A-Za-z0-9]+", "_", method).lower().strip("_")
+
+
+def _okp_method_names(method: Any) -> list[str]:
+    """The OKP method names of a ``[kcat_sources.okp] method`` value.
+
+    Raise ``ValueError`` when the value is not a string or when a name is no known
+    OKP method.
+    """
+    if isinstance(method, str):
+        names = [method]
+    elif isinstance(method, list) and method and all(isinstance(m, str) for m in method):
+        names = list(method)
+    else:
+        raise ValueError("kcat_sources.okp.method must be a string")
+    unknown = list(dict.fromkeys(m for m in names if m not in OKP_METHODS))
+    if unknown:
+        raise ValueError(f"Unknown OKP method {', '.join(unknown)} in [kcat_sources.okp] method; "
+                         f"supported: {', '.join(OKP_METHODS)}")
+    return names
+
+
+def okp_method_of_file(name: str) -> str:
+    """The OKP method whose source file is ``name``, e.g. ``KinForm-H`` for ``okp_kinform_h``."""
+    for method in OKP_METHODS:
+        if okp_file(method) == name:
+            return method
+    raise ValueError(
+        f"{name} is not the file of a known OKP method; the files are "
+        f"{', '.join(okp_file(m) for m in OKP_METHODS)}."
+    )
+
 
 def ec_rxn_keys(model: "EcModel") -> tuple[list[str], list[str]]:
     """Build-independent keys of the ``model.ec`` reactions.
@@ -247,7 +297,7 @@ def save_kcat_source(
         The ecModel the kcat list refers to.
     kcat_list
         A kcat list as returned by the ``kcats_from_*`` functions,
-        ``fuzzy_kcat_matching``, ``read_dlkcat_output`` or ``merge_kcats``:
+        ``fuzzy_kcat_matching``, ``kcats_from_dlkcat`` or ``merge_kcats``:
         columns ``rxn_id`` and ``kcat``, optionally ``substrates``,
         ``eccode``, ``wildcard_level``, ``origin``, ``source``,
         ``log10_sd`` and ``detail`` (further ``key=value`` pairs for the

@@ -1,6 +1,6 @@
 """The BRENDA files of geckopy, from a CompMetEng/toolbox-assets release.
 
-geckopy does not ship BRENDA data. The files of release ``brenda-2026.1-1``
+geckopy does not include BRENDA data. The files of release ``brenda-2026.1-1``
 (BRENDA 2026.1, CC BY 4.0) are downloaded on first use, checked against
 their SHA-256 checksums, decompressed and cached by raven-toolbox
 (``raven_toolbox.data.ensure_data_file``). GECKO reads the same release

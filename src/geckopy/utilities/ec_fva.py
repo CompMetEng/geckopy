@@ -1,8 +1,11 @@
 """Flux variability analysis (FVA) on an ecModel.
 
-Standard FVA asks, for each reaction in a model, what's the
-smallest and largest flux that reaction can carry while keeping
-the model feasible at its current objective? The output is a
+FVA gives, for each reaction in a model, the smallest and largest
+flux that reaction can carry within the bounds of the model. The
+current objective is not kept: as in GECKO's ``ecFVA``, every
+objective coefficient is set to 0 and each LP optimises only the
+reaction scanned, so a growth rate or other flux to hold must be set
+with its bounds before the call. The output is a
 ``(min_flux, max_flux)`` pair per reaction, useful for finding
 reactions whose flux is tightly constrained vs reactions with a
 lot of slack.
@@ -19,7 +22,7 @@ This function does the same thing on an ecModel, with two twists:
   ecModels this matters — yeast-GEM has ~4000 conv reactions,
   each needing two LP solves, so a serial run can be slow.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/ecFVA.m.
+Ported from GECKO MATLAB: src/flux_analysis/ecFVA.m.
 """
 from __future__ import annotations
 
@@ -31,7 +34,7 @@ import numpy as np
 import pandas as pd
 from cobra.util import ProcessPool
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import canonicalize_rxn_id
 
 try:
@@ -54,7 +57,7 @@ _WORKER_MODEL: "EcModel | None" = None
 def _init_worker(model: "EcModel") -> None:
     """Pool initializer: store one EcModel copy per worker process.
 
-    ``model`` arrives already deserialised -- ``ProcessPool`` handles
+    ``model`` arrives already deserialised -- ``ProcessPool`` does the
     serialisation itself, including a Windows-specific performance
     workaround (opencobra/cobrapy#997), so it's passed as-is rather than
     pre-pickled.
@@ -103,7 +106,7 @@ def ec_fva(
     variant across all reactions' solutions and summing.
 
     Ported from GECKO MATLAB:
-    src/geckomat/utilities/ecFVA.m.
+    src/flux_analysis/ecFVA.m.
 
     Parameters
     ----------
@@ -167,7 +170,7 @@ def ec_fva(
         # Parallel path via cobra.util.ProcessPool -- the same primitive
         # cobrapy's own flux_variability_analysis/single_reaction_deletion
         # use for "repeated FBA on slightly-perturbed model copies, in
-        # parallel". It handles serialising ec_model to each worker
+        # parallel". It serialises ec_model for each worker
         # (including the Windows-specific performance workaround from
         # opencobra/cobrapy#997) and tears the pool down gracefully
         # (close()+join(), not an abrupt terminate()) on exit.

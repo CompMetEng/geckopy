@@ -1,7 +1,7 @@
 """Fuzzy-match each ec reaction's EC + substrates against BRENDA kcat data.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+src/gather_kcats/fuzzyKcatMatching.m.
 
 This subpackage is split into four files by concern:
 
@@ -87,8 +87,11 @@ def fuzzy_kcat_matching(
     """Match each ec reaction to BRENDA kcat data with progressive
     relaxation of EC, substrate, and organism specificity.
 
+    Low-level: ``kcats_from_brenda`` runs this function; call it directly
+    only to inspect or change the BRENDA matches by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+    src/gather_kcats/fuzzyKcatMatching.m.
 
     For each selected reaction, the EC string in
     ``model.ec.eccodes[i]`` is split on ``;`` into one or more EC
@@ -108,7 +111,7 @@ def fuzzy_kcat_matching(
        * any organism + SA (output origin 6)
 
        When the EC has any wildcard, substrate-matching levels are
-       skipped (the substrate field of an EC carries the catalytic
+       skipped (the substrate field of an EC holds the catalytic
        specificity that wildcards already discard).
 
     Across the multiple EC tokens of one reaction, the best match is
@@ -118,14 +121,14 @@ def fuzzy_kcat_matching(
 
     The model's organism is read from
     ``model.adapter.params.org_name``. When BRENDA has no exact
-    organism match, ``phyl_dist`` is used to pick the BRENDA row(s)
+    organism match, ``phyl_dist`` is used to select the BRENDA row(s)
     for the phylogenetically closest organism(s) (with genus fallback
     for organisms missing from KEGG).
 
     The six levels are tried in the fixed order listed above, not in
     order of output rank: org + SA (origin 5) is tried before any
     organism + any substrate + KCAT (origin 4), so when both would
-    match, org + SA wins even though origin 4 would otherwise be
+    match, org + SA is kept even though origin 4 would otherwise be
     considered the better rank.
 
     Match statistics (counts per origin and per wildcard level) are
@@ -153,15 +156,15 @@ def fuzzy_kcat_matching(
         How to collapse the BRENDA rows matched at a search level to one
         kcat: ``"max"`` (the highest reported turnover) or ``"median"``
         (more robust to assay outliers / engineered mutants). ``None``
-        (default) reads the value from
-        ``model.adapter.params.kcat_aggregate_brenda``, which itself
-        defaults to ``"max"``.
+        (default) reads ``[kcat_sources.brenda] aggregation`` of the adapter
+        as the kcat assignment resolves it: median for the default preset
+        ``brenda_ec_tree``, max for ``gecko_classic``.
 
-        The choice drives both aggregation layers consistently: it picks
+        The choice sets both aggregation layers consistently: it selects
         the matching snapshot view (``brenda.kcat_for(aggregate)`` /
         ``brenda.sa_for(aggregate)``) and applies the same reduction
         across whichever rows survive the EC + organism + substrate
-        gates. See ``docs/kcat_aggregation.md`` for the empirical
+        gates. See https://gecko-docs.readthedocs.io/en/latest/guide/kcat-sources.html for the empirical
         rationale.
     adapter
         Model adapter for ``org_name`` and the aggregation default
@@ -196,7 +199,9 @@ def fuzzy_kcat_matching(
         )
 
     if aggregate is None:
-        aggregate = adapter.params.kcat_aggregate_brenda
+        from ..kcat_assignment import brenda_aggregation
+
+        aggregate = brenda_aggregation(adapter)
     organism_name = (adapter.params.org_name or "").strip()
 
     n = model.ec.n_rxns
@@ -221,7 +226,7 @@ def fuzzy_kcat_matching(
         return _empty_result_df()
 
     # The snapshot stores both max and median aggregations per
-    # (ec, substrate, organism) triple; pick the view that matches the
+    # (ec, substrate, organism) triple; select the view that matches the
     # requested per-query aggregation so both layers are consistent.
     brenda_kcat = brenda.kcat_for(aggregate)
     brenda_sa = brenda.sa_for(aggregate)

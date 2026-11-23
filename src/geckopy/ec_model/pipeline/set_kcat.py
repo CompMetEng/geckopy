@@ -1,6 +1,6 @@
 """Set kcat values for individual reactions, with optional auto-apply.
 
-Ported from GECKO MATLAB: src/geckomat/change_model/setKcatForReactions.m.
+Ported from GECKO MATLAB: src/change_model/setKcatForReactions.m.
 """
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 
 _EXP_SUFFIX_PATTERN = re.compile(r"_EXP_\d+$")
-_SOURCE_TAG = "setKcatForReactions"
 
 
 def set_kcat_for_reactions(
@@ -35,7 +34,7 @@ def set_kcat_for_reactions(
     - Any other ID matches every ec.rxns entry whose ID, after removing a
       trailing ``_EXP_<n>``, equals it. So in a full model ``"R2"``
       matches ``R2``, ``R2_EXP_1`` and ``R2_EXP_2``. In a gecko-light
-      model the ec.rxns IDs carry a ``###_`` prefix (``001_R2``), which
+      model the ec.rxns IDs have a ``###_`` prefix (``001_R2``), which
       is part of the ID: ``"R2"`` matches nothing there and
       ``"001_R2"`` matches that one row.
     - An ID that matches nothing is ignored.
@@ -57,10 +56,8 @@ def set_kcat_for_reactions(
     passing the suffixed reaction IDs explicitly when the mapping
     matters, so intent doesn't depend on ``ec.rxns``'s row order.
 
-    ``ec.source`` is set to ``"setKcatForReactions"`` for every
-    reaction changed by this call, matching MATLAB's ``ec.source``
-    label (its own docstring says ``'from setKcatForReactions'``, but
-    the actual assignment writes the bare function name).
+    ``ec.source`` is set to ``"manual"`` for every reaction changed by
+    this call, which drops any tuning status the source had.
 
     Parameters
     ----------
@@ -142,9 +139,12 @@ def set_kcat_for_reactions(
     for indices in matches_per_input:
         flat_indices.extend(indices)
 
+    # Imported here because gather_kcats imports this module.
+    from ...gather_kcats.kcat_source_format import format_kcat_source
+    source = format_kcat_source("manual")
     for idx, value in zip(flat_indices, kcat_per_index):
         model.ec.kcat[idx] = value
-        model.ec.source[idx] = _SOURCE_TAG
+        model.ec.source[idx] = source
 
     updated_ids = [ec_rxns[i] for i in flat_indices]
 

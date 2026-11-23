@@ -2,7 +2,7 @@
 
 Given an EC token (possibly with wildcards), a list of substrates,
 and the BRENDA kcat/SA tables, these helpers find candidate rows,
-filter them, pick a kcat, and (for the iterative version) escalate
+filter them, select a kcat, and (for the iterative version) escalate
 wildcards on misses.
 
 The six MATLAB search levels (org+subs+kcat, any+subs+kcat,
@@ -10,7 +10,7 @@ org+!subs+kcat, org+SA, any+!subs+kcat, any+SA) are tried in the
 MATLAB-compat order. See the orchestrator's docstring for the
 full background.
 
-Ported from GECKO MATLAB: src/geckomat/gather_kcats/fuzzyKcatMatching.m.
+Ported from GECKO MATLAB: src/gather_kcats/fuzzyKcatMatching.m.
 """
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 # above this are clipped, matching MATLAB.
 DIFFUSION_LIMIT = 1e7
 
-# "No match" wildcard count; a large value that never wins
-# min-comparisons against real wildcard counts.
+# "No match" wildcard count; a large value that is never the smaller one
+# in comparisons with real wildcard counts.
 NO_MATCH_WC = 1000
 
 
@@ -41,9 +41,7 @@ NO_MATCH_WC = 1000
 #   1: org+subs+kcat   2: any+subs+kcat   3: org+!subs+kcat
 #   4: any+!subs+kcat  5: org+SA          6: any+SA
 # but the SEARCH order tries org-SA (output 5) BEFORE any-no-subs-kcat
-# (output 4), matching MATLAB exactly -- see "Fix the search-order/
-# output-ranking inconsistency in fuzzyKcatMatching" in
-# docs/future_improvements.md.
+# (output 4), matching MATLAB exactly.
 SEARCH_LEVELS: list[tuple[bool, bool, bool, int]] = [
     (True,  True,  False, 1),
     (False, True,  False, 2),
@@ -125,7 +123,7 @@ def _aggregate_kcats(kcats: np.ndarray, how: str) -> float:
         return float(np.median(kcats))
     if how == "max":
         return float(np.max(kcats))
-    raise ValueError(f"aggregate must be 'max' or 'median', got {how!r}")
+    raise ValueError("aggregation must be max or median")
 
 
 def match_kcat(
@@ -151,7 +149,7 @@ def match_kcat(
     collapsed to one value.
 
     Returns ``(kcat_in_1_per_s, num_matched_rows)``, where ``kcat`` is
-    the value picked by ``aggregate``. ``num_matched == 0`` means no
+    the value selected by ``aggregate``. ``num_matched == 0`` means no
     rows survived the filters.
     """
     rows = find_ec_rows(ec_token, ec_indices)

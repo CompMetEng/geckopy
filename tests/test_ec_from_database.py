@@ -446,3 +446,38 @@ def test_no_kegg_arg_preserves_original_behaviour(tmp_path):
     uniprot = _uniprot([])
     fill_eccodes_from_database(model, uniprot)
     assert model.ec.eccodes == [""]
+
+
+# --------------------------------------------------------------------------- #
+# Gene cells with several names
+# --------------------------------------------------------------------------- #
+
+def test_gene_matches_second_name_of_a_gene_cell(tmp_path):
+    from geckopy.databases import load_uniprot_tsv
+
+    tsv = tmp_path / "uniprot.tsv"
+    tsv.write_text(
+        "Entry\tGene Names\tEC number\tMass\tSequence\n"
+        "P1\tg0; g1\t1.1.1.1\t100\tMK\n"
+    )
+    adapter = _minimal_adapter(tmp_path)
+    model = _build_ec_model(adapter, ["r1"], ["g1"], [[0]])
+    fill_eccodes_from_database(model, load_uniprot_tsv(tsv))
+    assert model.ec.eccodes == ["1.1.1.1"]
+
+
+def test_gene_in_two_entries_is_handled_as_with_separate_rows(tmp_path, caplog):
+    from geckopy.databases import load_uniprot_tsv
+
+    tsv = tmp_path / "uniprot.tsv"
+    tsv.write_text(
+        "Entry\tGene Names\tEC number\tMass\tSequence\n"
+        "P1\tg0; g1\t1.1.1.1\t100\tMK\n"
+        "P2\tg1\t2.2.2.2\t200\tMK\n"
+    )
+    adapter = _minimal_adapter(tmp_path)
+    model = _build_ec_model(adapter, ["r1"], ["g1"], [[0]])
+    with caplog.at_level(logging.WARNING):
+        fill_eccodes_from_database(model, load_uniprot_tsv(tsv))
+    assert model.ec.eccodes == ["1.1.1.1"]
+    assert "g1" in caplog.text

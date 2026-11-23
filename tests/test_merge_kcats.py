@@ -1,18 +1,19 @@
-"""Tests for merge_kcats and the deprecated merge_dlkcat_and_fuzzy_kcats."""
+"""Tests for merge_kcats."""
 import pandas as pd
 import pytest
 
-from geckopy.gather_kcats import (
-    merge_dlkcat_and_fuzzy_kcats,
-    merge_kcats,
-    normalize_source,
-)
+from geckopy.gather_kcats import merge_kcats, normalize_source
+from geckopy.gather_kcats.merge_kcats import DATABASE_BOTTOM, DATABASE_TOP
 
-# The wrapper is intentionally deprecated; silence its warning so the
-# legacy-behaviour tests below stay quiet.
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:merge_dlkcat_and_fuzzy_kcats is deprecated:DeprecationWarning"
-)
+
+def _merge_dlkcat_fuzzy(dlkcat_kcats, fuzzy_kcats, **limits):
+    """merge_kcats for a DLKcat list and a fuzzy BRENDA list."""
+    return merge_kcats(
+        fuzzy_kcats,
+        dlkcat_kcats,
+        source_priority=[DATABASE_TOP, "dlkcat", DATABASE_BOTTOM],
+        **limits,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -88,7 +89,7 @@ def _dlkcat_df(rows: list[dict]) -> pd.DataFrame:
 @pytest.mark.parametrize("top", [0, 7, -1])
 def test_top_origin_out_of_range_raises(top):
     with pytest.raises(ValueError, match="top_origin_limit"):
-        merge_dlkcat_and_fuzzy_kcats(
+        _merge_dlkcat_fuzzy(
             _dlkcat_df([]), _fuzzy_df([]), top_origin_limit=top,
         )
 
@@ -96,7 +97,7 @@ def test_top_origin_out_of_range_raises(top):
 @pytest.mark.parametrize("bot", [0, 7])
 def test_bottom_origin_out_of_range_raises(bot):
     with pytest.raises(ValueError, match="bottom_origin_limit"):
-        merge_dlkcat_and_fuzzy_kcats(
+        _merge_dlkcat_fuzzy(
             _dlkcat_df([]), _fuzzy_df([]), bottom_origin_limit=bot,
         )
 
@@ -104,7 +105,7 @@ def test_bottom_origin_out_of_range_raises(bot):
 @pytest.mark.parametrize("wc", [-1, 4])
 def test_wildcard_limit_out_of_range_raises(wc):
     with pytest.raises(ValueError, match="wildcard_limit"):
-        merge_dlkcat_and_fuzzy_kcats(
+        _merge_dlkcat_fuzzy(
             _dlkcat_df([]), _fuzzy_df([]), wildcard_limit=wc,
         )
 
@@ -112,7 +113,7 @@ def test_wildcard_limit_out_of_range_raises(wc):
 def test_missing_required_column_raises():
     bad_df = pd.DataFrame({"rxn_id": ["r1"]})  # missing most columns
     with pytest.raises(ValueError, match="missing required"):
-        merge_dlkcat_and_fuzzy_kcats(bad_df, _fuzzy_df([]))
+        _merge_dlkcat_fuzzy(bad_df, _fuzzy_df([]))
 
 
 # --------------------------------------------------------------------------- #
@@ -120,13 +121,13 @@ def test_missing_required_column_raises():
 # --------------------------------------------------------------------------- #
 
 def test_both_empty_returns_empty():
-    out = merge_dlkcat_and_fuzzy_kcats(_dlkcat_df([]), _fuzzy_df([]))
+    out = _merge_dlkcat_fuzzy(_dlkcat_df([]), _fuzzy_df([]))
     assert out.empty
     assert list(out.columns) == _CANONICAL_COLUMNS
 
 
 def test_only_dlkcat_input():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 5.0), _dlkcat_row("r2", 7.0)]),
         _fuzzy_df([]),
     )
@@ -135,7 +136,7 @@ def test_only_dlkcat_input():
 
 
 def test_only_fuzzy_input():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=1)]),
     )
@@ -148,7 +149,7 @@ def test_only_fuzzy_input():
 # --------------------------------------------------------------------------- #
 
 def test_fuzzy_prio1_wins_when_reaction_also_in_dlkcat():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=1)]),
         top_origin_limit=3,
@@ -167,7 +168,7 @@ def test_fuzzy_prio1_uses_default_top_origin_limit_4():
     produce a wildly wrong outlier that would otherwise silently
     outrank a good prediction -- see brenda_loader's
     filter_outlier_kcats, which this default is meant to pair with."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=6)]),
     )
@@ -178,7 +179,7 @@ def test_fuzzy_prio1_uses_default_top_origin_limit_4():
 def test_fuzzy_prio1_origin_6_qualifies_when_limit_explicitly_widened():
     """The pre-4-default behaviour is still reachable by passing
     top_origin_limit=6 explicitly."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=6)]),
         top_origin_limit=6,
@@ -189,7 +190,7 @@ def test_fuzzy_prio1_origin_6_qualifies_when_limit_explicitly_widened():
 
 def test_fuzzy_with_wildcard_does_not_qualify_for_prio1():
     """Wildcard fuzzy is NOT prio1; DLKcat wins."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=1, origin=1)]),
         top_origin_limit=3,
@@ -208,7 +209,7 @@ def test_dlkcat_prio2_when_fuzzy_origin_too_high():
     """Fuzzy origin > top_origin_limit -> not prio1.
     With bottom_origin_limit < fuzzy origin -> not prio3 either.
     So DLKcat wins (prio2)."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=6)]),
         top_origin_limit=3,
@@ -219,7 +220,7 @@ def test_dlkcat_prio2_when_fuzzy_origin_too_high():
 
 
 def test_dlkcat_prio2_when_fuzzy_missing():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r2", 5.0, wildcard_level=0, origin=1)]),
     )
@@ -234,7 +235,7 @@ def test_dlkcat_prio2_when_fuzzy_missing():
 def test_fuzzy_prio3_via_origin_branch():
     """top < origin <= bottom, wc = 0 -> prio3.
     DLKcat does NOT cover r1, so fuzzy prio3 wins."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=5)]),
         top_origin_limit=3,
@@ -247,7 +248,7 @@ def test_fuzzy_prio3_via_origin_branch():
 
 def test_fuzzy_prio3_via_wildcard_branch():
     """0 < wc <= wildcard_limit AND origin <= bottom -> prio3."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=2, origin=3)]),
         top_origin_limit=3,
@@ -259,7 +260,7 @@ def test_fuzzy_prio3_via_wildcard_branch():
 
 
 def test_fuzzy_prio3_excluded_when_wildcard_too_high():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=3, origin=1)]),
         wildcard_limit=2,
@@ -268,7 +269,7 @@ def test_fuzzy_prio3_excluded_when_wildcard_too_high():
 
 
 def test_fuzzy_prio3_excluded_when_origin_above_bottom():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=1, origin=6)]),
         bottom_origin_limit=3,
@@ -279,7 +280,7 @@ def test_fuzzy_prio3_excluded_when_origin_above_bottom():
 def test_dlkcat_prio2_wins_over_fuzzy_prio3():
     """When the same reaction has both a prio3 fuzzy row AND a DLKcat row,
     DLKcat (prio2) wins."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=1, origin=3)]),
         top_origin_limit=3,
@@ -297,7 +298,7 @@ def test_dlkcat_prio2_wins_over_fuzzy_prio3():
 def test_fuzzy_row_with_na_origin_excluded_from_all_priorities():
     """A fuzzy row that didn't match anything (NaN origin / NaN wildcard)
     must be excluded from prio1 and prio3 alike."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 0.0, wildcard_level=pd.NA, origin=pd.NA)]),
     )
@@ -310,7 +311,7 @@ def test_fuzzy_row_with_na_origin_excluded_from_all_priorities():
 # --------------------------------------------------------------------------- #
 
 def test_output_schema_matches_inputs():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r2", 5.0, wildcard_level=0, origin=1)]),
     )
@@ -318,7 +319,7 @@ def test_output_schema_matches_inputs():
 
 
 def test_fuzzy_rows_come_before_dlkcat_rows():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r1", 100.0)]),
         _fuzzy_df([_fuzzy_row("r2", 5.0, wildcard_level=0, origin=1)]),
     )
@@ -334,7 +335,7 @@ def test_fuzzy_rows_come_before_dlkcat_rows():
 # --------------------------------------------------------------------------- #
 
 def test_multiple_dlkcat_rows_per_reaction_all_kept_when_prio2():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([
             _dlkcat_row("r1", 100.0),
             _dlkcat_row("r1", 200.0, gene="g2"),
@@ -346,7 +347,7 @@ def test_multiple_dlkcat_rows_per_reaction_all_kept_when_prio2():
 
 
 def test_multiple_fuzzy_rows_per_reaction_all_kept_when_prio1():
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([]),
         _fuzzy_df([
             _fuzzy_row("r1", 5.0, wildcard_level=0, origin=1, eccode="1.1.1.1"),
@@ -361,7 +362,7 @@ def test_multiple_fuzzy_rows_per_reaction_all_kept_when_prio1():
 def test_fuzzy_prio1_row_blocks_dlkcat_rows_for_same_reaction():
     """One fuzzy prio1 row for r1 makes ALL DLKcat rows for r1
     drop out, even though there are multiple."""
-    out = merge_dlkcat_and_fuzzy_kcats(
+    out = _merge_dlkcat_fuzzy(
         _dlkcat_df([
             _dlkcat_row("r1", 100.0),
             _dlkcat_row("r1", 200.0, gene="g2"),
@@ -386,7 +387,7 @@ def test_output_can_feed_apply_kcat_list(tmp_path):
     from geckopy.ec_model.ec_data import EcData
     from geckopy.gather_kcats import apply_kcat_list
 
-    merged = merge_dlkcat_and_fuzzy_kcats(
+    merged = _merge_dlkcat_fuzzy(
         _dlkcat_df([_dlkcat_row("r2", 100.0)]),
         _fuzzy_df([_fuzzy_row("r1", 5.0, wildcard_level=0, origin=1)]),
     )
@@ -419,7 +420,7 @@ def _okp_row(
     eccode: str = "",
     gene: str = "g1",
 ) -> dict:
-    """A row as produced by parse_okp_output: per-row provenance source
+    """A row as produced by _parse_okp_output: per-row provenance source
     tagged with the OKP- pipeline-stage prefix, NA wildcard/origin."""
     return {
         "rxn_id": rxn_id,

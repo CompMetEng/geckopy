@@ -86,6 +86,16 @@ def test_n_sigma_steps_zero_raises(tmp_path):
         fit_sigma(model, n_sigma_steps=0)
 
 
+@pytest.mark.parametrize("growth_rate", [0.0, -0.1, float("nan")])
+def test_growth_rate_not_above_zero_raises_before_changing_the_model(tmp_path, growth_rate):
+    adapter = _adapter(tmp_path)
+    model = _build_pool_only_model(adapter)
+    bounds = [r.bounds for r in model.reactions]
+    with pytest.raises(ValueError, match="above 0"):
+        fit_sigma(model, growth_rate=growth_rate)
+    assert [r.bounds for r in model.reactions] == bounds
+
+
 def test_no_adapter_no_defaults_raises(tmp_path):
     adapter = _adapter(tmp_path)
     model = _build_pool_only_model(adapter)
@@ -234,3 +244,11 @@ def test_default_method_is_the_full_grid(tmp_path):
     result = fit_sigma(model)  # default == grid
     assert result.sigma == pytest.approx(0.01, abs=1e-12)
     assert len(result.sigma_grid) == 100
+
+
+def test_fit_sigma_without_gr_exp_is_an_error(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\np_tot = 1.0\nf = 1.0\n')
+    model = _build_pool_only_model(ModelAdapter.from_folder(tmp_path))
+    with pytest.raises(ValueError, match="gr_exp is not set in model_adapter.toml"):
+        fit_sigma(model)
+    assert fit_sigma(model, growth_rate=10.0).sigma == pytest.approx(0.01, abs=1e-4)

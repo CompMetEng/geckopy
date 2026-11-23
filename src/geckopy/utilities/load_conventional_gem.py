@@ -5,7 +5,7 @@ without any GECKO additions. This is the model that
 ``make_ec_model`` extends into an ecModel.
 
 This helper reads that file from the path set in the adapter
-(``adapter.params.conv_gem``). The extension picks the reader:
+(``adapter.params.conv_gem``). The extension selects the reader:
 ``.yml``/``.yaml`` via raven-toolbox's ``read_yaml_model`` (which,
 unlike cobra's reader, keeps RAVEN fields such as per-reaction
 ``eccodes``), ``.json`` via
@@ -13,7 +13,7 @@ unlike cobra's reader, keeps RAVEN fields such as per-reaction
 anything else via ``read_sbml_model``.
 
 Ported from GECKO MATLAB:
-src/geckomat/utilities/loadConventionalGEM.m.
+src/io/loadConventionalGEM.m.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import cobra
 from raven_toolbox.io import read_yaml_model
 from raven_toolbox.utils.solver import set_raven_tolerance
 
-from ..solver_support import fast_solver_while_building, switch_to_scipy
+from raven_toolbox.utils.solver import fast_solver_while_building, switch_to_scipy
 
 if TYPE_CHECKING:
     from ..adapter import ModelAdapter

@@ -107,3 +107,12 @@ def test_an_unknown_weighting_is_rejected(tmp_path):
     model = _two_routes(_adapter(tmp_path, gr_exp=8.0), {"E1": 2.0, "E2": 2.0})
     with pytest.raises(ValueError, match="weight"):
         relax_enz_concs(model, weight="max")
+
+
+def test_a_missing_gr_exp_is_an_error_naming_the_file_key(tmp_path):
+    (tmp_path / "model_adapter.toml").write_text('conv_gem = "dummy.xml"\norg_name = "test"\nbio_rxn = "biomass"\n')
+    model = _two_routes(ModelAdapter.from_folder(tmp_path), {"E1": 2.0, "E2": 2.0})
+    with pytest.raises(ValueError, match="gr_exp is not set in model_adapter.toml"):
+        relax_enz_concs(model)
+    # An explicit growth rate needs no gr_exp.
+    relax_enz_concs(model, exp_growth=8.0)

@@ -15,7 +15,7 @@ A project lives in a folder containing:
 - ``data/`` — cached databases (UniProt, BRENDA, ComplexPortal,
   proteomics, etc.).
 
-Ported from GECKO MATLAB: src/geckomat/model_adapter/ModelAdapter.m.
+Ported from GECKO MATLAB: src/model_adapter/ModelAdapter.m.
 
 Then:
 
@@ -33,7 +33,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .params import ModelParameters
+from .params import ModelParameters, check_adapter_keys
 
 if TYPE_CHECKING:
     import cobra
@@ -50,7 +50,7 @@ class ModelAdapter:
     Subclass only when a particular organism needs custom logic
     (e.g. an unusual way to identify spontaneous reactions, or a
     bespoke gene-id mapping that the default UniProt-table-driven
-    one can't handle).
+    one does not support).
     """
 
     def __init__(self, params: ModelParameters):
@@ -81,6 +81,8 @@ class ModelAdapter:
 
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
+
+        check_adapter_keys(data, config_path)
 
         # The path field is injected from the folder location, not the TOML,
         # so that the TOML file is location-independent.

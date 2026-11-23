@@ -10,7 +10,7 @@ This only writes the numbers into the data array. To actually
 make the LP respect them, call ``constrain_enz_concs`` next.
 
 Ported from GECKO MATLAB:
-src/geckomat/limit_proteins/fillEnzConcs.m.
+src/limit_proteins/fillEnzConcs.m.
 """
 from __future__ import annotations
 
@@ -40,11 +40,18 @@ def fill_enz_concs(
     ``model.ec.enzymes`` are silently ignored. Enzymes absent from
     ``prot_data`` keep their NaN.
 
+    A NaN entry in ``model.ec.concs`` means that the protein was not
+    measured, and the usage of the enzyme draws from the protein pool. An
+    entry of 0 means that the protein was measured as absent, and
+    ``constrain_enz_concs`` limits the usage of the enzyme to 0.
+    ``load_prot_data`` returns a measured 0 with the option
+    ``zeros_as_measured``, and reads a 0 as NaN otherwise.
+
     For 2-D ``prot_data.abundances`` (multiple conditions /
     samples), ``data_col`` selects which column to use.
 
     Ported from GECKO MATLAB:
-    src/geckomat/limit_proteins/fillEnzConcs.m.
+    src/limit_proteins/fillEnzConcs.m.
 
     Parameters
     ----------

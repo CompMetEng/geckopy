@@ -3,9 +3,9 @@
 After ``make_ec_model`` + ``apply_kcat_constraints``, the model
 often can't reach the experimental growth rate because one or two
 kcat values are unrealistically low (BRENDA's database has many
-small or wrong entries). The right long-term fix is manual
-curation, but as a quick automated workaround
-``sensitivity_tuning`` does the following loop:
+small or wrong entries). ``sensitivity_tuning`` is the standard
+kcat tuning (``cmaes_kcat_tuning`` is the advanced one); it runs the
+following loop:
 
 1. Solve the model.
 2. If we reached the target growth rate, stop.
@@ -20,18 +20,17 @@ rate is ``adapter.params.gr_exp`` (the experimental growth rate
 from the adapter config).
 
 Ported from GECKO MATLAB:
-src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
+src/kcat_tuning/sensitivityTuning.m.
 """
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 
-from ..solver_support import optimize_model
+from raven_toolbox.utils.solver import optimize_model
 from ..ec_model.constants import (
     POOL_ID,
     PROT_PREFIX,
@@ -39,34 +38,24 @@ from ..ec_model.constants import (
 )
 from ..ec_model.pipeline.apply_kcat import apply_kcat_constraints
 from ..ec_model.pipeline.populate_ec import split_light_rxn_id
+from ..gather_kcats.kcat_source_format import format_kcat_source, parse_kcat_source
 from .corrections import Correction, corrections as build_corrections
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ..ec_model.ec_model import EcModel
 
 
 logger = logging.getLogger(__name__)
 
 
-_TUNING_SOURCE = "sensitivityTuning"
+_TUNING_METHOD = "sensitivity"
 # Growth is considered stalled when an iteration improves it by no more
 # than this (absolute, 1/h). Using a tolerance instead of exact equality
 # avoids spinning on sub-numerical-noise increases.
+_TIE_TOL = 1e-9
 _GROWTH_STALL_TOL = 1e-9
-
-
-def _num2str(value: float) -> str:
-    """A scalar as MATLAB's ``num2str`` prints it: integers as such, other
-    values with ``max(floor(log10(abs(x))) + 5, 5)`` significant digits."""
-    value = float(value)
-    if math.isnan(value):
-        return "NaN"
-    if math.isinf(value):
-        return "Inf" if value > 0 else "-Inf"
-    if value == int(value):
-        return str(int(value))
-    digits = max(math.floor(math.log10(abs(value))) + 5, 5)
-    return f"{value:.{digits}g}"
 
 
 @dataclass
@@ -92,6 +81,10 @@ class TunedKcatsResult:
     source
         kcat provenance (``model.ec.source``) of the input model,
         parallel to ``rxns``.
+    evidence
+        With ``evidence=True``, the ``summary`` table of
+        :func:`~geckopy.gather_kcats.kcat_evidence` for the tuned reactions
+        (``None`` otherwise).
     """
 
     rxns: list[str] = field(default_factory=list)
@@ -104,6 +97,7 @@ class TunedKcatsResult:
         default_factory=lambda: np.empty(0, dtype=float)
     )
     source: list[str] = field(default_factory=list)
+    evidence: Optional["pd.DataFrame"] = None
 
     def corrections(
         self,
@@ -118,7 +112,7 @@ class TunedKcatsResult:
         leverage of its own to offer -- every bump was, by
         construction, the bottleneck at the time it was made -- so
         without ``leverage`` rows fall back to ordering by fold change.
-        ``rxn_names`` already carries resolved names, so there is no
+        ``rxn_names`` already contains resolved names, so there is no
         need for ``annotate_from_model`` here.
         """
         return build_corrections(
@@ -137,9 +131,15 @@ def sensitivity_tuning(
     max_iterations: int = 1000,
     bio_rxn: Optional[str] = None,
     verbose: bool = True,
+    evidence: bool = False,
 ) -> TunedKcatsResult:
     """Iteratively bump the most-limiting kcat by ``fold_change`` until
     the model can reach ``desired_growth_rate``.
+
+    This is the standard kcat tuning: it needs one maximum growth rate.
+    :func:`~geckopy.kcat_tuning.evotune.cmaes_kcat_tuning` is the advanced
+    tuning, which fits kcats to maximum growth rates and exchange fluxes,
+    measured in one or more conditions.
 
     Each iteration:
 
@@ -147,24 +147,25 @@ def sensitivity_tuning(
     2. If growth didn't increase since the last iteration, warns and
        breaks (likely a substrate / pool constraint, not a kcat one).
     3. If growth reached the target, returns.
-    4. Otherwise picks the ``usage_prot_*`` reaction with the highest
+    4. Otherwise selects the ``usage_prot_*`` reaction with the highest
        flux (= most-produced enzyme), excluding any whose UniProt ID
        is in ``prot_to_ignore``.
     5. Finds the catalysed reaction consuming the most of that
        enzyme's pseudometabolite and multiplies that reaction's
        ``ec.kcat`` by ``fold_change``. A tuned kcat has no upper limit.
-    6. Annotates ``ec.notes`` with the original kcat (printed as MATLAB's
-       ``num2str`` does) and source, unless the source is already
-       ``"sensitivityTuning"``.
+    6. Extends the tuning status of ``ec.source`` with ``sensitivity``
+       (the origin and detail are kept; the kcat before the first tuning
+       is recorded as ``prior`` unless the source already has one).
     7. Re-applies kcat constraints for that single reaction.
 
-    On a gecko-light model each iteration instead picks the reaction with
+    On a gecko-light model each iteration instead selects the reaction with
     the most flux through the protein pool, multiplies the kcat of all its
     isozyme rows by ``fold_change`` and re-applies the constraint of that
-    reaction; ``ec.notes`` and ``ec.source`` are left as they are.
+    reaction; the tuning status of ``ec.source`` is extended for each of those
+    rows as above.
 
     Ported from GECKO MATLAB:
-    src/geckomat/kcat_sensitivity_analysis/sensitivityTuning.m.
+    src/kcat_tuning/sensitivityTuning.m.
 
     Parameters
     ----------
@@ -173,11 +174,11 @@ def sensitivity_tuning(
         installed and a populated ``ec.kcat``. Mutated in place.
     desired_growth_rate
         Target growth rate. Defaults to
-        ``model.adapter.params.gr_exp``.
+        ``model.adapter.params.gr_exp``; raises ``ValueError`` when neither is set.
     fold_change
         Per-iteration kcat multiplier.
     prot_to_ignore
-        UniProt IDs whose usage rxns are excluded from being picked
+        UniProt IDs whose usage rxns are excluded from being selected
         as the limiting enzyme, matched without regard to case. An ID with
         no usage reaction raises ``ValueError`` on a full model; on a
         gecko-light model it is ignored.
@@ -191,6 +192,11 @@ def sensitivity_tuning(
         neither is available the model's current objective is used.
     verbose
         Whether per-iteration progress is logged at INFO.
+    evidence
+        Add ``TunedKcatsResult.evidence``, the kcats that every source file of
+        the project gives for the tuned reactions next to the tuned kcat (see
+        :func:`~geckopy.gather_kcats.kcat_evidence`). A failure to read the
+        source files is logged as a warning and leaves ``evidence`` empty.
 
     Returns
     -------
@@ -206,18 +212,12 @@ def sensitivity_tuning(
     light = bool(model.ec.gecko_light)
 
     if desired_growth_rate is None:
-        from ..adapter import resolve_adapter
-        adapter = resolve_adapter(
+        from ..adapter import resolve_gr_exp
+        desired_growth_rate = resolve_gr_exp(
             model,
             purpose="sensitivity_tuning needs `desired_growth_rate` "
-            "(pass it explicitly, or rely on params.gr_exp from the adapter)",
+            "(pass it explicitly, or set gr_exp in the adapter)",
         )
-        if adapter.params.gr_exp is None:
-            raise ValueError(
-                "desired_growth_rate not provided and "
-                "model.adapter.params.gr_exp is unset."
-            )
-        desired_growth_rate = float(adapter.params.gr_exp)
 
     if prot_to_ignore is None:
         prot_to_ignore = []
@@ -297,23 +297,22 @@ def sensitivity_tuning(
                 break
             ec_rows = step
             for i in ec_rows:
+                _mark_tuned(model, i)
                 model.ec.kcat[i] = float(model.ec.kcat[i]) * fold_change
             apply_kcat_constraints(model, update_rxns=[model.ec.rxns[ec_rows[0]]])
             if ec_rows[0] not in tuned_ec_indices:
                 tuned_ec_indices.append(ec_rows[0])
             continue
 
-        # Pick usage rxn with max flux (= most produced enzyme),
-        # excluding any in prot_to_ignore.
+        # Pick the usage rxn with the largest flux (the most produced enzyme),
+        # excluding any in prot_to_ignore. Ties go to the first rxn of the model.
+        usage_ids = [uid for uid in usage_rxn_ids if uid not in ignore_usage_ids]
+        usage_fluxes = [float(sol.fluxes.get(uid, 0.0)) for uid in usage_ids]
         best_usage_id: Optional[str] = None
         best_usage_flux = -np.inf
-        for uid in usage_rxn_ids:
-            if uid in ignore_usage_ids:
-                continue
-            f = float(sol.fluxes.get(uid, 0.0))
-            if f > best_usage_flux:
-                best_usage_flux = f
-                best_usage_id = uid
+        if usage_ids:
+            k = _first_tied(usage_fluxes, largest=True)
+            best_usage_id, best_usage_flux = usage_ids[k], usage_fluxes[k]
 
         if best_usage_id is None or best_usage_flux <= 0:
             logger.warning(
@@ -336,18 +335,14 @@ def sensitivity_tuning(
 
         # Find the catalysed rxn consuming the most of this protein.
         # Consumption: S[prot, rxn] < 0 with positive flux -> negative product.
-        # We pick the rxn with the most-negative S[prot] * flux.
+        # The rxn with the most-negative S[prot] * flux is selected.
+        # Ties go to the first rxn of the model.
+        position = {r.id: i for i, r in enumerate(model.reactions)}
+        consumers = sorted((r for r in prot_met.reactions if r.id != best_usage_id), key=lambda r: position[r.id])
+        values = [r.metabolites[prot_met] * float(sol.fluxes.get(r.id, 0.0)) for r in consumers]
         target_rxn = None
-        target_value = 0.0
-        for rxn in prot_met.reactions:
-            if rxn.id == best_usage_id:
-                continue
-            coeff = rxn.metabolites[prot_met]
-            flux = float(sol.fluxes.get(rxn.id, 0.0))
-            value = coeff * flux
-            if value < target_value:
-                target_value = value
-                target_rxn = rxn
+        if values and min(values) < 0:
+            target_rxn = consumers[_first_tied(values, largest=False)]
 
         if target_rxn is None:
             logger.warning(
@@ -366,20 +361,9 @@ def sensitivity_tuning(
             break
         ec_idx = model.ec.rxns.index(target_rxn.id)
 
-        # Record the pre-tune kcat/source the first time this reaction is
-        # tuned, and annotate notes (idempotently).
-        if model.ec.source[ec_idx] != _TUNING_SOURCE:
-            old_note = model.ec.notes[ec_idx]
-            new_note = (
-                f"preTuneKcat={_num2str(model.ec.kcat[ec_idx])} | "
-                f"source:{model.ec.source[ec_idx]}"
-            )
-            model.ec.notes[ec_idx] = (
-                f"{old_note}; {new_note}" if old_note else new_note
-            )
-
-        model.ec.kcat[ec_idx] = float(model.ec.kcat[ec_idx]) * fold_change
-        model.ec.source[ec_idx] = _TUNING_SOURCE
+        kcat_before = float(model.ec.kcat[ec_idx])
+        _mark_tuned(model, ec_idx)
+        model.ec.kcat[ec_idx] = kcat_before * fold_change
         apply_kcat_constraints(model, update_rxns=[target_rxn.id])
 
         if ec_idx not in tuned_ec_indices:
@@ -391,7 +375,39 @@ def sensitivity_tuning(
             max_iterations, desired_growth_rate,
         )
 
-    return _build_result(model, tuned_ec_indices, input_kcat, input_source)
+    result = _build_result(model, tuned_ec_indices, input_kcat, input_source)
+    if evidence:
+        from ..gather_kcats.evidence import kcat_evidence
+
+        try:
+            result.evidence = kcat_evidence(model, tuned=result).summary
+        except Exception as err:  # the tuning is done; the evidence is extra
+            logger.warning("The evidence of the tuned kcats could not be read: %s", err)
+    return result
+
+
+def _first_tied(values: list[float], *, largest: bool) -> int:
+    """Index of the first value that ties with the extreme value, that is,
+    that differs from it by less than a relative ``_TIE_TOL``."""
+    arr = np.asarray(values, dtype=float)
+    best = arr.max() if largest else arr.min()
+    tol = _TIE_TOL * max(1.0, abs(best))
+    hits = np.flatnonzero(arr >= best - tol if largest else arr <= best + tol)
+    return int(hits[0])
+
+
+def _mark_tuned(model: "EcModel", ec_idx: int) -> None:
+    """Add the tuning method to the source of one ec row.
+
+    The kcat before the first tuning is the prior. Called before the kcat
+    changes.
+    """
+    previous = parse_kcat_source(model.ec.source[ec_idx])
+    model.ec.source[ec_idx] = format_kcat_source(
+        previous.origin, previous.detail,
+        dict.fromkeys((*previous.tuned, _TUNING_METHOD)),
+        previous.prior if previous.prior is not None else float(model.ec.kcat[ec_idx]),
+    )
 
 
 def _usage_ids_to_ignore(
@@ -435,17 +451,11 @@ def _light_step(
     """The ec rows of the reaction with the most flux through the protein
     pool (gecko-light), or ``None`` when no reaction draws on it."""
     pool = model.metabolites.get_by_id(POOL_ID)
-    best_id: Optional[str] = None
-    best_value = 0.0
-    for rxn in model.reactions:
-        if rxn.id in ignore_rxn_ids or pool not in rxn.metabolites:
-            continue
-        value = rxn.metabolites[pool] * float(sol.fluxes.get(rxn.id, 0.0))
-        if value < best_value:
-            best_value = value
-            best_id = rxn.id
-    if best_id is None:
+    candidates = [r for r in model.reactions if r.id not in ignore_rxn_ids and pool in r.metabolites]
+    values = [r.metabolites[pool] * float(sol.fluxes.get(r.id, 0.0)) for r in candidates]
+    if not values or min(values) >= 0:
         return None
+    best_id = candidates[_first_tied(values, largest=False)].id
     rows = [
         i for i, ec_id in enumerate(model.ec.rxns)
         if split_light_rxn_id(ec_id)[1] == best_id

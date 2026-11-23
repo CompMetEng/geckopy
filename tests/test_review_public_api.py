@@ -51,3 +51,16 @@ def test_review_recognises_custom_and_standard_without_regard_to_case():
     by_rxn = {f.rxn_id: f.checks for f in found}
     assert "custom-duplicate" in by_rxn["R1"]
     assert "standard-fallback" in by_rxn["R2"]
+
+
+def test_review_reads_the_origin_of_a_source_with_detail_and_tuning_status():
+    stats = {"1.1.1.1": geckopy.EcStats(n_kcat=1, kcat_max=2.0, kcat_median=2.0, values=frozenset({2.0}))}
+    found = geckopy.review_assignment(
+        ["R1", "R2", "R3"], [2.0, 20000.0, 2.0],
+        ["custom | tuned=cmaes (prior=1)", "standard | tuned=sensitivity (prior=1)", "customary"],
+        ["1.1.1.1", "", "1.1.1.1"], ec_stats=stats, include=("standard-fallback",),
+    )
+    by_rxn = {f.rxn_id: f.checks for f in found}
+    assert "custom-duplicate" in by_rxn["R1"]
+    assert "standard-fallback" in by_rxn["R2"]
+    assert "R3" not in by_rxn

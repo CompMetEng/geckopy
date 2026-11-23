@@ -17,7 +17,7 @@ geckopy keeps three application-level concerns:
 3. **Empty-ecModel guard + provenance injection** — fast-fail when the
    caller forgot to run ``make_ec_model``; write a small ``metaData``
    block (date, ecModel format, geckopy release, description) so saved
-   files carry provenance information.
+   files contain provenance information.
 
 The provenance/description metadata is written only into the saved
 YAML; the in-memory model's ``notes`` are mutated only transiently for
@@ -25,7 +25,7 @@ the duration of the write (provenance stashed there so raven-toolbox's
 writer emits it) and are restored afterwards, leaving the caller's
 model unchanged.
 
-Ported from GECKO MATLAB: src/geckomat/utilities/saveEcModel.m.
+Ported from GECKO MATLAB: src/io/saveEcModel.m.
 """
 from __future__ import annotations
 

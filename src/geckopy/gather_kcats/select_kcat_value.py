@@ -1,16 +1,16 @@
 """Pick one kcat per reaction from a kcat list and write to model.ec.kcat.
 
 Ported from GECKO MATLAB:
-src/geckomat/gather_kcats/selectKcatValue.m.
+src/deprecated/selectKcatValue.m.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 import numpy as np
 import pandas as pd
 
-from .merge_kcats import normalize_source
+from .kcat_source_format import format_kcat_source
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -20,44 +20,34 @@ _CRITERIA = ("max", "min", "median", "mean")
 _OverwriteMode = Union[bool, Literal["if_higher"]]
 
 
-def format_kcat_source(
-    source: object,
-    wildcard_level: object = None,
-    origin: object = None,
-) -> str:
-    """Build the provenance string written to ``model.ec.source``.
+def _fuzzy_source(source: object, wildcard_level: object, origin: object) -> str:
+    """Provenance string of one kcat-list row.
 
-    The result is lowercase ``snake_case``: the first token is the
-    source (``brenda``, ``sabio_rk``, ``catapro``, ``dlkcat``, ...), and
-    for a *fuzzy* BRENDA match the bracketed detail records how the
-    value was obtained -- its wildcard level and origin, e.g.
-    ``"brenda (wc=0, origin=1)"``. Rows without fuzzy metadata (an exact
-    OKP database hit or a prediction) render as the bare token, so the
-    bracket's presence and the wildcard/origin numbers give downstream
-    consumers (notably evotune kcat tuning) a quick read on how
-    uncertain the kcat is.
+    The string holds the source and, for a fuzzy BRENDA match, the wildcard
+    level and origin of the match as the detail pairs ``wc`` and ``origin``.
     """
-    token = normalize_source(source)
-    wc_ok = wildcard_level is not None and pd.notna(wildcard_level)
-    origin_ok = origin is not None and pd.notna(origin)
-    if wc_ok and origin_ok:
-        return f"{token} (wc={int(wildcard_level)}, origin={int(origin)})"
-    if wc_ok:
-        return f"{token} (wc={int(wildcard_level)})"
-    return token
+    detail = {}
+    if wildcard_level is not None and pd.notna(wildcard_level):
+        detail["wc"] = int(wildcard_level)
+        if origin is not None and pd.notna(origin):
+            detail["origin"] = int(origin)
+    return format_kcat_source(source, detail)
 
 
 def apply_kcat_list(
     model: "EcModel",
     kcat_list: pd.DataFrame,
     *,
-    criteria: Optional[Literal["max", "min", "median", "mean"]] = None,
+    criteria: Literal["max", "min", "median", "mean"] = "max",
     overwrite: _OverwriteMode = True,
 ) -> list[str]:
     """Choose one kcat value per reaction and write it to ``model.ec.kcat``.
 
+    Low-level: ``collect_kcats`` and ``assign_kcats`` run this function; call
+    it directly only to change kcats by hand.
+
     Ported from GECKO MATLAB:
-    src/geckomat/gather_kcats/selectKcatValue.m.
+    src/gather_kcats/assignKcatValues.m.
 
     For each reaction with one or more entries in ``kcat_list``,
     aggregate the candidate kcats per ``criteria`` (``"max"`` is the
@@ -66,7 +56,7 @@ def apply_kcat_list(
     The contributing entry's provenance is recorded in
     ``model.ec.source`` via :func:`format_kcat_source`: a lowercase
     string whose first token is the source and whose bracketed detail,
-    for a fuzzy BRENDA match, carries the wildcard level and origin
+    for a fuzzy BRENDA match, contains the wildcard level and origin
     (e.g. ``"brenda (wc=0, origin=1)"``). If the list has no
     ``wildcard_level`` / ``origin`` columns the source is the bare
     token.
@@ -91,10 +81,7 @@ def apply_kcat_list(
         ``criteria``.
     criteria
         How to aggregate multiple candidates per reaction:
-        ``"max"``, ``"min"``, ``"median"``, or ``"mean"``. ``None``
-        (default) reads
-        ``model.adapter.params.kcat_aggregate_candidates`` if an adapter
-        is attached, falling back to ``"max"`` otherwise.
+        ``"max"`` (default), ``"min"``, ``"median"``, or ``"mean"``.
     overwrite
         ``True`` (default) overwrites unconditionally. ``False``
         only fills entries currently 0 or NaN. ``"if_higher"`` only
@@ -115,12 +102,6 @@ def apply_kcat_list(
         If ``kcat_list`` is missing the ``rxn_id``, ``kcat``, or
         ``source`` column.
     """
-    if criteria is None:
-        adapter = getattr(model, "adapter", None)
-        criteria = (
-            adapter.params.kcat_aggregate_candidates
-            if adapter is not None else "max"
-        )
     if criteria not in _CRITERIA:
         raise ValueError(
             f"criteria must be one of {_CRITERIA}; got {criteria!r}"
@@ -179,7 +160,7 @@ def apply_kcat_list(
             kcat_val, j = float(np.mean(kcats)), 0
         if criteria in ("max", "min"):
             kcat_val = float(kcats[j])
-        source_val = format_kcat_source(sources[j], wcs[j], origins[j])
+        source_val = _fuzzy_source(sources[j], wcs[j], origins[j])
         selected[str(rxn_id)] = (kcat_val, source_val)
 
     updated: list[str] = []
@@ -205,29 +186,3 @@ def _should_overwrite(
         return is_unset
     # "if_higher"
     return is_unset or new > current
-
-
-def select_kcat_value(
-    model: "EcModel",
-    kcat_list: pd.DataFrame,
-    *,
-    criteria: Optional[Literal["max", "min", "median", "mean"]] = None,
-    overwrite: _OverwriteMode = True,
-) -> list[str]:
-    """Deprecated alias for :func:`apply_kcat_list`.
-
-    Kept for backward compatibility with the original MATLAB name.
-    Will be removed in a future release; switch to
-    ``apply_kcat_list``.
-    """
-    import warnings
-
-    warnings.warn(
-        "select_kcat_value is deprecated; use apply_kcat_list instead. "
-        "The old name will be removed in a future release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return apply_kcat_list(
-        model, kcat_list, criteria=criteria, overwrite=overwrite,
-    )

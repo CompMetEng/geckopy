@@ -15,10 +15,10 @@ Different relaxation strategy from ``flexibilize_enz_concs``: this
 one is shadow-price-ordered (purely LP-driven, one solve per step)
 and often converges in fewer iterations when one or two enzymes
 dominate the infeasibility. The trade-off is that it fully
-unconstrains each picked enzyme with no tighten-back pass, so the
+unconstrains each selected enzyme with no tighten-back pass, so the
 result is looser (less proteomics-faithful) than
-``flexibilize_enz_concs``. See ``docs/relaxation_methods.md`` for
-the full comparison.
+``flexibilize_enz_concs``. The guide compares the methods:
+https://gecko-docs.readthedocs.io/en/latest/guide/relaxing-proteomics.html
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
-from ..solver_support import constraint_shadow_prices
+from raven_toolbox.utils.solver import constraint_shadow_prices
 
 if TYPE_CHECKING:
     from ..ec_model.ec_model import EcModel
@@ -63,6 +63,9 @@ def relax_proteomics_greedy(
 ) -> GreedyRelaxResult:
     """Greedy relaxation of proteomics constraints until growth >= minimal_growth.
 
+    An enzyme with a concentration of 0 in ``model.ec.concs`` is a candidate
+    like any other and is relaxed in the same way.
+
     Parameters
     ----------
     model
@@ -75,8 +78,10 @@ def relax_proteomics_greedy(
         Subset of uniprot IDs eligible for relaxation. ``None`` =
         all currently proteomics-constrained enzymes.
     max_iterations
-        Safety cap; raises ``RuntimeError`` if exceeded without
-        convergence.
+        Safety cap on the number of relaxations; raises ``RuntimeError``
+        when growth is still below ``minimal_growth`` after that many and
+        candidates remain. When no candidate is left, a warning is logged
+        and the result has ``converged=False``.
     default_upper_bound
         Value to restore on a relaxed usage reaction. Matches the
         default set by ``add_protein_usage_reactions``.
@@ -141,6 +146,17 @@ def relax_proteomics_greedy(
         ))
         growth = new_growth
 
+    if growth >= minimal_growth:
+        return GreedyRelaxResult(
+            relaxed=relaxed, trace=trace,
+            final_growth=float(growth), converged=True,
+        )
+    if not candidates:
+        logger.warning("No more candidates to relax; stopping")
+        return GreedyRelaxResult(
+            relaxed=relaxed, trace=trace,
+            final_growth=float(growth), converged=False,
+        )
     raise RuntimeError(
         f"Did not converge in {max_iterations} iterations "
         f"(final growth {growth:.4g} < target {minimal_growth:.4g})"

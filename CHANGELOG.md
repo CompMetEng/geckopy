@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 4.0.0b3 — 2026-11-23
+
+Changes since 4.0.0b2. geckopy 4.0.0b3 requires raven-toolbox 3.0.0b3.
 
 * The experimental data (`load_experiment_data`, `ExperimentData`, `FluxData`, `load_flux_data`), the simulation of a condition (`simulate_conditions`) and its distance to the measurements (`experiment_distance`, `compute_carbon_weights`) are in `raven_toolbox.experiments`; geckopy imports them and `geckopy.databases` still exports `FluxData` and `load_flux_data`. `load_experiment_data` takes the data folder instead of the adapter. The evotune functions take `experiment_data` (was `evotune_data`) and `max_growth` (was `max_grate`), `FluxData.weight` is the per-condition weight (was `evotune_rmse_weight`) and the file column is `weight` (was `evotuneRMSEweight`, which now raises an error naming the new column). The files are `fluxData.tsv`, `maxGrowth.tsv` and `zeroFlux.tsv` (were `evotuneFluxData.tsv`, `evotuneMaxGrowth.tsv` and `evotuneZeroExch.tsv`); in the tutorial `fluxData.tsv` holds the condition of the protein step as its first row, with weight 0.
 * The scoring of the evotune functions (`screen_kcat_leverage`, `cmaes_kcat_tuning`, `tune_prior_penalty_weight`) maximises the biomass reaction `bio_rxn` of the adapter, whatever objective the model has, and leaves the objective of the model as it was. The model objective does not need to be growth, and `simulate_conditions` issues no objective warning during tuning. GECKO's `evotuneScore` does the same.

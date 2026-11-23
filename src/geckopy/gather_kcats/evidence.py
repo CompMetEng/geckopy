@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Iterable, NamedTuple, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from .ec_tree import ECTree
 from .kcat_source_format import parse_kcat_source
 from .kcat_sources import OKP_METHODS, ec_rxn_keys, load_kcat_source, okp_file
 
@@ -162,7 +161,7 @@ def kcat_evidence(
         ``tuned`` selects every isozyme row of the reaction, as ``tuned``
         names the reactions of a light ecModel by their conventional name.
     """
-    from .kcats_from import _adapter, _measurements
+    from .kcats_from import _adapter
 
     compute = _as_list(compute)
     unknown = sorted(set(compute) - {"ec_tree"})

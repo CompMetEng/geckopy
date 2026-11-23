@@ -13,12 +13,7 @@ import pytest
 from geckopy import ModelAdapter, make_ec_model
 from geckopy.ec_model.pipeline import apply_kcat_constraints
 from geckopy.limit_proteins import constrain_enz_concs, relax_proteomics_greedy
-from raven_toolbox.utils.solver import (
-    constraint_shadow_prices,
-    edit_on_fast_solver,
-    repair_scipy_problem,
-    switch_to_scipy,
-)
+from raven_toolbox.utils.solver import constraint_shadow_prices
 from geckopy.utilities import ec_fva, get_enzyme_bottlenecks, get_subset_ec_model
 
 EXAMPLE_DIR = Path(__file__).parents[1] / "examples" / "ecTestGEM"
